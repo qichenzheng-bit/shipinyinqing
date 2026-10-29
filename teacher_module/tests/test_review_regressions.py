@@ -110,6 +110,7 @@ def test_knowledge_must_precede_first_relevant_derivation(understanding, plan):
 
 
 def test_source_step_requires_exact_quote_from_reference(source, understanding):
+    understanding.solution_steps[0].source_quotes = {}
     c = Collector()
     check_understanding(source.with_sources(), understanding, c)
     assert "SOURCE_QUOTE_REQUIRED" in _codes(c)
