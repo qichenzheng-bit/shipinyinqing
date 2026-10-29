@@ -71,6 +71,7 @@ def test_derived_step_requires_review(source, understanding, plan, draft):
 
 def test_math_check_verified_polynomial_identity(source, understanding, plan, draft):
     understanding,plan,draft=_add_derived_step(understanding,plan,draft)
+    understanding.solution_steps[-1].relation_type = "equals"
     understanding.solution_steps[-1].input_expressions = ["sin(x)**2-x**2"]
     understanding.solution_steps[-1].output_expressions = ["(sin(x)-x)*(sin(x)+x)"]
     understanding.check_requests=[MathCheckRequest(check_id="c1",step_id="s2",kind="algebraic_identity",
