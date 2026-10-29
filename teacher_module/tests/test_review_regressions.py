@@ -29,6 +29,7 @@ def test_check_matching_step_expressions_can_verify_polynomial(source, understan
     step = understanding.solution_steps[0].model_copy(deep=True)
     step.step_id = "s2"
     step.origin = "derived"
+    step.relation_type = "equals"
     step.depends_on = ["s1"]
     step.input_expressions = ["x**2-1"]
     step.output_expressions = ["(x-1)*(x+1)"]
