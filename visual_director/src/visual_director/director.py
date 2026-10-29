@@ -100,6 +100,11 @@ def _validate(p: dict, opts: DirectorOptions):
         raise DirectorError(f"MALFORMED_TEACHER_PACKAGE: {exc}") from exc
     if not source.get("problem","").strip():
         raise DirectorError("EMPTY_QUESTION")
+    # TeachingPackage.input_sha256 hashes TeacherInput.model_dump_json().
+    # Reject a mutated source instead of preserving an obsolete provenance ID.
+    source_digest = hashlib.sha256(json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
+    if p.get("input_sha256") != source_digest:
+        raise DirectorError("SOURCE_HASH_MISMATCH: teacher source has changed since its package was built")
     if set(event_map) != set(teacher_events):
         raise DirectorError("EVENT_MISMATCH: planning and lesson events differ")
     if [e["event_id"] for e in events] != [e["event_id"] for e in plan["teaching_events"]]:
@@ -154,7 +159,13 @@ def _validate(p: dict, opts: DirectorOptions):
             raise DirectorError("CAPTION_MISMATCH: caption text/math differs from speech semantic source")
         if any(kind not in ("text","math") or not isinstance(value,str) for kind,value in actual):
             raise DirectorError("INVALID_CAPTION_PART")
-    if set(c["speech_unit_id"] for c in p["subtitles"])!=set(speech_units):
+    caption_speech_ids = [c["speech_unit_id"] for c in p["subtitles"]]
+    if len(caption_speech_ids) != len(set(caption_speech_ids)):
+        raise DirectorError("CAPTION_DUPLICATE_SPEECH: one subtitle per speech unit")
+    expected_speech_ids = [uid for e in events for uid in e["speech_unit_ids"]]
+    if caption_speech_ids != expected_speech_ids:
+        raise DirectorError("CAPTION_ORDER: subtitle sequence must follow speech units")
+    if set(caption_speech_ids)!=set(speech_units):
         raise DirectorError("CAPTION_COVERAGE: not all speech units are subtitled")
     return source,events,teacher_events,actions,math_objects,speech_units
 
@@ -186,14 +197,24 @@ def build_storyboard(package: dict[str,Any], options: DirectorOptions | None=Non
         # scene, they are archived without discarding mathematical provenance.
         math_text=[objects[a["math_object_id"]]["latex"] for a in board_actions]
         layout=_layout(event_type,math_text,eid in diagram_hints)
+        planned_actions=[]
+        def state_action(mid: str, kind: str, reason: str) -> BoardVisualAction:
+            speech_ids = event["speech_unit_ids"]
+            if not speech_ids:
+                raise DirectorError("SPEECH_REFERENCE: automatic board-state changes require an event speech anchor")
+            return BoardVisualAction(
+                action_id=f"auto:{kind}:{eid}:{mid}", event_id=eid, object_id=mid,
+                latex=objects[mid]["latex"], kind=kind, source_action="automatic_state_change",
+                speech_unit_id=speech_ids[0], reason=reason,
+                source_step_ids=objects[mid]["source_step_ids"])
         if layout != "split_scratch":
             for mid in list(visible):
                 if placement.get(mid)=="scratch" and mid not in current_refs:
                     visible.remove(mid)
                     if mid not in archived: archived.append(mid)
                     placement.pop(mid,None)
+                    planned_actions.append(state_action(mid, "archive", "leaving scratch area"))
         regions=_regions(header,layout)
-        planned_actions=[]
         for action in board_actions:
             obj=objects[action["math_object_id"]]
             mid=obj["math_object_id"]
@@ -225,8 +246,12 @@ def build_storyboard(package: dict[str,Any], options: DirectorOptions | None=Non
                 if mid in visible: visible.remove(mid)
                 if mid in archived: archived.remove(mid)
             elif op in ("retain","group"):
-                if mid in archived: archived.remove(mid)
-                if mid not in visible: visible.append(mid)
+                if mid in archived and op == "retain":
+                    archived.remove(mid)
+                    visible.append(mid)
+                    visual_op = "restore"
+                elif mid not in visible:
+                    raise DirectorError(f"UNSEEN_OBJECT_ACTION: {op} may only use a visible object; restore archived objects explicitly")
                 placement[mid] = "scratch" if layout=="split_scratch" else "board"
             elif op=="highlight" and visual_op=="brief_highlight" and (event_type == "read_question" or obj["latex"].strip() in source["problem"]):
                 # Header already pinned on screen.
@@ -248,6 +273,7 @@ def build_storyboard(package: dict[str,Any], options: DirectorOptions | None=Non
             old=visible.pop(0)
             if old not in archived: archived.append(old)
             placement.pop(old,None)
+            planned_actions.append(state_action(old, "archive", "board capacity exceeded"))
             scroll=True
         scenes.append(ScenePlan(
             event_id=eid,event_type=event_type,layout=layout,regions=regions,
