@@ -15,6 +15,54 @@ OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast
 FUNCTIONS = {"sin": sin, "cos": cos, "exp": exp, "log": log, "sqrt": sqrt}
 
 
+def _validate_power_budget(root: ast.AST) -> None:
+    """Bound *estimated* integer bits / symbolic degree before evaluating AST.
+
+    Limiting each exponent to eight does not bound a tower of nested
+    powers. Estimate costs on syntax first, without constructing integers.
+    These conservative limits apply only to the small identity checker.
+    """
+    MAX_INTEGER_BITS = 4096
+    MAX_SYMBOLIC_DEGREE = 128
+
+    def estimate(node: ast.AST) -> tuple[int, int]:
+        if isinstance(node, ast.Expression):
+            return estimate(node.body)
+        if isinstance(node, ast.Constant) and type(node.value) is int:
+            return max(1, abs(node.value).bit_length()), 0
+        if isinstance(node, ast.Name):
+            return 0, 1
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+            return estimate(node.operand)
+        if isinstance(node, ast.BinOp):
+            if isinstance(node.op, ast.Pow):
+                if (not isinstance(node.right, ast.Constant)
+                        or type(node.right.value) is not int
+                        or not 0 <= node.right.value <= 8):
+                    raise ValueError("unsupported power exponent")
+                bits, degree = estimate(node.left)
+                exponent = node.right.value
+                budget = (bits * exponent, degree * exponent)
+            else:
+                left_bits, left_degree = estimate(node.left)
+                right_bits, right_degree = estimate(node.right)
+                if isinstance(node.op, ast.Mult):
+                    budget = (left_bits + right_bits, left_degree + right_degree)
+                elif isinstance(node.op, (ast.Add, ast.Sub)):
+                    budget = (max(left_bits, right_bits) + 1, max(left_degree, right_degree))
+                else:
+                    raise ValueError("unsupported operator")
+            if budget[0] > MAX_INTEGER_BITS or budget[1] > MAX_SYMBOLIC_DEGREE:
+                raise ValueError("power complexity budget exceeded")
+            return budget
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in FUNCTIONS and len(node.args) == 1 and not node.keywords):
+            return estimate(node.args[0])
+        raise ValueError("unsupported expression syntax")
+
+    estimate(root)
+
+
 def _safe_sympy(expr: str):
     if len(expr) > 240:
         raise ValueError("expression too long")
@@ -22,6 +70,7 @@ def _safe_sympy(expr: str):
     nodes = list(ast.walk(root))
     if len(nodes) > 75:
         raise ValueError("expression too complex")
+    _validate_power_budget(root)
 
     def visit(node):
         if isinstance(node, ast.Expression):
