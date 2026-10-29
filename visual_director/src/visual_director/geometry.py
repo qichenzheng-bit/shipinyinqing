@@ -19,11 +19,33 @@ def _distance_to_segment(x: float, y: float, a: tuple[float, float], b: tuple[fl
     return math.hypot(x-a[0]-t*vx, y-a[1]-t*vy)
 
 
-def _rectangle_segments(rect, samples):
+def _segment_intersects_rect(a, b, rect, margin=.018):
+    """Exact line-segment / expanded axis-aligned rectangle intersection.
+
+    Nine sample points leave gaps inside wide MathTex labels. The clipping
+    interval tests the full mathematical segment instead of sampled distances.
+    """
     x, y, w, h = rect
-    # 9 interior sample points approximate proximity to lines without saying
-    # anything about mathematical point/line intersections themselves.
-    return [(x+u*w, y+v*h) for u in (0, .5, 1) for v in (0, .5, 1)]
+    xmin, xmax = x - margin, x + w + margin
+    ymin, ymax = y - margin, y + h + margin
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    lower, upper = 0.0, 1.0
+    for direction, distance in (
+        (-dx, a[0] - xmin), (dx, xmax - a[0]),
+        (-dy, a[1] - ymin), (dy, ymax - a[1]),
+    ):
+        if direction == 0:
+            if distance < 0:
+                return False
+            continue
+        ratio = distance / direction
+        if direction < 0:
+            lower = max(lower, ratio)
+        else:
+            upper = min(upper, ratio)
+        if lower > upper:
+            return False
+    return True
 
 
 def place_diagram(spec: DiagramSpec) -> DiagramPlacement:
@@ -64,7 +86,7 @@ def place_diagram(spec: DiagramSpec) -> DiagramPlacement:
                 continue
             if any(not(x+ww+.015<=p.x or p.x+p.w+.015<=x or y+hh+.015<=p.y or p.y+p.h+.015<=y) for p in placed):
                 continue
-            if any(_distance_to_segment(cx,cy,a,b)<.018 for a,b in segments for cx,cy in _rectangle_segments(rect, None)):
+            if any(_segment_intersects_rect(a, b, rect) for a, b in segments):
                 continue
             chosen=LabelPlacement(point_id=pt.id,text_latex=pt.label,x=x,y=y,w=ww,h=hh)
             break
