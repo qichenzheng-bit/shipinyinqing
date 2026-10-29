@@ -63,6 +63,8 @@ def check_understanding(source: TeacherInput, a: Understanding, c: Collector) ->
             c.add(stage, "SOURCE_KIND", f"{x.source_id} is not a solution segment")
     visited = set()
     covered_solutions: set[str] = set()
+    solution_positions = {x.source_id: i for i, x in enumerate(source.solution_segments)}
+    previous_source_position = -1
     for x in a.solution_steps:
         if not x.source_refs:
             c.add(stage, "MISSING_SOURCE", f"{x.step_id}: empty source_refs")
@@ -73,6 +75,17 @@ def check_understanding(source: TeacherInput, a: Understanding, c: Collector) ->
                 covered_solutions.add(ref)
         if x.origin == "source" and not any(known_sources.get(ref) == "solution" for ref in x.source_refs):
             c.add(stage, "STEP_WITHOUT_SOLUTION_SOURCE", x.step_id)
+        if x.origin == "source":
+            positions = [solution_positions[ref] for ref in x.source_refs if ref in solution_positions]
+            if positions:
+                if min(positions) < previous_source_position or positions != sorted(positions):
+                    c.add(stage, "SOURCE_STEP_ORDER", f"{x.step_id}: solution segment references are out of order")
+                previous_source_position = max(previous_source_position, max(positions))
+        if x.origin == "organizational" and x.relation_type in {
+            "equals", "asymptotic", "limit", "implies", "iff"
+        } and (x.input_expressions or x.output_expressions):
+            c.add(stage, "ORGANIZATIONAL_ASSERTION_REQUIRES_REVIEW",
+                  f"{x.step_id}: mathematical claims cannot bypass derived-step verification", "review")
         if x.origin != "source" and not x.justification.strip():
             c.add(stage, "UNJUSTIFIED_ADDITION", x.step_id)
         if x.origin == "organizational" and not x.operation.strip():
@@ -91,19 +104,32 @@ def check_understanding(source: TeacherInput, a: Understanding, c: Collector) ->
 
     c.unique([x.check_id for x in a.check_requests], stage, "DUPLICATE_CHECK_ID")
     verifications = []
+    bound_verified_step_ids: set[str] = set()
     for req in a.check_requests:
         if req.step_id not in steps:
             c.add(stage, "CHECK_UNKNOWN_STEP", req.step_id)
             continue
         result = verify_math_check(req)
         verifications.append(result)
+        step = steps[req.step_id]
+        # An unrelated identity may be true but cannot certify this step.
+        inputs = {_math_key(expr) for expr in step.input_expressions}
+        outputs = {_math_key(expr) for expr in step.output_expressions}
+        lhs, rhs = _math_key(req.lhs_expr), _math_key(req.rhs_expr)
+        bound = (lhs in inputs and rhs in outputs) or (rhs in inputs and lhs in outputs)
+        if not bound:
+            c.add(stage, "MATH_CHECK_UNBOUND", f"{req.check_id}: expressions do not match {req.step_id}", "review")
+        if req.conditions:
+            c.add(stage, "MATH_CHECK_CONDITIONS_UNVERIFIED",
+                  f"{req.check_id}: conditional identity needs separate verification", "review")
+        if result.status == "verified" and bound and not req.conditions:
+            bound_verified_step_ids.add(req.step_id)
         if result.status == "failed":
             c.add(stage, "MATH_CHECK_FAILED", f"{req.step_id}: {result.explanation}")
         if result.status == "undetermined":
             c.add(stage, "MATH_UNDETERMINED", f"{req.step_id}: {result.explanation}", "review")
-    verified_step_ids = {v.step_id for v in verifications if v.status == "verified"}
     for step in a.solution_steps:
-        if step.origin == "derived" and step.step_id not in verified_step_ids:
+        if step.origin == "derived" and step.step_id not in bound_verified_step_ids:
             c.add(stage, "ADDED_STEP_REQUIRES_REVIEW", step.step_id, "review")
     for issue in a.issues:
         for ref in issue.source_refs:
@@ -163,7 +189,7 @@ def check_plan(a: Understanding, b: TeachingPlan, c: Collector) -> None:
         ki = [i for i, e in enumerate(b.teaching_events) if e.event_type == "knowledge" and kid in e.knowledge_binding_ids]
         ai = [i for i, e in enumerate(b.teaching_events) if e.event_type == "application" and kid in e.knowledge_binding_ids]
         ri = [i for i, e in enumerate(b.teaching_events) if e.event_type in ("derivation", "proof", "branch", "subgoal") and binding.return_to_step_id in e.source_step_ids]
-        if not ki or not ai or not ri or not min(ki) < min(ai) < max(ri):
+        if not ki or not ai or not ri or not min(ki) < min(ai) < min(ri):
             c.add(stage, "INVALID_KNOWLEDGE_SEQUENCE", f"{kid}: need knowledge -> application -> reference derivation/proof")
     for request in b.supplement_requests:
         if any(s not in steps for s in request.source_step_ids):
@@ -198,9 +224,17 @@ def check_lesson(a: Understanding, b: TeachingPlan, d: LessonDraft, c: Collector
         c.add(stage, "EVENT_ORDER_MISMATCH", "C must preserve teaching plan event order and IDs")
     plan_steps = set(s for x in b.teaching_events for s in x.source_step_ids)
     for obj in d.math_objects:
-        if not obj.latex.strip() or any(s not in plan_steps for s in obj.source_step_ids):
+        if not obj.latex.strip() or not obj.source_step_ids or any(s not in plan_steps for s in obj.source_step_ids):
             c.add(stage, "INVALID_MATH_OBJECT", obj.math_object_id)
+    expected_speech_order = [uid for e in d.lesson_events for uid in e.speech_unit_ids]
+    actual_speech_order = [u.speech_unit_id for u in d.speech_units]
+    if expected_speech_order != actual_speech_order:
+        c.add(stage, "SPEECH_ORDER_MISMATCH", "Speech units must follow event and per-event order")
     for e in d.lesson_events:
+        for category, ids in (("speech", e.speech_unit_ids), ("board", e.board_action_ids),
+                              ("animation", e.animation_intent_ids)):
+            if len(ids) != len(set(ids)):
+                c.add(stage, "DUPLICATE_EVENT_MEMBER", f"{e.event_id}: duplicate {category} membership")
         p = plan.get(e.event_id)
         if p is None:
             c.add(stage, "UNKNOWN_LESSON_EVENT", e.event_id)
@@ -234,6 +268,9 @@ def check_lesson(a: Understanding, b: TeachingPlan, d: LessonDraft, c: Collector
         obj = objects.get(ba.math_object_id)
         planned = plan.get(ba.event_id)
         if obj is not None and planned is not None and ba.action in ("write", "transform", "substitute", "group"):
+            if not obj.source_step_ids or not set(obj.source_step_ids) <= set(planned.source_step_ids):
+                c.add(stage, "BOARD_STEP_CONTEXT_MISMATCH",
+                      f"{ba.board_action_id}: board content must cite current event source steps")
             # Newly introduced formulae need an independent math anchor: the
             # current speech, a reference step, or a bound knowledge item.
             # A free-form board description alone is not independent evidence.
