@@ -4,7 +4,7 @@
 
 1. 根据原参考解析的结构、逻辑和详略组织 `teaching_events`；第一事件 `read_question` 完整朗读有效题干，不朗读题号/分值等非题干信息。
 2. 需要思维引导时，解释参考解析为什么采取这个数学操作，并给出同步板书意图；避免长时间只说不写、也不要写无用内容。
-3. 检测必要知识点。首次关键使用时生成 `KnowledgeBinding`（公式/定理/定义/方法及适用条件），按 `knowledge` -> `application` -> 对应 `derivation`/`proof`/`branch`/`subgoal` 的顺序组织；每个知识点必须指定实际来源步骤、变量/对象对应以及返回步骤，避免冗余重复。
+3. 检测必要知识点。首次关键使用时生成 `KnowledgeBinding`（公式/定理/定义/方法及适用条件），按 `knowledge` -> `application` -> 对应 `derivation`/`proof`/`branch`/`subgoal` 的顺序组织；每个知识点必须指定实际来源步骤、非空 `applicability_conditions`（无附加条件时也须明确说明）、非空 `application_mapping`（至少有一个具体的本题变量、对象或条件对应）以及返回步骤，不能用空白占位，避免冗余重复。
 4. 证明题保留假设、引理与结论依赖；分类题保留每个必要分支；多小问保持相互依赖；计算题在适合时可以连等或引入子目标，不强制套模板。
 5. 以 `reference_step_coverage` 标明每个原步骤被哪些事件覆盖；每个引用的步骤和知识点必须实际存在。事件中 `intended_board_content` 只写当前应显示的数学内容，不能提前披露未来推导。
 6. 如认为必须加入新数学步骤，用 `supplement_requests` 提交到数学理解与验证阶段，**不要直接作为已确认的教学事实**。发现歧义写入 `planning_issues`。
