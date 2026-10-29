@@ -38,6 +38,9 @@ class MathStep(StrictModel):
     step_id: str
     origin: Literal["source", "derived", "organizational"]
     source_refs: list[str]
+    # Literal quotations from each referenced solution segment; source steps
+    # use them to validate within-segment order, not just segment ID order.
+    source_quotes: dict[str, str] = Field(default_factory=dict)
     step_role: str
     input_expressions: list[str]
     output_expressions: list[str]
