@@ -1,6 +1,5 @@
 """Deterministic provenance, reference, sequencing and integrity verification."""
 from __future__ import annotations
-from collections import Counter
 from .models import (
     TeacherInput, Understanding, TeachingPlan, LessonDraft, SubtitleCandidate,
     ValidationIssue, ValidationReport, MathVerification,
@@ -18,6 +17,34 @@ class Collector:
     def unique(self, ids: list[str], stage: str, code: str):
         if any(not i.strip() for i in ids) or len(set(ids)) != len(ids):
             self.add(stage, code, "IDs must be unique and nonblank")
+
+
+def check_input_sources(source: TeacherInput, c: Collector) -> None:
+    """Ensure segmented transcriptions exactly cover original text, in order.
+
+    Boundary whitespace is permitted; mathematical tokens, punctuation and
+    internal spaces must be preserved. This is source-integrity checking, not
+    a claim that model-extracted mathematical statements are semantically true.
+    """
+    for kind, original, segments in (
+        ("problem", source.problem, source.problem_segments),
+        ("solution", source.reference_solution, source.solution_segments),
+    ):
+        cursor = 0
+        for segment in segments:
+            if segment.kind != kind:
+                c.add("input", "SOURCE_KIND", f"{segment.source_id}: expected {kind}")
+            if not segment.text.strip():
+                c.add("input", "SOURCE_TEXT_MISMATCH", f"{segment.source_id}: empty source segment")
+                break
+            start = original.find(segment.text, cursor)
+            if start == -1 or original[cursor:start].strip():
+                c.add("input", "SOURCE_TEXT_MISMATCH", f"{segment.source_id}: source text differs from the original {kind}")
+                break
+            cursor = start + len(segment.text)
+        else:
+            if original[cursor:].strip():
+                c.add("input", "SOURCE_TEXT_MISMATCH", f"{kind}: source segments omit trailing original content")
 
 
 def check_understanding(source: TeacherInput, a: Understanding, c: Collector) -> list[MathVerification]:
@@ -107,8 +134,12 @@ def check_plan(a: Understanding, b: TeachingPlan, c: Collector) -> None:
         for sid in item.source_step_ids:
             if sid not in steps:
                 c.add(stage, "KNOWLEDGE_UNKNOWN_STEP", f"{item.knowledge_id}: {sid}")
-        if not item.teaching_reason or not item.formula_or_theorem:
+        if not item.teaching_reason.strip() or not item.formula_or_theorem.strip():
             c.add(stage, "EMPTY_KNOWLEDGE", item.knowledge_id)
+        if not item.applicability_conditions or any(not cond.strip() for cond in item.applicability_conditions):
+            c.add(stage, "KNOWLEDGE_MISSING_CONDITIONS", f"{item.knowledge_id}: explicitly state conditions, or that no extra conditions apply")
+        if not item.application_mapping or any(not key.strip() or not value.strip() for key, value in item.application_mapping.items()):
+            c.add(stage, "KNOWLEDGE_MISSING_APPLICATION", f"{item.knowledge_id}: map the knowledge to actual problem objects or conditions")
     coverage = {step: [] for step in steps}
     for event in b.teaching_events:
         for sid in event.source_step_ids:
@@ -142,9 +173,19 @@ def check_plan(a: Understanding, b: TeachingPlan, c: Collector) -> None:
         c.add(stage, "PLANNING_ISSUE", issue, "review")
 
 
-def check_lesson(b: TeachingPlan, d: LessonDraft, c: Collector) -> list[SubtitleCandidate]:
+def _math_key(expr: str) -> str:
+    """Conservative comparison of *notation*, not a mathematical identity proof."""
+    text = expr.strip()
+    if text.startswith("$") and text.endswith("$"):
+        text = text[1:-1]
+    return "".join(text.split())
+
+
+def check_lesson(a: Understanding, b: TeachingPlan, d: LessonDraft, c: Collector) -> list[SubtitleCandidate]:
     stage = "C"
     plan = {x.event_id: x for x in b.teaching_events}
+    steps = {x.step_id: x for x in a.solution_steps}
+    bindings = {x.knowledge_id: x for x in b.knowledge_bindings}
     actual_events = {x.event_id: x for x in d.lesson_events}
     units = {x.speech_unit_id: x for x in d.speech_units}
     boards = {x.board_action_id: x for x in d.board_actions}
@@ -190,6 +231,27 @@ def check_lesson(b: TeachingPlan, d: LessonDraft, c: Collector) -> list[Subtitle
             c.add(stage, "BOARD_UNKNOWN_OBJECT", ba.board_action_id)
         if not ba.semantic_reason.strip():
             c.add(stage, "DECORATIVE_BOARD", ba.board_action_id)
+        obj = objects.get(ba.math_object_id)
+        planned = plan.get(ba.event_id)
+        if obj is not None and planned is not None and ba.action in ("write", "transform", "substitute", "group"):
+            # Newly introduced formulae need an independent math anchor: the
+            # current speech, a reference step, or a bound knowledge item.
+            # A free-form board description alone is not independent evidence.
+            anchors: set[str] = set()
+            unit = units.get(ba.speech_unit_id)
+            if unit is not None and unit.event_id == ba.event_id:
+                anchors.update(_math_key(part.value) for part in unit.parts if part.kind == "math")
+            for sid in planned.source_step_ids:
+                step = steps.get(sid)
+                if step is not None:
+                    anchors.update(_math_key(expr) for expr in step.input_expressions + step.output_expressions)
+            for kid in planned.knowledge_binding_ids:
+                binding = bindings.get(kid)
+                if binding is not None:
+                    anchors.add(_math_key(binding.formula_or_theorem))
+                    anchors.update(_math_key(v) for v in binding.application_mapping.values())
+            if _math_key(obj.latex) not in anchors:
+                c.add(stage, "BOARD_UNRELATED_TO_CONTEXT", f"{ba.board_action_id}: board formula {obj.math_object_id} has no matching speech, reference-step or knowledge anchor")
     for a in d.animation_intents:
         if a.event_id not in actual_events or a.animation_id not in actual_events[a.event_id].animation_intent_ids:
             c.add(stage, "ORPHAN_ANIMATION", a.animation_id)
