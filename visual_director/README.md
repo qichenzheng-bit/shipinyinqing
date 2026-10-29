@@ -47,3 +47,10 @@ visual-director schema --output output/storyboard.schema.json
 ## 不开发的范围
 
 真实 AI 集成、教师推理与参考解法修改、语音/朗读、字幕实际时间轴、Manim 动画代码、视频渲染、前后端、V2 兼容代码。
+## V1.0 审查修复（2026-10-29）
+
+- 验证 `TeachingPackage.input_sha256` 与原始来源数据的一致性；`StoryboardPlan.source_package_sha256` 另记录完整教学包的确定性指纹，防止仅修改板书而缓存仍误用同一来源版本。
+- `retain` / `group` 不再把未写出的对象直接变成可见；历史对象的恢复产生显式 `restore` 动作，容量滚动和临时草稿退场产生 `archive` 动作。
+- 字幕要求每个语音单元恰好对应一条字幕候选且顺序一致；仍不添加伪造的音频秒数。
+- 几何标签避让使用完整线段与矩形碰撞判断，替代可能漏检的九点抽样。
+- 真实 MathTex 字形包围盒与像素级碰撞只能在未来的 Manim/布局模块验证；当前离线分镜不会虚构已完成该项验收。
