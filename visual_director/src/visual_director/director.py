@@ -226,11 +226,19 @@ def build_storyboard(package: dict[str,Any], options: DirectorOptions | None=Non
                 source_step_ids=objects[mid]["source_step_ids"])
         if layout != "split_scratch":
             for mid in list(visible):
-                if placement.get(mid)=="scratch" and mid not in current_refs:
+                if placement.get(mid) != "scratch":
+                    continue
+                if mid not in current_refs:
                     visible.remove(mid)
                     if mid not in archived: archived.append(mid)
-                    placement.pop(mid,None)
+                    placement.pop(mid, None)
                     planned_actions.append(state_action(mid, "archive", "leaving scratch area"))
+                else:
+                    # The scratch region disappears with this layout. A formula
+                    # referenced by the current scene is retained on the board
+                    # instead of keeping an invalid, off-screen region ID.
+                    placement[mid] = "board"
+                    planned_actions.append(state_action(mid, "retain", "move active scratch formula to board"))
         regions=_regions(header,layout)
         for action in board_actions:
             obj=objects[action["math_object_id"]]
@@ -297,6 +305,8 @@ def build_storyboard(package: dict[str,Any], options: DirectorOptions | None=Non
             placement.pop(old,None)
             planned_actions.append(state_action(old, "archive", "board capacity exceeded"))
             scroll=True
+        if any(placement.get(mid) not in regions for mid in visible):
+            raise DirectorError(f"REGION_REFERENCE: visible object references a missing region in {eid}")
         scenes.append(ScenePlan(
             event_id=eid,event_type=event_type,layout=layout,regions=regions,
             actions=planned_actions,visible_ids=list(visible),archived_ids=list(archived),
