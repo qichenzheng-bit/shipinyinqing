@@ -68,11 +68,15 @@ class MathTeacherPipeline:
         subtitles = check_lesson(a, b, d, collector, source=source)
         report = compile_report(collector, checks)
         self._gate("C", collector, checks, allow_needs_review)
-        return TeachingPackage(
+        package = TeachingPackage(
             schema_version="1.0", input_sha256=digest,
             prompt_versions={"global": PROMPT_VERSION, "A": PROMPT_VERSION, "B": PROMPT_VERSION, "C": PROMPT_VERSION},
             source=source, understanding=a, plan=b, lesson=d, subtitles=subtitles, validation=report,
         )
+        frozen = package.model_dump(mode="json", exclude={"validated_content_sha256"})
+        seal = hashlib.sha256(json.dumps(frozen, sort_keys=True, ensure_ascii=False,
+            separators=(",", ":")).encode("utf-8")).hexdigest()
+        return package.model_copy(update={"validated_content_sha256": seal})
 
     @staticmethod
     def _gate(stage: str, collector: Collector, checks, allow_needs_review: bool):
