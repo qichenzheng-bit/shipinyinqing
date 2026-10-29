@@ -293,8 +293,8 @@ def check_lesson(a: Understanding, b: TeachingPlan, d: LessonDraft, c: Collector
         spoken = " ".join(part.value for unit in read_units for part in unit.parts)
         question = source.problem
         import re
-        question_commands = set(re.findall(r"\\\\[A-Za-z]+", question))
-        spoken_commands = set(re.findall(r"\\\\[A-Za-z]+", spoken))
+        question_commands = set(re.findall(r"\\[A-Za-z]+", question))
+        spoken_commands = set(re.findall(r"\\[A-Za-z]+", spoken))
         meaningful_math = bool(question_commands & spoken_commands)
         meaningful_text = any(token in spoken for token in ("题目", "求", "已知", "条件", "证明", "设"))
         if not meaningful_math and not meaningful_text:
