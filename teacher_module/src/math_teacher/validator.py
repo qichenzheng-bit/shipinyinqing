@@ -64,7 +64,9 @@ def check_understanding(source: TeacherInput, a: Understanding, c: Collector) ->
     visited = set()
     covered_solutions: set[str] = set()
     solution_positions = {x.source_id: i for i, x in enumerate(source.solution_segments)}
+    solution_texts = {x.source_id: x.text for x in source.solution_segments}
     previous_source_position = -1
+    previous_quote_position = (-1, -1)
     for x in a.solution_steps:
         if not x.source_refs:
             c.add(stage, "MISSING_SOURCE", f"{x.step_id}: empty source_refs")
@@ -81,6 +83,27 @@ def check_understanding(source: TeacherInput, a: Understanding, c: Collector) ->
                 if min(positions) < previous_source_position or positions != sorted(positions):
                     c.add(stage, "SOURCE_STEP_ORDER", f"{x.step_id}: solution segment references are out of order")
                 previous_source_position = max(previous_source_position, max(positions))
+            for ref in x.source_refs:
+                if ref not in solution_texts:
+                    continue
+                quote = x.source_quotes.get(ref, "")
+                if not quote.strip():
+                    c.add(stage, "SOURCE_QUOTE_REQUIRED",
+                          f"{x.step_id}: missing literal quotation for {ref}")
+                    continue
+                offset = solution_texts[ref].find(quote)
+                if offset < 0:
+                    c.add(stage, "SOURCE_QUOTE_MISMATCH",
+                          f"{x.step_id}: quotation does not occur in {ref}")
+                    continue
+                rank = (solution_positions[ref], offset)
+                if rank <= previous_quote_position:
+                    c.add(stage, "SOURCE_STEP_ORDER",
+                          f"{x.step_id}: quotation is not after the previous source step")
+                previous_quote_position = max(previous_quote_position, rank)
+            if set(x.source_quotes) - set(x.source_refs):
+                c.add(stage, "SOURCE_QUOTE_REFERENCE",
+                      f"{x.step_id}: quotation cites a segment not referenced by this step")
         if x.origin == "organizational" and x.relation_type in {
             "equals", "asymptotic", "limit", "implies", "iff"
         } and (x.input_expressions or x.output_expressions):
