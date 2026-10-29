@@ -48,7 +48,8 @@ class MathTeacherPipeline:
             raise PipelineValidationError("input", compile_report(collector, []))
         check_input_sources(source, collector)
         self._gate("input", collector, [], allow_needs_review)
-        digest = hashlib.sha256(source.model_dump_json().encode("utf-8")).hexdigest()
+        digest = hashlib.sha256(json.dumps(source.model_dump(mode="json"),
+            sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
         a = self._generate("A", "a_understanding.md", {"source": source.model_dump(mode="json")}, Understanding)
         checks = check_understanding(source, a, collector)
         self._gate("A", collector, checks, allow_needs_review)
@@ -64,7 +65,7 @@ class MathTeacherPipeline:
             "source": source.model_dump(mode="json"), "understanding": a.model_dump(mode="json"),
             "plan": b.model_dump(mode="json"),
         }, LessonDraft)
-        subtitles = check_lesson(a, b, d, collector)
+        subtitles = check_lesson(a, b, d, collector, source=source)
         report = compile_report(collector, checks)
         self._gate("C", collector, checks, allow_needs_review)
         return TeachingPackage(
