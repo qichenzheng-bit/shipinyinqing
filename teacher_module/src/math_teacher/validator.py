@@ -91,21 +91,26 @@ def check_understanding(source: TeacherInput, a: Understanding, c: Collector) ->
                     c.add(stage, "SOURCE_QUOTE_REQUIRED",
                           f"{x.step_id}: missing literal quotation for {ref}")
                     continue
-                offset = solution_texts[ref].find(quote)
-                if offset < 0:
+                text = solution_texts[ref]
+                first_offset = text.find(quote)
+                if first_offset < 0:
                     c.add(stage, "SOURCE_QUOTE_MISMATCH",
                           f"{x.step_id}: quotation does not occur in {ref}")
                     continue
-                rank = (solution_positions[ref], offset)
-                if rank <= previous_quote_position:
+                source_index = solution_positions[ref]
+                # Repeated literal phrases must use a later occurrence where one exists.
+                start = previous_quote_position[1] + 1 if previous_quote_position[0] == source_index else 0
+                offset = text.find(quote, start)
+                if offset < 0:
                     c.add(stage, "SOURCE_STEP_ORDER",
-                          f"{x.step_id}: quotation is not after the previous source step")
-                previous_quote_position = max(previous_quote_position, rank)
+                          f"{x.step_id}: no later occurrence of quotation in {ref}")
+                    continue
+                previous_quote_position = (source_index, offset)
             if set(x.source_quotes) - set(x.source_refs):
                 c.add(stage, "SOURCE_QUOTE_REFERENCE",
                       f"{x.step_id}: quotation cites a segment not referenced by this step")
         if x.origin == "organizational" and x.relation_type in {
-            "equals", "asymptotic", "limit", "implies", "iff"
+            "equals", "asymptotic", "limit", "implies", "iff", "other"
         } and (x.input_expressions or x.output_expressions):
             c.add(stage, "ORGANIZATIONAL_ASSERTION_REQUIRES_REVIEW",
                   f"{x.step_id}: mathematical claims cannot bypass derived-step verification", "review")
@@ -145,7 +150,7 @@ def check_understanding(source: TeacherInput, a: Understanding, c: Collector) ->
         if req.conditions:
             c.add(stage, "MATH_CHECK_CONDITIONS_UNVERIFIED",
                   f"{req.check_id}: conditional identity needs separate verification", "review")
-        if result.status == "verified" and bound and not req.conditions:
+        if result.status == "verified" and bound and not req.conditions and step.relation_type == "equals":
             bound_verified_step_ids.add(req.step_id)
         if result.status == "failed":
             c.add(stage, "MATH_CHECK_FAILED", f"{req.step_id}: {result.explanation}")
@@ -223,14 +228,20 @@ def check_plan(a: Understanding, b: TeachingPlan, c: Collector) -> None:
 
 
 def _math_key(expr: str) -> str:
-    """Conservative comparison of *notation*, not a mathematical identity proof."""
-    text = expr.strip()
-    if text.startswith("$") and text.endswith("$"):
-        text = text[1:-1]
-    return "".join(text.split())
+    """Small, deliberately bounded notation bridge; never asserts equivalence."""
+    import re
+    text = expr.strip().strip("$")
+    text = "".join(text.split())
+    # The verifier consumes Python-style arithmetic, while classroom MathTex
+    # uses ^ and often omits multiplication between adjacent parentheses.
+    text = re.sub(r"\^\{([0-8])\}", r"**\1", text)
+    text = re.sub(r"\^([0-8])", r"**\1", text)
+    text = text.replace(")(", ")*(")
+    return text
 
 
-def check_lesson(a: Understanding, b: TeachingPlan, d: LessonDraft, c: Collector) -> list[SubtitleCandidate]:
+def check_lesson(a: Understanding, b: TeachingPlan, d: LessonDraft, c: Collector,
+                 source: TeacherInput | None = None) -> list[SubtitleCandidate]:
     stage = "C"
     plan = {x.event_id: x for x in b.teaching_events}
     steps = {x.step_id: x for x in a.solution_steps}
@@ -274,6 +285,21 @@ def check_lesson(a: Understanding, b: TeachingPlan, d: LessonDraft, c: Collector
             c.add(stage, "SILENT_TEACHING_EVENT", e.event_id)
         if p.intended_board_content and not e.board_action_ids:
             c.add(stage, "MISSING_BOARD_FOR_PLAN", e.event_id)
+    # Full natural-language reading cannot be decided by token matching.
+    # A clearly unrelated opening is flagged only as a non-blocking warning.
+    if source is not None and d.lesson_events:
+        opening = d.lesson_events[0]
+        read_units = [units[uid] for uid in opening.speech_unit_ids if uid in units]
+        spoken = " ".join(part.value for unit in read_units for part in unit.parts)
+        question = source.problem
+        import re
+        question_commands = set(re.findall(r"\\\\[A-Za-z]+", question))
+        spoken_commands = set(re.findall(r"\\\\[A-Za-z]+", spoken))
+        meaningful_math = bool(question_commands & spoken_commands)
+        meaningful_text = any(token in spoken for token in ("题目", "求", "已知", "条件", "证明", "设"))
+        if not meaningful_math and not meaningful_text:
+            c.add(stage, "READ_QUESTION_ANCHOR_WEAK",
+                  "Opening speech has no clear question cue; confirm actual question coverage", "warning")
     for unit in d.speech_units:
         if unit.event_id not in actual_events or unit.speech_unit_id not in actual_events[unit.event_id].speech_unit_ids:
             c.add(stage, "ORPHAN_SPEECH", unit.speech_unit_id)
