@@ -8,7 +8,7 @@ from .models import (
     ValidationReport,
 )
 from .provider import JsonModel
-from .validator import Collector, check_understanding, check_plan, check_lesson, compile_report
+from .validator import Collector, check_input_sources, check_understanding, check_plan, check_lesson, compile_report
 
 PROMPT_VERSION = "1.0"
 
@@ -46,6 +46,8 @@ class MathTeacherPipeline:
         if len(set(src_ids)) != len(src_ids) or any(not s.strip() for s in src_ids):
             collector.add("input", "INVALID_SOURCE_IDS", "Source IDs must be unique and nonempty")
             raise PipelineValidationError("input", compile_report(collector, []))
+        check_input_sources(source, collector)
+        self._gate("input", collector, [], allow_needs_review)
         digest = hashlib.sha256(source.model_dump_json().encode("utf-8")).hexdigest()
         a = self._generate("A", "a_understanding.md", {"source": source.model_dump(mode="json")}, Understanding)
         checks = check_understanding(source, a, collector)
@@ -62,7 +64,7 @@ class MathTeacherPipeline:
             "source": source.model_dump(mode="json"), "understanding": a.model_dump(mode="json"),
             "plan": b.model_dump(mode="json"),
         }, LessonDraft)
-        subtitles = check_lesson(b, d, collector)
+        subtitles = check_lesson(a, b, d, collector)
         report = compile_report(collector, checks)
         self._gate("C", collector, checks, allow_needs_review)
         return TeachingPackage(
