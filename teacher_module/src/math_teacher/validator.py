@@ -320,24 +320,34 @@ def check_lesson(a: Understanding, b: TeachingPlan, d: LessonDraft, c: Collector
             if not obj.source_step_ids or not set(obj.source_step_ids) <= set(planned.source_step_ids):
                 c.add(stage, "BOARD_STEP_CONTEXT_MISMATCH",
                       f"{ba.board_action_id}: board content must cite current event source steps")
-            # Newly introduced formulae need an independent math anchor: the
-            # current speech, a reference step, or a bound knowledge item.
-            # A free-form board description alone is not independent evidence.
-            anchors: set[str] = set()
+            # Speech and board are generated together in stage C; they cannot
+            # independently certify one another's mathematics. Require a
+            # verified upstream step/knowledge anchor, or request review.
+            spoken_anchors: set[str] = set()
+            upstream_anchors: set[str] = set()
             unit = units.get(ba.speech_unit_id)
             if unit is not None and unit.event_id == ba.event_id:
-                anchors.update(_math_key(part.value) for part in unit.parts if part.kind == "math")
+                spoken_anchors.update(_math_key(part.value) for part in unit.parts if part.kind == "math")
             for sid in planned.source_step_ids:
                 step = steps.get(sid)
                 if step is not None:
-                    anchors.update(_math_key(expr) for expr in step.input_expressions + step.output_expressions)
+                    upstream_anchors.update(
+                        _math_key(expr) for expr in step.input_expressions + step.output_expressions
+                    )
             for kid in planned.knowledge_binding_ids:
                 binding = bindings.get(kid)
                 if binding is not None:
-                    anchors.add(_math_key(binding.formula_or_theorem))
-                    anchors.update(_math_key(v) for v in binding.application_mapping.values())
-            if _math_key(obj.latex) not in anchors:
-                c.add(stage, "BOARD_UNRELATED_TO_CONTEXT", f"{ba.board_action_id}: board formula {obj.math_object_id} has no matching speech, reference-step or knowledge anchor")
+                    upstream_anchors.add(_math_key(binding.formula_or_theorem))
+                    upstream_anchors.update(_math_key(v) for v in binding.application_mapping.values())
+            math_key = _math_key(obj.latex)
+            if math_key not in upstream_anchors:
+                if math_key in spoken_anchors:
+                    c.add(stage, "BOARD_SPEECH_ONLY_MATH",
+                          f"{ba.board_action_id}: spoken formula is not anchored in the validated teaching plan",
+                          "review")
+                else:
+                    c.add(stage, "BOARD_UNRELATED_TO_CONTEXT",
+                          f"{ba.board_action_id}: board formula has no speech, reference-step or knowledge anchor")
     for a in d.animation_intents:
         if a.event_id not in actual_events or a.animation_id not in actual_events[a.event_id].animation_intent_ids:
             c.add(stage, "ORPHAN_ANIMATION", a.animation_id)
