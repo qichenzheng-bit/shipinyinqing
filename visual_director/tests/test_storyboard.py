@@ -72,6 +72,13 @@ def test_math_captions_preserve_latex_and_separate_from_tts(teacher_package):
 
 def test_long_question_left_align_and_never_covered(teacher_package):
     teacher_package["source"]["problem"] = "条件：" + "当 x 趋于零时，" * 35 + "求极限。"
+    import hashlib
+    teacher_package["source"]["problem_segments"] = [{
+        "source_id": "problem:0", "text": teacher_package["source"]["problem"], "kind": "problem"
+    }]
+    teacher_package["input_sha256"] = hashlib.sha256(json.dumps(
+        teacher_package["source"], ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")).hexdigest()
     result = build_storyboard(teacher_package)
     assert result.header.align == "left"
     assert result.header.lines > 1
