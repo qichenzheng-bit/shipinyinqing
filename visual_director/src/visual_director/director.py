@@ -102,9 +102,24 @@ def _validate(p: dict, opts: DirectorOptions):
         raise DirectorError("EMPTY_QUESTION")
     # TeachingPackage.input_sha256 hashes TeacherInput.model_dump_json().
     # Reject a mutated source instead of preserving an obsolete provenance ID.
-    source_digest = hashlib.sha256(json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
-    if p.get("input_sha256") != source_digest:
+    # New teacher packages use sorted keys; tolerate the V1 example's
+    # original stable Pydantic field ordering until it is migrated.
+    def source_hash(value):
+        return hashlib.sha256(json.dumps(value, ensure_ascii=False,
+            separators=(",", ":")).encode("utf-8")).hexdigest()
+    canonical = hashlib.sha256(json.dumps(source, ensure_ascii=False,
+        sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    legacy_fields = ("problem", "reference_solution", "problem_segments", "solution_segments")
+    legacy = source_hash({name: source[name] for name in legacy_fields if name in source})
+    if p.get("input_sha256") not in (canonical, legacy):
         raise DirectorError("SOURCE_HASH_MISMATCH: teacher source has changed since its package was built")
+    seal = p.get("validated_content_sha256")
+    if seal is not None:
+        contents = {key: value for key, value in p.items() if key != "validated_content_sha256"}
+        actual = hashlib.sha256(json.dumps(contents, ensure_ascii=False,
+            sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        if seal != actual:
+            raise DirectorError("PACKAGE_HASH_MISMATCH: teacher package was edited after validation")
     if set(event_map) != set(teacher_events):
         raise DirectorError("EVENT_MISMATCH: planning and lesson events differ")
     if [e["event_id"] for e in events] != [e["event_id"] for e in plan["teaching_events"]]:
@@ -186,6 +201,8 @@ def build_storyboard(package: dict[str,Any], options: DirectorOptions | None=Non
     archived:list[str]=[]
     placement:dict[str,str]={}
     warnings:list[str]=[]
+    if not package.get("validated_content_sha256"):
+        warnings.append("LEGACY_UNSEALED_PACKAGE")
     scenes:list[ScenePlan]=[]
     for event in events:
         eid=event["event_id"]
@@ -245,6 +262,11 @@ def build_storyboard(package: dict[str,Any], options: DirectorOptions | None=Non
                 placement.pop(mid,None)
                 if mid in visible: visible.remove(mid)
                 if mid in archived: archived.remove(mid)
+            elif op == "highlight" and mid in archived:
+                archived.remove(mid)
+                visible.append(mid)
+                placement[mid] = "scratch" if layout == "split_scratch" else "board"
+                planned_actions.append(state_action(mid, "restore", "highlight archived object"))
             elif op in ("retain","group"):
                 if mid in archived and op == "retain":
                     archived.remove(mid)
