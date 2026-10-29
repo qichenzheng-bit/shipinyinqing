@@ -12,7 +12,7 @@ def understanding():
         "reference_method":"泰勒展开","solution_structure":"单链计算",
         "solution_steps":[{
             "step_id":"s1","origin":"source","source_refs":["solution:0"],"source_quotes":{"solution:0":"使用泰勒展开"},"step_role":"calculation",
-            "input_expressions":["f(x)"],"output_expressions":["1/2"],"relation_type":"limit",
+            "input_expressions":["f(x)","x^2"],"output_expressions":["1/2"],"relation_type":"limit",
             "operation":"泰勒展开","depends_on":[],"assumptions":["x->0"],"justification":"参考解析中的展开","verification_status":"source_only"
         }],"check_requests":[],"issues":[],"review_status":"ready_candidate"
     })
