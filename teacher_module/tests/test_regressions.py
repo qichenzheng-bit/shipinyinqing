@@ -67,5 +67,8 @@ def test_accept_ordered_segments_with_whitespace_gaps(source, understanding, pla
         SourceSegment(source_id="solution:1", kind="solution", text="求得极限 1/2。"),
     ]
     understanding.solution_steps[0].source_refs = ["solution:0", "solution:1"]
+    understanding.solution_steps[0].source_quotes = {
+        "solution:0": "使用泰勒展开", "solution:1": "求得极限 1/2。"
+    }
     result = MathTeacherPipeline(FakeProvider(understanding, plan, draft)).run(source)
     assert result.validation.status == "ready_with_limits"
