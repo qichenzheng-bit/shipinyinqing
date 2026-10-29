@@ -63,3 +63,11 @@ def test_short_curve_inside_large_label_does_not_pass_sampling_gap(teacher_packa
     label = next(scene.diagram.labels[0] for scene in plan.scenes if scene.event_id == "e_d_log")
     assert not(label.x <= .495 <= label.x + label.w
                and label.y <= .43 <= label.y + label.h)
+
+
+def test_teacher_plan_changes_have_distinct_content_fingerprint(teacher_package):
+    first = build_storyboard(teacher_package)
+    teacher_package["lesson"]["math_objects"][1]["latex"] = "x^{123}"
+    second = build_storyboard(teacher_package)
+    assert first.source_input_sha256 == second.source_input_sha256
+    assert first.source_package_sha256 != second.source_package_sha256
