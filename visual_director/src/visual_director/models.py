@@ -132,6 +132,7 @@ class ScenePlan(StrictModel):
 class StoryboardPlan(StrictModel):
     schema_version: Literal["1.0"] = "1.0"
     source_input_sha256: str
+    source_package_sha256: str  # all frozen teacher content, not just user input
     source_schema_version: str
     theme: Theme
     header: HeaderPlan
