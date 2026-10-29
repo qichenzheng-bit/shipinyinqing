@@ -1,0 +1,13 @@
+{
+  "diagrams": [
+    {
+      "event_id": "e_d_log",
+      "points": [
+        {"id":"P","x":0.4,"y":0.35,"label":"P"},
+        {"id":"Q","x":0.72,"y":0.63,"label":"Q"}
+      ],
+      "lines": [{"id":"PQ","start":"P","end":"Q","dashed":false}],
+      "curves": []
+    }
+  ]
+}
