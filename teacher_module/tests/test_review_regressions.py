@@ -107,3 +107,30 @@ def test_knowledge_must_precede_first_relevant_derivation(understanding, plan):
     c = Collector()
     check_plan(understanding, plan, c)
     assert "INVALID_KNOWLEDGE_SEQUENCE" in _codes(c)
+
+
+def test_source_step_requires_exact_quote_from_reference(source, understanding):
+    c = Collector()
+    check_understanding(source.with_sources(), understanding, c)
+    assert "SOURCE_QUOTE_REQUIRED" in _codes(c)
+
+
+def test_quote_order_within_one_source_segment_is_checked(source, understanding):
+    source.reference_solution = "先处理分母，随后化简分子，最后计算极限。"
+    first = understanding.solution_steps[0]
+    first.source_quotes = {"solution:0": "最后计算极限"}
+    second = first.model_copy(deep=True)
+    second.step_id = "s2"
+    second.source_quotes = {"solution:0": "先处理分母"}
+    second.depends_on = ["s1"]
+    understanding.solution_steps.append(second)
+    c = Collector()
+    check_understanding(source.with_sources(), understanding, c)
+    assert "SOURCE_STEP_ORDER" in _codes(c)
+
+
+def test_quote_must_be_substring_of_real_source(source, understanding):
+    understanding.solution_steps[0].source_quotes = {"solution:0": "这是不存在于参考解析的句子"}
+    c = Collector()
+    check_understanding(source.with_sources(), understanding, c)
+    assert "SOURCE_QUOTE_MISMATCH" in _codes(c)
