@@ -84,3 +84,17 @@ def test_organizational_other_math_assertion_requires_review(source, understandi
     collector = Collector()
     check_understanding(source.with_sources(),understanding,collector)
     assert "ORGANIZATIONAL_ASSERTION_REQUIRES_REVIEW" in _codes(collector)
+
+
+def test_teacher_pipeline_seals_validated_payload(source, understanding, plan, draft):
+    from math_teacher.pipeline import MathTeacherPipeline
+    from conftest import FakeProvider
+    import hashlib
+    import json
+    package = MathTeacherPipeline(FakeProvider(understanding, plan, draft)).run(source)
+    seal = package.validated_content_sha256
+    content = package.model_dump(mode="json")
+    content.pop("validated_content_sha256")
+    digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False,
+        separators=(",", ":")).encode("utf-8")).hexdigest()
+    assert seal == digest
