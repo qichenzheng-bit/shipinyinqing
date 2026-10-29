@@ -64,7 +64,10 @@
           "x\\to0"
         ],
         "justification": "用户参考解析首行",
-        "verification_status": "source_only"
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "原式 ="
+        }
       },
       {
         "step_id": "s2",
@@ -89,7 +92,10 @@
           "x\\to0"
         ],
         "justification": "分母各因子与 x^2 等价",
-        "verification_status": "source_only"
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "利用"
+        }
       },
       {
         "step_id": "s3",
@@ -113,7 +119,10 @@
           "x\\to0"
         ],
         "justification": "用户参考解析拆项",
-        "verification_status": "source_only"
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "分子可写为"
+        }
       },
       {
         "step_id": "s4",
@@ -185,7 +194,10 @@
           "x\\to0"
         ],
         "justification": "参考解析中的第一项",
-        "verification_status": "source_only"
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "第一个极限"
+        }
       },
       {
         "step_id": "s6",
@@ -209,7 +221,10 @@
           "x\\to0"
         ],
         "justification": "参考解析中的第二项",
-        "verification_status": "source_only"
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "第二个极限"
+        }
       },
       {
         "step_id": "s7",
@@ -233,7 +248,10 @@
           "x\\to0"
         ],
         "justification": "参考解析中的第三项",
-        "verification_status": "source_only"
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "第三个极限"
+        }
       },
       {
         "step_id": "s8",
@@ -259,7 +277,10 @@
           "x\\to0"
         ],
         "justification": "参考解析最终结论",
-        "verification_status": "source_only"
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "最后"
+        }
       }
     ],
     "check_requests": [
@@ -997,7 +1018,8 @@
         "speech_unit_ids": [
           "u_end"
         ],
-        "board_action_ids": [          "b_end"
+        "board_action_ids": [
+          "b_end"
         ],
         "animation_intent_ids": [
           "a_end"
@@ -1996,7 +2018,8 @@
       "subtitle_id": "subtitle:u_d_sin",
       "speech_unit_id": "u_d_sin",
       "parts": [
-        {          "kind": "text",
+        {
+          "kind": "text",
           "value": "把三阶主项相乘，再除以 x 的四次方，就得到第一个极限为负三分之一。",
           "reading_intent": null
         },
