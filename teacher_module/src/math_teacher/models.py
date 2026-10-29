@@ -207,6 +207,9 @@ class ValidationReport(StrictModel):
 
 
 class TeachingPackage(StrictModel):
+    # Content seal catches accidental edits after teacher validation.
+    # It is not a cryptographic signature from a trusted third party.
+    validated_content_sha256: str | None = None
     schema_version: Literal["1.0"]
     input_sha256: str
     prompt_versions: dict[str, str]
