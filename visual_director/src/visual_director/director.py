@@ -286,6 +286,10 @@ def build_storyboard(package: dict[str,Any], options: DirectorOptions | None=Non
                 parts=[CaptionPart(kind=part["kind"],value=part["value"]) for part in c["parts"]]) for c in package["subtitles"]]
     if package["validation"]["status"]=="needs_review":
         warnings.append("NEEDS_REVIEW")
-    digest=package.get("input_sha256") or hashlib.sha256(json.dumps(source,ensure_ascii=False,sort_keys=True).encode()).hexdigest()
-    return StoryboardPlan(source_input_sha256=digest,source_schema_version=package["schema_version"],
+    digest = package["input_sha256"]
+    package_digest = hashlib.sha256(json.dumps(
+        package, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")).hexdigest()
+    return StoryboardPlan(source_input_sha256=digest,source_package_sha256=package_digest,
+        source_schema_version=package["schema_version"],
         theme=Theme(),header=header,scenes=scenes,captions=captions,warnings=sorted(set(warnings)))
