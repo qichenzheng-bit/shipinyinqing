@@ -16,6 +16,9 @@ def test_archived_object_highlight_does_not_silently_reappear(teacher_package):
 
 
 def test_changing_teacher_math_with_old_content_digest_is_rejected(teacher_package):
+    teacher_package["validated_content_sha256"] = hashlib.sha256(json.dumps(
+        teacher_package, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")).hexdigest()
     board = build_storyboard(teacher_package)
     assert board.source_package_sha256
     teacher_package["lesson"]["math_objects"][1]["latex"] = "unvalidated"
