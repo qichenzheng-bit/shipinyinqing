@@ -48,6 +48,12 @@ def _safe_sympy(expr: str):
 
 def verify_math_check(request: MathCheckRequest) -> MathVerification:
     try:
+        # The bounded verifier has no domain prover. Log/sqrt can produce
+        # complex or undefined real values even when simplify returns zero.
+        # Return undetermined rather than certify such identities.
+        if any(f"{name}(" in expr.replace(" ", "") for name in ("log", "sqrt")
+               for expr in (request.lhs_expr, request.rhs_expr)):
+            raise ValueError("real-domain obligations for log/sqrt are not proved")
         left, right = _safe_sympy(request.lhs_expr), _safe_sympy(request.rhs_expr)
         diff = simplify(left - right)
         if diff == 0:
