@@ -47,17 +47,34 @@ def test_cues_strict_hash_and_order_fail_closed():
         checked_cues(changed,board,plan)
 
 
-def test_new_problem_has_real_full_page_transitions_and_preserves_last_math():
-    board, plan, cues, policy=sample()
-    result=build_longboard_plan(board,plan,policy=policy,
-        measure=lambda latex,height: GlyphSize(195,46))
-    assert len(result["events"])==14
-    assert set(["e_division","e_back"]).issubset({
-        r["event_id"] for r in result["events"] if r["transition"]=="cut"
-    })
-    assert result["events"][-1]["new_ids"]==["m_final"]
-    assert result["policy"]["content_top_offset_px"]==112
-    assert all(
-        placement["y"]>=232 for row in result["events"]
-        for placement in row["placements"]
+def test_compact_whole_board_centered_and_clean_without_forced_cuts():
+    board, plan, cues, policy = sample()
+    assert policy["board_mode"] == "simple_full_board"
+    assert policy["cut_before_events"] == []
+    result = build_longboard_plan(
+        board, plan, policy=policy,
+        measure=lambda latex, height: GlyphSize(195, 46)
     )
+    assert len(result["events"]) == 14
+    assert result["events"][-1]["new_ids"] == ["m_final"]
+    assert result["policy"]["content_top_offset_px"] == 70
+    assert result["policy"]["math_base_scale"] == .78
+    assert all(
+        215 <= placement["y"] < 610
+        and 210 <= placement["x"] <= 1070
+        and .72 <= placement["scale"] <= .78
+        for row in result["events"] for placement in row["placements"]
+    )
+
+
+def test_original_profile_remains_backward_compatible():
+    board, plan, cues, policy = sample()
+    legacy = dict(policy)
+    for key in ("board_mode","board_column_width_px","math_base_scale",
+                "math_min_scale","row_gap_px"):
+        legacy.pop(key)
+    assert "board_mode" not in legacy
+    result = build_longboard_plan(board,plan,policy=legacy,
+        measure=lambda latex, h:GlyphSize(150,35))
+    assert result["policy"]["board_mode"]=="classic"
+    assert result["policy"]["math_base_scale"] == 1.
