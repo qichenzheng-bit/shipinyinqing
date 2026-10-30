@@ -193,8 +193,7 @@ def _make_placement(object_id: str, source: dict, measured: dict,
         "h": round(h, 3), "scale": round(scale, 6),
         "fragments": fragments,
     }
-    if (x < 0 or y < 0 or x+result["w"] > frame[0]+.5
-            or y+h > frame[1]+.5):
+    if (x < 0 or x+result["w"] > frame[0]+.5):
         raise LongboardError(f"FRAME_OVERFLOW: {object_id}")
     return result
 
@@ -281,7 +280,7 @@ def build_longboard_plan(
         working = [mid for mid in visible if mid not in fixed]
         new_ids = [a.object_id for a in execution_scene.actions
                    if a.kind in ("progressive_write", "restore")
-                   and a.object_id in working]
+                   and a.object_id in working + fixed]
         # Headline/highlight-only events do not count as newly written maths.
         new_ids = list(dict.fromkeys(new_ids))
         zone = _workspace(scene, *frame, selected.full_width_without_diagram)
@@ -374,6 +373,10 @@ def build_longboard_plan(
                     f"UNSEEN_CONTENT_HIDDEN: {scene.event_id}/{mid}"
                 )
         # All newly introduced teacher math must be rendered in this event.
+        if any(mid not in last_seen and mid not in new_ids
+               for mid in fixed + working):
+            # A visual archive must never hide first-time teacher content.
+            raise LongboardError(f"UNSEEN_CONTENT: {scene.event_id}")
         if set(new_ids) - set(placed):
             raise LongboardError(f"NEW_CONTENT_SKIPPED: {scene.event_id}")
         if mode == "cut":
