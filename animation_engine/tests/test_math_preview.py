@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+manim = pytest.importorskip("manim")
 from PIL import Image
 from visual_director import build_storyboard
 from animation_engine import build_execution_plan
