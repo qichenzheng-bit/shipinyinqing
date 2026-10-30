@@ -105,3 +105,80 @@ def test_reject_modified_source_or_oversized_math_instead_of_truncating():
     with pytest.raises(LongboardError):
         make_chalkboard_plan(board,execution,cues,policy,
                              measure=lambda latex,height:GlyphSize(10000,40))
+
+
+def test_unreviewed_math_is_never_marked_ready_just_because_latex_is_valid():
+    # This is a real regression case: 1=2 is syntactically valid MathTex,
+    # and hashes authenticate bytes, not mathematical truth.
+    import copy
+    wrong=copy.deepcopy(UNITS)
+    wrong[0]["math"][0]["latex"]="1=2"
+    with pytest.raises(LongboardError,match="EXPLICIT_TEACHER_REVIEW"):
+        compile_teaching_units(
+            problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,
+            units=wrong
+        )
+
+
+def test_diagram_source_is_rejected_instead_of_silently_omitted_from_movie():
+    from visual_director.models import (
+        DirectorOptions,DiagramSpec,DiagramPoint,DiagramLine
+    )
+    from visual_director.director import build_storyboard
+    from animation_engine.planner import build_execution_plan
+    pkg,board,execution,cues,policy=build_new()
+    diagram=DiagramSpec(
+        event_id="e_method",
+        points=[
+            DiagramPoint(id="A",x=.10,y=.20),
+            DiagramPoint(id="B",x=.60,y=.70),
+        ],
+        lines=[DiagramLine(id="segment",start="A",end="B")],
+    )
+    board2=build_storyboard(pkg,DirectorOptions(diagrams=[diagram]))
+    assert board2.scenes[0].diagram is not None
+    exec2=build_execution_plan(board2)
+    cue2=dict(cues,source_storyboard_sha256=exec2.source_storyboard_sha256)
+    with pytest.raises(LongboardError,match="UNSUPPORTED_SPECIAL_LAYOUT"):
+        make_chalkboard_plan(board2,exec2,cue2,policy,measure=measure)
+
+
+def test_default_cli_rejects_unsupported_diagram_without_explicit_policy(
+        tmp_path,capsys):
+    import json
+    from visual_director.models import (
+        DirectorOptions,DiagramSpec,DiagramPoint,DiagramLine
+    )
+    from visual_director.director import build_storyboard
+    from animation_engine.planner import build_execution_plan
+    from animation_engine.cli import main
+    package,_,_,cues,_=build_new()
+    diagram=DiagramSpec(
+        event_id="e_method",
+        points=[
+            DiagramPoint(id="A",x=.15,y=.25),
+            DiagramPoint(id="B",x=.55,y=.65),
+        ],
+        lines=[DiagramLine(id="segment",start="A",end="B")],
+    )
+    board=build_storyboard(package,DirectorOptions(diagrams=[diagram]))
+    execution=build_execution_plan(board)
+    cues=dict(cues,source_storyboard_sha256=execution.source_storyboard_sha256)
+    for name,content in {
+        "board.json":board.model_dump(mode="json"),
+        "execution.json":execution.model_dump(mode="json"),
+        "cues.json":cues,
+    }.items():
+        (tmp_path/name).write_text(
+            json.dumps(content,ensure_ascii=False),encoding="utf-8"
+        )
+    rc=main([
+        "plan-longboard",
+        "--storyboard",str(tmp_path/"board.json"),
+        "--execution",str(tmp_path/"execution.json"),
+        "--classroom-cues",str(tmp_path/"cues.json"),
+        "--output",str(tmp_path/"layout.json")
+    ])
+    assert rc==2
+    assert "SPECIAL_LAYOUT_REQUIRES_EXPLICIT_POLICY" in capsys.readouterr().err
+    assert not (tmp_path/"layout.json").exists()
