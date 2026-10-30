@@ -19,7 +19,10 @@ from typing import Any
 from .longboard_plan import LongboardError, build_longboard_plan
 from .longboard_header import make_question_overlay
 from .mathtex_renderer import validate_math_latex
-from .classroom_cues import checked_cues, draw_cue_overlay, cue_hash, BOARD_GUIDANCE_PHASES
+from .classroom_cues import (checked_cues, draw_cue_overlay, cue_hash,
+                             BOARD_GUIDANCE_PHASES, BOARD_DERIVATION_INK,
+                             BOARD_TEXT_STYLE, BOARD_DETAIL_FONT_PX)
+from .board_motion import interpolated_collisions, math_placement_collisions
 
 
 def render_longboard_movie(
@@ -49,6 +52,10 @@ def render_longboard_movie(
     cues = checked_cues(classroom_cues, board, source_plan) if classroom_cues is not None else None
     display_mode = layout["policy"]["board_mode"]
     guidance_style = layout["policy"].get("guidance_style","fixed")
+    ink_color = (BOARD_DERIVATION_INK if guidance_style=="board_context"
+                 else board.theme.ink)
+    if any(math_placement_collisions(e["placements"]) for e in layout["events"]):
+        raise LongboardError("MATH_LAYOUT_COLLISION: endpoint ink overlaps")
     if cues is not None and guidance_style == "fixed":
         required_offset = 65 if display_mode == "simple_full_board" else 104
         if layout["policy"]["content_top_offset_px"] < required_offset:
@@ -75,7 +82,7 @@ def render_longboard_movie(
         for frag in p["fragments"]:
             latex = frag["latex"]
             validate_math_latex(latex)
-            obj = MathTex(latex, color=board.theme.ink)
+            obj = MathTex(latex, color=ink_color)
             obj.scale(p["scale"])
             obj.move_to(center(frag))
             actual_w = obj.width / fw * pixel_width
@@ -96,12 +103,13 @@ def render_longboard_movie(
             header = make_question_overlay(
                 board, temp/"header.png", pixel_width=pixel_width,
                 pixel_height=pixel_height,
-                compact=(display_mode=="simple_full_board")
+                compact=(display_mode=="simple_full_board"), ink_color=ink_color
             )
+            cue_geometry = {}
             if cues is not None:
                 for index, cue in enumerate(cues):
                     if guidance_style=="fixed" or cue["phase"] in BOARD_GUIDANCE_PHASES:
-                        draw_cue_overlay(
+                        cue_geometry[index] = draw_cue_overlay(
                             cue,temp/f"cue_{index:03d}.png",
                             width=pixel_width,height=pixel_height,
                             style=("board_context" if guidance_style=="board_context"
@@ -124,6 +132,7 @@ def render_longboard_movie(
                         previous = {}
                         active_cue = None
                         self.actual_events = []
+                        self.collision_guard_events = []
                         for scene_index, row in enumerate(layout["events"]):
                             cue = None if cues is None else cues[scene_index]
                             start = self.time
@@ -152,11 +161,17 @@ def render_longboard_movie(
                                     # in a contextual teaching line at 428px;
                                     # it will move to its planned position later,
                                     # without ever being re-written.
-                                    teaching_line_y = (.5 - 428 / pixel_height)*fh
-                                    if obj.height * pixel_height / fh > 124:
+                                    info = cue_geometry[scene_index]
+                                    ink_top = info["text_bottom_px"] + 25
+                                    ink_height = obj.height * pixel_height / fh
+                                    ink_bottom = ink_top + ink_height
+                                    if ink_bottom > 580 or ink_top < info["text_bottom_px"]+19:
                                         raise LongboardError(
-                                            f"BOARD_CONTEXT_MATH_TOO_TALL: {mid}"
+                                            f"BOARD_CONTEXT_MATH_OVERFLOW: {mid}"
                                         )
+                                    teaching_line_y = (.5 - (
+                                        ink_top + ink_height/2
+                                    )/pixel_height)*fh
                                     obj.move_to([obj.get_center()[0],teaching_line_y,0])
                                     for frag in obj:
                                         self.play(Write(frag),run_time=cue["write_seconds"])
@@ -165,6 +180,22 @@ def render_longboard_movie(
                                     staged_math[mid]=obj
                                 self.wait(cue["pause_seconds"])
                                 self.play(FadeOut(note),run_time=.30)
+                                # OLD FORMULAS MUST REMAIN HIDDEN while the newly
+                                # written formula returns to its real location.
+                                # Restoring them first caused the reported
+                                # formula-on-formula overlap during movement.
+                                for mid,obj in staged_math.items():
+                                    exemplar = make_object(target[mid])
+                                    self.play(obj.animate.move_to(exemplar.get_center()),
+                                              run_time=.38)
+                                for mid in list(active):
+                                    if mid not in target:
+                                        active.pop(mid)
+                                    else:
+                                        before, dest = previous[mid], target[mid]
+                                        exemplar = make_object(dest)
+                                        active[mid].scale(dest["scale"]/before["scale"])
+                                        active[mid].move_to(exemplar.get_center())
                                 if active:
                                     self.play(*[FadeIn(obj) for obj in active.values()],
                                               run_time=.22)
@@ -191,7 +222,8 @@ def render_longboard_movie(
                                         or [q["latex"] for q in before["fragments"]] !=
                                            [q["latex"] for q in dest["fragments"]]):
                                     raise LongboardError(f"SOURCE_MUTATED_ON_SCREEN: {mid}")
-                                if (abs(before["x"]-dest["x"]) >= .5
+                                if not did_board_guidance and (
+                                        abs(before["x"]-dest["x"]) >= .5
                                         or abs(before["y"]-dest["y"]) >= .5
                                         or abs(before["scale"]-dest["scale"]) >= .0001):
                                     # VGroup's center follows its real glyph
@@ -201,14 +233,32 @@ def render_longboard_movie(
                                     moving.append(active[mid].animate
                                                   .scale(dest["scale"]/before["scale"])
                                                   .move_to(exemplar.get_center()))
-                            if moving:
+                            path_risks = ([] if did_board_guidance else
+                                interpolated_collisions(previous, target))
+                            if path_risks:
+                                # Never visibly glide through another equation.
+                                # Dissolve, reposition the SAME objects while
+                                # hidden, then restore at collision-free bboxes.
+                                self.play(*[FadeOut(active[mid]) for mid in active],
+                                          run_time=.15)
+                                for mid,obj in active.items():
+                                    before,dest=previous[mid],target[mid]
+                                    obj.scale(dest["scale"]/before["scale"])
+                                    obj.move_to(make_object(dest).get_center())
+                                self.play(*[FadeIn(active[mid]) for mid in active],
+                                          run_time=.21)
+                                self.collision_guard_events.append({
+                                    "event_id":row["event_id"],
+                                    "pairs":path_risks,
+                                    "resolution":"hidden_reposition_no_visible_collision",
+                                })
+                            elif moving:
                                 self.play(*moving,run_time=.62
                                           if row["transition"] == "scroll" else .48)
                             added = []
                             for mid, obj in staged_math.items():
-                                destination = make_object(target[mid])
-                                self.play(obj.animate.move_to(destination.get_center()),
-                                          run_time=.42)
+                                # Already repositioned before old board ink
+                                # was made visible. Preserve identity here.
                                 active[mid] = obj
                                 added.append({"object_id":mid,
                                               "kind":"write_with_contextual_guidance"})
@@ -241,13 +291,17 @@ def render_longboard_movie(
                                     continue
                                 mid = action.object_id
                                 if mid in active:
+                                    if guidance_style == "board_context":
+                                        # Mathematical derivations are always
+                                        # black in the real classroom style.
+                                        continue
                                     self.play(
                                         active[mid].animate.set_color(board.theme.highlight),
                                         run_time=.20
                                     )
                                     self.wait(.14)
                                     self.play(
-                                        active[mid].animate.set_color(board.theme.ink),
+                                        active[mid].animate.set_color(ink_color),
                                         run_time=.20
                                     )
                                     highlights.append(mid)
@@ -300,6 +354,7 @@ def render_longboard_movie(
                 shutil.copyfile(rendered, generated)
                 event_timing = list(scene.actual_events)
                 duration = scene.preview_duration
+                collision_guards = list(scene.collision_guard_events)
 
             result = temp/"longboard.mp4"
             proc = subprocess.run([
@@ -336,8 +391,12 @@ def render_longboard_movie(
                     ),
                     "guidance_style":guidance_style,
                     "board_mode":display_mode,
+                    "derivation_ink":ink_color,
+                    "category_styles":BOARD_TEXT_STYLE,
+                    "detail_font_px":BOARD_DETAIL_FONT_PX,
                 },
                 "event_timing":event_timing,
+                "collision_motion_guards":collision_guards,
                 "subtitle_status":"not_rendered_no_audio",
                 "audio_status":"no_audio",
                 "cut_kind":"working_area_page_change_no_black_transition",
