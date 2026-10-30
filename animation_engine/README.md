@@ -110,3 +110,33 @@ math-animation render-longboard --storyboard taylor-demo/storyboard.json \
 ```
 
 这是完全新编的考研数学泰勒极限测试，与之前的多项积分和分部积分题不同。构建器生成具有真正数学来源的教学包、分镜和执行计划，CI 使用 SymPy 另行计算极限以核验，随后输出真实 Manim 视频并检验擦板前后关键帧。旧阶段入口和历史测试保留，不进行破坏性替换。
+
+
+## 教学内容完整性升级：一个教师环节可连续书写多个公式
+
+在分析上一版泰勒极限教学视频后，发现旧版 19 条按公式切分的事件破坏了推导完整性：真正关键的高阶乘法未展开，而简单系数又被独立分段。因此，视觉动画和教育语义必须使用**不同粒度**：
+
+- 教学环节表示一个明确的思维目标，例如“为什么积分因子能使左边合并为乘积导数”；一个环节允许包含多条数学公式。编译器位于 `src/animation_engine/classroom_teaching_units.py`，输入经作者审核的 unit，输出具有合法 `StoryboardPlan` / `ExecutionPlan`、唯一公式 ID 和原始数学步骤来源的事件链。
+- 每个教师环节中不同公式仍然逐条 Write，但不会被伪造成多个独立知识点。关键推导需显示中间依据、合并步骤与答案；简单计算不为了增加事件而拆开。单行有实质意义的知识点也允许独立存在，**不以公式数量判断教学价值**。
+- 已确认的持续板书模式仍保持“写上就保留，整板写满再擦”；一个完整的教师环节不能在内部被擦板打断。擦板后若确实需要，可按源 ID 重写上一步的关键数学结论，避免不自然的推导断裂。
+- `persistent_chalkboard.py` 的布局和真实视频记录含教学环节标题、`math_write_count`、原始步骤集合和擦板原因。检查 4 个教学环节与 11 条数学书写动作是否同源，比检查“成功生成视频”更严格。
+- **已修改的旧泰勒题**：`tools/build_fresh_taylor_classroom.py` 从 19 个公式级事件改为 5 个教学环节、12 条完整板书，补上乘法展开五次项的两个来源；已在真实 MathTex 版面上回归。
+- **完全新题**：`tools/build_complete_ode_lesson.py` 使用一阶线性微分方程初值问题 `y'+2xy=2x, y(0)=0`，4 个教学环节、11 条初次数学书写。对乘积求导、积分、初值代入与验算连续展开。正确答案 `y=1-e^{-x^2}`，由 SymPy 独立核验。一次写满擦板时把上一板关键结果经原来源重新抄写；没有口播或已同步字幕。
+
+```bash
+python animation_engine/tools/build_complete_ode_lesson.py --output ode-demo
+
+math-animation plan-longboard --storyboard ode-demo/storyboard.json \
+  --execution ode-demo/execution.json \
+  --classroom-cues ode-demo/teacher_approved_cues.json \
+  --policy ode-demo/page_policy.json \
+  --output ode-demo/board_pages.json
+
+math-animation render-longboard --storyboard ode-demo/storyboard.json \
+  --execution ode-demo/execution.json \
+  --classroom-cues ode-demo/teacher_approved_cues.json \
+  --policy ode-demo/page_policy.json \
+  --output ode-demo/lesson.mp4 --manifest ode-demo/manifest.json --fps 30
+```
+
+专项验收：`.github/workflows/classroom-complete-units-fresh-ode.yml`。该模型是可信、已审核教学脚本的确定性执行和验证路径，**不自动证明所有解题步骤正确**、不冒充真正教师口播；完整数学真实性仍需要上游内容审核与针对性外部符号核验。
