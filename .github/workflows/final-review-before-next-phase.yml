@@ -1,0 +1,41 @@
+name: Final pre-next-phase source and full-regression audit
+on:
+  push:
+    branches: [audit/2026-10-30-final-pre-next-phase]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full-offline-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install all three project modules
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Run all teacher tests
+        run: cd teacher_module && python -m pytest -q
+      - name: Run all director tests
+        run: cd visual_director && python -m pytest -q
+      - name: Run all animation tests except real-render marker
+        run: cd animation_engine && python -m pytest -q -m 'not render'
+      - name: Confirm Python modules can be compiled
+        run: python -m compileall -q teacher_module/src visual_director/src animation_engine/src animation_engine/tools
+  source-inspection-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Bundle exact audited SHA, source, tests, workflows and docs
+        run: |
+          git rev-parse HEAD > AUDITED_SHA.txt
+          zip -q -r final-review-source.zip AUDITED_SHA.txt README.md \
+            teacher_module visual_director animation_engine .github/workflows docs \
+            -x '**/__pycache__/*' '**/.pytest_cache/*' '*.mp4'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-source-and-tests-pre-next-phase
+          path: final-review-source.zip
+          if-no-files-found: error
