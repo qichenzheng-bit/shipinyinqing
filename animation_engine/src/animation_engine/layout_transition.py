@@ -102,7 +102,7 @@ def render_layout_transition(
             }):
                 existing = {}
                 for key, item in before.items():
-                    obj = MathTex(item["latex"], substrings_to_isolate=["="],
+                    obj = MathTex(item["latex"],
                                   color=board.theme.ink)
                     obj.scale(item["scale"]).move_to(_at(item, pixel_width, pixel_height))
                     existing[key] = obj
@@ -110,7 +110,7 @@ def render_layout_transition(
                 arriving = {}
                 for key in introduced:
                     item = after[key]
-                    obj = MathTex(item["latex"], substrings_to_isolate=["="],
+                    obj = MathTex(item["latex"],
                                   color=board.theme.ink)
                     obj.scale(item["scale"]).move_to(_at(item, pixel_width, pixel_height))
                     arriving[key] = obj
