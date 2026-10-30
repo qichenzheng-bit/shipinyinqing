@@ -1,0 +1,43 @@
+name: Animation step 2.5.1 grouped calculation contracts
+on:
+  push:
+    branches: [feature/animation-engine-v1-step2-5-1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-and-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install original strict contracts (without Manim)
+        run: python -m pip install -e './visual_director[test]' -e './animation_engine[test]'
+      - name: New grouped-regression tests and old offline suite
+        run: cd animation_engine && python -m pytest -q -m 'not render'
+      - name: Rebuild authentic integral lesson and audited overlay
+        run: |
+          mkdir -p /tmp/calculation251
+          python animation_engine/tools/build_fresh_integral_acceptance.py --output /tmp/calculation251
+          python animation_engine/tools/build_fresh_integral_group_overlay.py --execution /tmp/calculation251/execution.json --output /tmp/calculation251/overlay.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from animation_engine.adaptive_layout import GlyphSize
+          from animation_engine.calculation_group_plan import build_calculation_group_plan
+          root=Path('/tmp/calculation251')
+          r=build_calculation_group_plan(
+              json.loads((root/'storyboard.json').read_text()),
+              json.loads((root/'execution.json').read_text()),
+              overlay=json.loads((root/'overlay.json').read_text()),
+              policy={'cut_before_events':['e_b0','e_c0','e_summary'],
+                      'max_scrolls_per_page':5,'max_scroll_fraction':1.0},
+              measure=lambda text,height:GlyphSize(20+len(text)*3,22))
+          assert len(r['events'])==20
+          assert r['events'][-1]['group_state']['phase']=='conclusion'
+          assert r['calculation_group']['math_added_or_changed'] is False
+          print('CALC_2_5_1_VERIFIED',len(r['events']),r['calculation_group']['capacity_strategy'])
+          PY
