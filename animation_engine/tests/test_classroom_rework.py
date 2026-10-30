@@ -4,7 +4,9 @@ import sys
 from pathlib import Path
 import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
-from animation_engine.classroom_cues import checked_cues
+from animation_engine.classroom_cues import (checked_cues, BOARD_TEXT_STYLE,
+    BOARD_DETAIL_FONT_PX, BOARD_DERIVATION_INK, BOARD_GUIDANCE_PHASES)
+from animation_engine.board_motion import interpolated_collisions, math_placement_collisions
 from animation_engine.longboard_plan import LongboardError, build_longboard_plan, GlyphSize
 from build_classroom_rework_example import build
 
@@ -87,3 +89,40 @@ def test_original_profile_remains_backward_compatible():
         measure=lambda latex, h:GlyphSize(150,35))
     assert result["policy"]["board_mode"]=="classic"
     assert result["policy"]["math_base_scale"] == 1.
+
+
+def test_reference_classroom_four_categories_have_stable_distinct_colors():
+    phases = ("strategy","knowledge","pitfall","summary")
+    colors = [BOARD_TEXT_STYLE[name]["heading"] for name in phases]
+    assert len(set(colors)) == len(phases)
+    assert set(phases).issubset(BOARD_GUIDANCE_PHASES)
+    assert [BOARD_TEXT_STYLE[name]["font_px"] for name in phases] == [18]*4
+    assert BOARD_DETAIL_FONT_PX == 16
+    assert BOARD_DERIVATION_INK == "#111111"
+    board, plan, cues, policy = sample()
+    assert any(c["phase"]=="pitfall" for c in cues["events"])
+    assert policy["content_top_offset_px"] == 0
+
+
+def test_detect_crossing_formula_paths_before_animating():
+    a = {"x":300.,"y":200.,"w":110.,"h":26.}
+    b = {"x":600.,"y":200.,"w":110.,"h":26.}
+    original = {"formula_one":a,"formula_two":b}
+    swapped = {"formula_one":b,"formula_two":a}
+    assert interpolated_collisions(original,swapped), "crossing path must be guarded"
+    shifted = {
+        "formula_one":{"x":300.,"y":250.,"w":110.,"h":26.},
+        "formula_two":{"x":600.,"y":250.,"w":110.,"h":26.},
+    }
+    assert interpolated_collisions(original,shifted)==[]
+    assert math_placement_collisions([
+        {"object_id":k,**v} for k,v in shifted.items()
+    ])==[]
+
+
+def test_reject_overlapping_final_math_boxes():
+    candidates=[
+        {"object_id":"A","x":320.,"y":220.,"w":120.,"h":35.},
+        {"object_id":"B","x":330.,"y":240.,"w":120.,"h":35.},
+    ]
+    assert math_placement_collisions(candidates)==[("A","B")]
