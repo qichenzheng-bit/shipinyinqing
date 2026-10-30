@@ -131,16 +131,38 @@ def render_longboard_movie(
                                 cue is not None and guidance_style=="board_context"
                                 and cue["phase"] in BOARD_GUIDANCE_PHASES
                             )
+                            target = {p["object_id"]:p for p in row["placements"]}
+                            staged_math = {}
                             if did_board_guidance:
-                                # Blackboard interlude at the conceptual point.
-                                # The question remains anchored; prior formula
-                                # objects are restored *unchanged* after teaching.
+                                # The reference videos introduce a core concept
+                                # *in the working blackboard*, then write the
+                                # corresponding approved mathematical step directly
+                                # beneath it, not in an always-on header strip.
                                 if active:
                                     self.play(*[FadeOut(obj) for obj in active.values()],
                                               run_time=.22)
                                 note = ImageMobject(str(temp/f"cue_{scene_index:03d}.png"))
                                 note.scale_to_fit_width(fw).move_to([0,0,0])
                                 self.play(FadeIn(note),run_time=.30)
+                                for mid in row["new_ids"]:
+                                    if mid not in target or mid in active:
+                                        continue
+                                    obj = make_object(target[mid])
+                                    # Keep the exact, correctly measured MathTex
+                                    # in a contextual teaching line at 428px;
+                                    # it will move to its planned position later,
+                                    # without ever being re-written.
+                                    teaching_line_y = (.5 - 428 / pixel_height)*fh
+                                    if obj.height * pixel_height / fh > 124:
+                                        raise LongboardError(
+                                            f"BOARD_CONTEXT_MATH_TOO_TALL: {mid}"
+                                        )
+                                    obj.move_to([obj.get_center()[0],teaching_line_y,0])
+                                    for frag in obj:
+                                        self.play(Write(frag),run_time=cue["write_seconds"])
+                                    self.remove(*obj.submobjects)
+                                    self.add(obj)
+                                    staged_math[mid]=obj
                                 self.wait(cue["pause_seconds"])
                                 self.play(FadeOut(note),run_time=.30)
                                 if active:
@@ -154,7 +176,6 @@ def render_longboard_movie(
                                 else:
                                     self.play(FadeOut(active_cue),FadeIn(new_panel),run_time=.38)
                                 active_cue = new_panel
-                            target = {p["object_id"]:p for p in row["placements"]}
                             removing = [mid for mid in active if mid not in target]
                             if removing:
                                 self.play(*[FadeOut(active[mid])
@@ -184,6 +205,13 @@ def render_longboard_movie(
                                 self.play(*moving,run_time=.62
                                           if row["transition"] == "scroll" else .48)
                             added = []
+                            for mid, obj in staged_math.items():
+                                destination = make_object(target[mid])
+                                self.play(obj.animate.move_to(destination.get_center()),
+                                          run_time=.42)
+                                active[mid] = obj
+                                added.append({"object_id":mid,
+                                              "kind":"write_with_contextual_guidance"})
                             for p in row["placements"]:
                                 mid = p["object_id"]
                                 if mid in active:
