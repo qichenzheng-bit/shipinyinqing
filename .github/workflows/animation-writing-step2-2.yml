@@ -40,3 +40,45 @@ jobs:
       - run: python -m pip install -e './visual_director[test]' -e './animation_engine[render,test]'
       - name: Real videos RED GREEN
         run: cd animation_engine && timeout 240s python -m pytest tests/test_writing_clip.py -q
+      - name: Real lesson CLI segmented and safe fallback videos
+        run: |
+          mkdir -p writing-evidence
+          visual-director plan visual_director/examples/limit_teaching_package.json --output writing-evidence/storyboard.json
+          math-animation plan writing-evidence/storyboard.json --output writing-evidence/execution.json
+          math-animation render-writing --storyboard writing-evidence/storyboard.json --execution writing-evidence/execution.json --event-id e_k_sin --object-id m_k_sin --hint animation_engine/examples/sin_taylor_approved_parts.json --output writing-evidence/segmented.mp4 --manifest writing-evidence/segmented.json --pixel-width 640 --pixel-height 360 --fps 12
+          math-animation render-writing --storyboard writing-evidence/storyboard.json --execution writing-evidence/execution.json --event-id e_k_sin --object-id m_k_sin --output writing-evidence/fallback.mp4 --manifest writing-evidence/fallback.json --pixel-width 640 --pixel-height 360 --fps 12
+          python - <<'PY'
+          from pathlib import Path
+          import json,subprocess
+          folder=Path("writing-evidence")
+          for name in ("segmented","fallback"):
+              metadata=json.loads((folder/(name+".json")).read_text(encoding="utf-8"))
+              assert metadata["timing_source"]=="preview_only_not_audio_aligned"
+              assert metadata["speech_unit_id"]=="u_k_sin"
+              assert metadata["source_step_ids"]==["s5a","s5"]
+              for label,second in (("highlight",metadata["highlight_sample_second"]),
+                                   ("final",metadata["final_sample_second"])):
+                  subprocess.run(["ffmpeg","-v","error","-ss",str(second),
+                    "-i",str(folder/(name+".mp4")),"-frames:v","1",
+                    "-y",str(folder/(name+"-"+label+".png"))],check=True)
+              p=subprocess.run(["ffprobe","-v","error","-select_streams","v:0","-count_frames",
+                 "-show_entries","stream=nb_read_frames","-of","json",str(folder/(name+".mp4"))],
+                  check=True,capture_output=True,text=True)
+              count=int(json.loads(p.stdout)["streams"][0]["nb_read_frames"])
+              assert count > 20
+              print("REAL_WRITING_MOVIE",name,count,metadata["mode"])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: animation-2-2-authentic-manim-videos
+          path: |
+            writing-evidence/segmented.mp4
+            writing-evidence/segmented.json
+            writing-evidence/segmented-highlight.png
+            writing-evidence/segmented-final.png
+            writing-evidence/fallback.mp4
+            writing-evidence/fallback.json
+            writing-evidence/fallback-highlight.png
+            writing-evidence/fallback-final.png
+          if-no-files-found: warn
