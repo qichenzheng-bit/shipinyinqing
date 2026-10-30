@@ -62,6 +62,14 @@ def validate_math_latex(latex: str) -> None:
         raise MathTexRenderError("UNSAFE_TEX: TeX comments/macros/parameters prohibited")
     if latex.count("{") != latex.count("}"):
         raise MathTexRenderError("UNSAFE_TEX: unbalanced curly braces")
+    # Manim may silently rewrite unmatched delimiters (e.g. \\left to
+    # \\big) before LaTeX compilation; reject the source rather than render
+    # a subtly different mathematical expression.
+    lefts = len(re.findall(r"\\\\left(?![A-Za-z])", latex))
+    rights = len(re.findall(r"\\\\right(?![A-Za-z])", latex))
+    if lefts != rights:
+        raise MathTexRenderError("TEX_COMPILE_FAILED: unmatched \\left/\\right delimiters")
+
 
     env_stack: list[str] = []
     for match in _ENVS.finditer(latex):
