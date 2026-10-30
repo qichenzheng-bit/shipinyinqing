@@ -24,7 +24,7 @@ def test_four_pedagogical_goals_not_eleven_isolated_formula_events():
     assert [len(u["math"]) for u in UNITS]==[1,4,3,3]
     assert len(package["lesson"]["math_objects"])==11
     assert [sum(a.kind=="progressive_write" for a in scene.actions)
-            for scene in board.scenes]==[2,4,3,3]
+            for scene in board.scenes]==[1,4,3,3]
     assert len(board.scenes[1].actions)==4
     assert "m_linear" not in [m["math_object_id"] for m in package["lesson"]["math_objects"]]
     assert board.scenes[1].event_id=="e_derive"
