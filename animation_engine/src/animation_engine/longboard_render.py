@@ -153,6 +153,7 @@ def render_longboard_movie(
                                 note = ImageMobject(str(temp/f"cue_{scene_index:03d}.png"))
                                 note.scale_to_fit_width(fw).move_to([0,0,0])
                                 self.play(FadeIn(note),run_time=.30)
+                                context_cursor_px = cue_geometry[scene_index]["text_bottom_px"] + 25
                                 for mid in row["new_ids"]:
                                     if mid not in target or mid in active:
                                         continue
@@ -162,7 +163,7 @@ def render_longboard_movie(
                                     # it will move to its planned position later,
                                     # without ever being re-written.
                                     info = cue_geometry[scene_index]
-                                    ink_top = info["text_bottom_px"] + 25
+                                    ink_top = context_cursor_px
                                     ink_height = obj.height * pixel_height / fh
                                     ink_bottom = ink_top + ink_height
                                     if ink_bottom > 580 or ink_top < info["text_bottom_px"]+19:
@@ -178,6 +179,7 @@ def render_longboard_movie(
                                     self.remove(*obj.submobjects)
                                     self.add(obj)
                                     staged_math[mid]=obj
+                                    context_cursor_px = ink_bottom + 18
                                 self.wait(cue["pause_seconds"])
                                 self.play(FadeOut(note),run_time=.30)
                                 # OLD FORMULAS MUST REMAIN HIDDEN while the newly
