@@ -104,3 +104,31 @@ def test_provenance_rejected_and_large_formula_not_silently_shrunk():
             board,execution,cues,policy,
             measure=lambda latex,h: GlyphSize(10000,50)
         )
+
+
+def test_cli_defaults_to_confirmed_classroom_with_reviewed_cues(tmp_path,monkeypatch):
+    from animation_engine import cli as cli_module
+    from animation_engine import persistent_chalkboard
+    pkg,board,execution,cues,policy=build_new()
+    storyboard=tmp_path/"storyboard.json"
+    actions=tmp_path/"execution.json"
+    notes=tmp_path/"cues.json"
+    out=tmp_path/"plan.json"
+    storyboard.write_text(board.model_dump_json(),encoding="utf-8")
+    actions.write_text(execution.model_dump_json(),encoding="utf-8")
+    notes.write_text(json.dumps(cues,ensure_ascii=False),encoding="utf-8")
+    def capture(b,e,c,chosen):
+        assert chosen["guidance_style"]=="persistent_chalkboard"
+        assert chosen["allow_scroll"] is False
+        assert chosen["cut_before_events"]==[]
+        assert c["source_storyboard_sha256"]==execution.source_storyboard_sha256
+        return {"mode":chosen["guidance_style"],"events":len(c["events"])}
+    monkeypatch.setattr(persistent_chalkboard,"make_chalkboard_plan",capture)
+    code=cli_module.main([
+        "plan-longboard","--storyboard",str(storyboard),
+        "--execution",str(actions),"--classroom-cues",str(notes),
+        "--output",str(out),
+    ])
+    assert code==0
+    saved=json.loads(out.read_text(encoding="utf-8"))
+    assert saved=={"mode":"persistent_chalkboard","events":19}
