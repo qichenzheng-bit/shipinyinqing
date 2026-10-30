@@ -1,0 +1,113 @@
+"""Real Manim MP4 acceptance: MathTex progressive writing and color restoration."""
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+pytest.importorskip("manim")
+from visual_director import build_storyboard
+from animation_engine import build_execution_plan
+from animation_engine.writing_cues import plan_math_writing
+from animation_engine.writing_clip import MathWritingClipError, render_math_writing_clip
+
+FIXTURE = Path(__file__).resolve().parents[2] / "visual_director" / "examples" / "limit_teaching_package.json"
+
+
+@pytest.fixture
+def inputs():
+    board = build_storyboard(json.loads(FIXTURE.read_text(encoding="utf-8")))
+    execution = build_execution_plan(board)
+    hint = dict(
+        source_storyboard_sha256=execution.source_storyboard_sha256,
+        event_id="e_k_sin", object_id="m_k_sin", action_id="b_k_sin",
+        speech_unit_id="u_k_sin",
+        parts=[r"\sin x", "=x-", r"\frac{x^3}{6}", "+o(x^3)"],
+        highlight_index=2,
+    )
+    return board, execution, hint
+
+
+def _ffprobe_frames(mp4):
+    assert shutil.which("ffprobe")
+    p = subprocess.run(["ffprobe","-v","error","-select_streams","v:0",
+        "-count_frames","-show_entries","stream=width,height,nb_read_frames",
+        "-of","json",str(mp4)],capture_output=True,text=True,check=True)
+    return json.loads(p.stdout)["streams"][0]
+
+
+def _count_blue_pixels(mp4, second):
+    """Check actual decoded frame, not metadata assertions alone."""
+    import io
+    from PIL import Image
+    p=subprocess.run(["ffmpeg","-v","error","-ss",str(second),"-i",str(mp4),
+        "-frames:v","1","-f","image2pipe","-vcodec","png","-"],
+        capture_output=True,check=True)
+    im=Image.open(io.BytesIO(p.stdout)).convert("RGB")
+    blues=0
+    for y in range(0, im.height, 3):
+        for x in range(0, im.width, 3):
+            r,g,b=im.getpixel((x,y))
+            if b>r*1.4 and b>g*1.12 and b>90:
+                blues+=1
+    return blues
+
+
+def test_real_segmented_movie_exact_target_blue_and_restores(inputs,tmp_path):
+    board,ex,hint=inputs
+    plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin",hint=hint)
+    mp4,meta=tmp_path/"segmented.mp4",tmp_path/"segmented.json"
+    res=render_math_writing_clip(plan,output_mp4=mp4,output_json=meta,
+                                  pixel_width=640,pixel_height=360,fps=12)
+    assert res.mp4_path==mp4 and mp4.stat().st_size>3000
+    v=_ffprobe_frames(mp4)
+    assert (int(v["width"]),int(v["height"]))==(640,360)
+    assert int(v["nb_read_frames"])>20
+    data=json.loads(meta.read_text(encoding="utf-8"))
+    assert data["render_kind"]=="manim_mathtex_progressive_mp4"
+    assert data["mode"]=="segmented" and data["parts"]==hint["parts"]
+    assert data["source_storyboard_sha256"]==ex.source_storyboard_sha256
+    assert data["source_step_ids"]==["s5a","s5"]
+    assert data["action_id"]=="b_k_sin" and data["speech_unit_id"]=="u_k_sin"
+    assert data["highlight_index"]==2
+    assert data["timing_source"]=="preview_only_not_audio_aligned"
+    assert "speech_start_second" not in data and "speech_end_second" not in data
+    assert data["write_part_indices"]==[0,1,2,3]
+    assert _count_blue_pixels(mp4, data["highlight_sample_second"])>5
+    assert _count_blue_pixels(mp4, data["final_sample_second"])==0
+
+
+def test_no_hint_real_movie_writes_entire_formula_once(inputs,tmp_path):
+    board,ex,_=inputs
+    plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin")
+    mp4,meta=tmp_path/"whole.mp4",tmp_path/"whole.json"
+    render_math_writing_clip(plan,output_mp4=mp4,output_json=meta,
+                             pixel_width=640,pixel_height=360,fps=12)
+    data=json.loads(meta.read_text())
+    assert data["mode"]=="whole_formula"
+    assert data["hint_source"]=="safe_fallback"
+    assert data["write_part_indices"]==[0]
+    assert data["parts"]==[plan.request.latex]
+    assert _count_blue_pixels(mp4, data["highlight_sample_second"])>5
+    assert _count_blue_pixels(mp4, data["final_sample_second"])==0
+
+
+def test_reject_overflow_without_creating_success_artifacts(inputs,tmp_path):
+    from dataclasses import replace
+    board,ex,_=inputs
+    plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin")
+    too_big=replace(plan,parts=("x"*400,),request=replace(plan.request,latex="x"*400))
+    mp4,meta=tmp_path/"bad.mp4",tmp_path/"bad.json"
+    with pytest.raises(MathWritingClipError,match="FORMULA_OVERFLOW"):
+        render_math_writing_clip(too_big,output_mp4=mp4,output_json=meta,
+                                 pixel_width=640,pixel_height=360,fps=12)
+    assert not mp4.exists() and not meta.exists()
+
+
+def test_reject_duplicate_output_paths(inputs,tmp_path):
+    board,ex,_=inputs
+    plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin")
+    same=tmp_path/"same.mp4"
+    with pytest.raises(MathWritingClipError,match="INVALID_OUTPUT"):
+        render_math_writing_clip(plan,output_mp4=same,output_json=same)
