@@ -23,7 +23,8 @@ def test_four_pedagogical_goals_not_twelve_isolated_formula_events():
     assert len(board.scenes)==len(execution.scenes)==len(cues["events"])==4
     assert [len(u["math"]) for u in UNITS]==[2,4,3,3]
     assert len(package["lesson"]["math_objects"])==12
-    assert [len(s.actions) for s in board.scenes]==[2,4,3,3]
+    assert [sum(a.kind=="progressive_write" for a in scene.actions)
+            for scene in board.scenes]==[2,4,3,3]
     assert len(board.scenes[1].actions)==4
     assert board.scenes[1].event_id=="e_derive"
     assert board.scenes[1].actions[1].latex==r"(ye^{x^2})'=e^{x^2}y'+2xe^{x^2}y"
