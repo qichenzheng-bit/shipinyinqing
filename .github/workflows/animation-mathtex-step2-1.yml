@@ -1,0 +1,27 @@
+name: Animation MathTex 2.1 real-render tests
+on:
+  push:
+    branches:
+      - feature/animation-engine-v1-step2-1
+  pull_request:
+    paths:
+      - 'animation_engine/**'
+      - '.github/workflows/animation-mathtex-step2-1.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e './visual_director[test]' -e './animation_engine[test]' -e './teacher_module[test]'
+      - name: Contract RED/GREEN and full regression
+        run: |
+          cd animation_engine && python -m pytest tests/test_render_contract.py -q
+          python -m pytest -q
+          cd ../visual_director && python -m pytest -q
+          cd ../teacher_module && python -m pytest -q
