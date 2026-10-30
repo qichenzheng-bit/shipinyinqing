@@ -41,8 +41,23 @@ ROW_GAP = 15.0
 COLLISION_EPS = 0.8
 
 
+def _first_top_level_equals(latex: str) -> int | None:
+    """Only split an explicit top-level =, never through braces or math environments."""
+    if "\\begin" in latex or "\\end" in latex:
+        return None
+    depth = 0
+    for i, char in enumerate(latex):
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+        elif char == "=" and depth == 0 and (i == 0 or latex[i - 1] != "\\"):
+            return i
+    return None
+
+
 def _real_measure(latex: str, pixel_height: int) -> GlyphSize:
-    """Use the same true MathTex glyphs as the final static preview."""
+    """Measure real MathTex glyphs; optional = anchor never changes the original."""
     validate_math_latex(latex)
     try:
         from manim import MathTex, tempconfig
@@ -50,13 +65,27 @@ def _real_measure(latex: str, pixel_height: int) -> GlyphSize:
         raise AdaptiveLayoutError("LATEX_ENV_UNAVAILABLE: install animation_engine[render]") from exc
     try:
         with tempconfig({"frame_height": 8.0, "frame_width": 8.0 * 16 / 9}):
-            glyph = MathTex(latex, substrings_to_isolate=["="])
+            glyph = MathTex(latex)
             px_per_unit = pixel_height / 8.0
-            equal_parts = glyph.get_parts_by_tex("=", substring=False)
-            first_equals = equal_parts[0] if len(equal_parts) else None
-            offset = None if first_equals is None else (
-                float(first_equals.get_center()[0] - glyph.get_left()[0]) * px_per_unit
-            )
+            offset = None
+            index = _first_top_level_equals(latex)
+            if index is not None:
+                parts = [p for p in (latex[:index], "=", latex[index + 1:]) if p]
+                try:
+                    # 2.2 already establishes MathTex(*parts, arg_separator="")
+                    # as the safe, ordered glyph-isolation mechanism.
+                    segmented = MathTex(*parts, arg_separator="")
+                    if (len(segmented.submobjects) == len(parts)
+                            and abs(segmented.width - glyph.width) * px_per_unit < 1.5):
+                        equals_index = parts.index("=")
+                        equal_part = segmented.submobjects[equals_index]
+                        offset = float(
+                            equal_part.get_center()[0] - segmented.get_left()[0]
+                        ) * px_per_unit
+                except Exception:
+                    # Alignment is optional. Never misreport a failed split as
+                    # proof that the original formula is invalid.
+                    offset = None
             return GlyphSize(
                 float(glyph.width) * px_per_unit,
                 float(glyph.height) * px_per_unit,
@@ -339,7 +368,7 @@ def render_layout_png(
                              "background_color": board.theme.background}):
                 glyphs = []
                 for p in scene["placements"]:
-                    obj = MathTex(p["latex"], substrings_to_isolate=["="],
+                    obj = MathTex(p["latex"],
                                   color=board.theme.ink)
                     obj.scale(p["scale"])
                     cx = p["x"] + p["w"] / 2
