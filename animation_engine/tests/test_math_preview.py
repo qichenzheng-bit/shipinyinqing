@@ -49,7 +49,8 @@ def test_real_png_with_bounds_and_metadata(objects, tmp_path):
 def test_overlong_formula_errors_and_creates_no_false_png(objects, tmp_path):
     from dataclasses import replace
     _, _, request = objects
-    huge = replace(request, latex=r"\frac{12345678901234567890123456789012345678901234567890}{12345678901234567890123456789012345678901234567890}")
+    digits = "1234567890" * 20
+    huge = replace(request, latex=r"\frac{" + digits + "}{" + digits + "}")
     png, meta = tmp_path / "overflow.png", tmp_path / "overflow.json"
     with pytest.raises(MathPreviewError, match="FORMULA_OVERFLOW"):
         render_math_preview(huge, output_png=png, output_json=meta)
