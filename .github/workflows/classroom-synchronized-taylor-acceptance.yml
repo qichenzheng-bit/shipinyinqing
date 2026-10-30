@@ -1,0 +1,127 @@
+name: Unified persistent classroom V1 - fresh fifth-order Taylor test
+on:
+  push:
+    branches: [feature/classroom-standard-sync-new-taylor-acceptance]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synchronized-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - run: python -m pip install -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Fresh problem and cross-module teaching standards regression
+        run: cd animation_engine && python -m pytest tests/test_fresh_taylor_classroom.py tests/test_persistent_chalkboard.py tests/test_classroom_rework.py -q
+      - name: All existing animation code compatibility tests
+        run: cd animation_engine && python -m pytest -q -m 'not render'
+  brand-new-manim-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install real LaTeX, Manim and CJK font dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+      - run: python -m pip install -e './visual_director[test]' -e './animation_engine[render,test]' sympy
+      - name: Independent symbolic verification of completely new Taylor limit
+        run: |
+          python - <<'PY'
+          import sympy as s
+          x=s.symbols('x',real=True)
+          expr=s.tan(x)-s.sin(x)-x**3/s.Integer(2)
+          assert s.limit(expr/x**5,x,0)==s.Rational(1,8)
+          assert s.series(s.tan(x),x,0,7).removeO().coeff(x,5)==s.Rational(2,15)
+          assert s.series(s.sin(x),x,0,7).removeO().coeff(x,5)==s.Rational(1,120)
+          assert s.series(expr,x,0,7).removeO().coeff(x,5)==s.Rational(1,8)
+          print('INDEPENDENT_NEW_TAYLOR_LIMIT_PASS: 1/8')
+          PY
+      - name: Build new teacher-authored problem to actual storyboard and execution
+        run: |
+          mkdir -p fresh-taylor-evidence
+          python animation_engine/tools/build_fresh_taylor_classroom.py --output fresh-taylor-evidence
+      - name: Use true Manim glyph measurement for full board event placement
+        run: |
+          math-animation plan-longboard --storyboard fresh-taylor-evidence/storyboard.json --execution fresh-taylor-evidence/execution.json --policy fresh-taylor-evidence/page_policy.json --classroom-cues fresh-taylor-evidence/teacher_approved_cues.json --output fresh-taylor-evidence/board_pages.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('fresh-taylor-evidence')
+          p=json.loads((root/'board_pages.json').read_text())
+          assert p['event_count']==19 and p['page_count']>=2,p
+          assert sum(e['erase_before'] for e in p['events'])==p['page_count']-1
+          assert 'm_final' in p['math_written_ids']
+          live={}
+          for row in p['events']:
+              if row['erase_before']: live={}
+              for block in row['added_blocks']:
+                  bid=block['block_id']
+                  assert bid not in live
+                  assert block['y']+block['h']<=620
+                  live[bid]=block
+              assert list(live)==row['visible_block_ids']
+          print('TRUE_TAYLOR_PAGES',p['page_count'],'APPEND_ONLY_EVENTS',len(p['events']))
+          PY
+      - name: 'Render real MP4: black ink persists until page-full wipe only'
+        run: |
+          math-animation render-longboard --storyboard fresh-taylor-evidence/storyboard.json --execution fresh-taylor-evidence/execution.json --policy fresh-taylor-evidence/page_policy.json --classroom-cues fresh-taylor-evidence/teacher_approved_cues.json --output fresh-taylor-evidence/fresh_taylor_real_classroom.mp4 --manifest fresh-taylor-evidence/video_manifest.json --fps 30
+          ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=width,height,nb_read_frames,r_frame_rate -of json fresh-taylor-evidence/fresh_taylor_real_classroom.mp4 > fresh-taylor-evidence/ffprobe.json
+      - name: Real rendered video and before-after wipe screenshots
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from PIL import Image,ImageDraw
+          root=Path('fresh-taylor-evidence')
+          m=json.loads((root/'video_manifest.json').read_text())
+          data=json.loads((root/'ffprobe.json').read_text())['streams'][0]
+          assert (data['width'],data['height'],data['r_frame_rate'])==(1280,720,'30/1')
+          assert int(data['nb_read_frames'])>1400
+          assert m['event_count']==19==len(m['event_timing'])
+          assert m['erase_count']==m['page_count']-1>=1
+          assert m['in_page_fadeout_count']==m['in_page_reposition_count']==0
+          assert m['voice_status']=='not_recorded'
+          assert m['color_scheme']['math']=='#111111'
+          assert m['source_storyboard_sha256']==json.loads((root/'execution.json').read_text())['source_storyboard_sha256']
+          def event(id): return next(e for e in m['event_timing'] if e['event_id']==id)
+          captures=[
+            ('thinking',event('e_choice')['end_preview_second']-.25),
+            ('sine_knowledge',event('e_sine')['end_preview_second']-.25),
+            ('reciprocal',event('e_reciprocal')['end_preview_second']-.25),
+            ('pitfall',event('e_pitfall')['end_preview_second']-.25),
+            ('final_answer',event('e_final')['end_preview_second']-.25),
+          ]
+          wipes=[i for i,e in enumerate(m['event_timing']) if e['erase_before']]
+          assert wipes
+          i=wipes[0]
+          captures+=[
+            ('board_before_wipe',m['event_timing'][i-1]['end_preview_second']-.25),
+            ('board_after_wipe',m['event_timing'][i]['end_preview_second']-.25),
+          ]
+          for name,t in captures:
+              subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-ss',
+                  str(max(0,t)),'-i',str(root/'fresh_taylor_real_classroom.mp4'),
+                  '-frames:v','1',str(root/(name+'.png'))],check=True)
+              assert Image.open(root/(name+'.png')).size==(1280,720)
+          gallery=Image.new('RGB',(1280,4*395),'#F0F2F5')
+          d=ImageDraw.Draw(gallery)
+          for i,(name,t) in enumerate(captures):
+              x=(i%2)*640;y=(i//2)*395+25
+              gallery.paste(Image.open(root/(name+'.png')).convert('RGB').resize((640,360)),(x,y))
+              d.text((x+10,y-20),name,fill='#111111')
+          gallery.save(root/'taylor_full_classroom_contact_sheet.png')
+          print('FRESH_TAYLOR_MP4_ACCEPTED',data['nb_read_frames'],'frames',
+                m['page_count'],'pages',m['erase_count'],'board wipes')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: new-taylor-limit-verified-classroom-video
+          path: fresh-taylor-evidence/
+          if-no-files-found: warn
