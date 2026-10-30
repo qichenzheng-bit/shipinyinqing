@@ -81,6 +81,25 @@ jobs:
               {b['block_id'] for b in plan['events'][1]['added_blocks']})
           print('NEW_ODE_4_UNITS_11_COMPLETE_FORMULAS',plan['page_count'],'pages')
           PY
+      - name: Regression-check corrected earlier Taylor teaching with real MathTex
+        run: |
+          mkdir -p ode-classroom-evidence/revised-taylor
+          python animation_engine/tools/build_fresh_taylor_classroom.py --output ode-classroom-evidence/revised-taylor
+          math-animation plan-longboard --storyboard ode-classroom-evidence/revised-taylor/storyboard.json --execution ode-classroom-evidence/revised-taylor/execution.json --policy ode-classroom-evidence/revised-taylor/page_policy.json --classroom-cues ode-classroom-evidence/revised-taylor/teacher_approved_cues.json --output ode-classroom-evidence/revised-taylor/board_pages.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('ode-classroom-evidence/revised-taylor')
+          layout=json.loads((p/'board_pages.json').read_text())
+          assert layout['event_count']==5
+          assert len(layout['math_written_ids'])==12
+          product=next(e for e in layout['events'] if e['event_id']=='e_product')
+          assert product['math_write_count']==3
+          assert len([b for b in product['added_blocks']
+              if b['kind']=='math' and not b.get('carry')])==3
+          assert 'm_product_terms' in layout['math_written_ids']
+          print('REVISED_TAYLOR_MISSING_MULTIPLICATION_FIXED')
+          PY
       - name: 'Render independent ODE lesson to actual Manim classroom MP4'
         run: |
           math-animation render-longboard --storyboard ode-classroom-evidence/storyboard.json --execution ode-classroom-evidence/execution.json --policy ode-classroom-evidence/page_policy.json --classroom-cues ode-classroom-evidence/teacher_approved_cues.json --output ode-classroom-evidence/ode_teaching_classroom.mp4 --manifest ode-classroom-evidence/video_manifest.json --fps 30
