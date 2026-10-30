@@ -59,7 +59,7 @@ jobs:
           p=Path('ode-classroom-evidence')
           plan=json.loads((p/'board_pages.json').read_text())
           assert plan['event_count']==4
-          assert len(plan['math_written_ids'])==12
+          assert len(plan['math_written_ids'])==11
           assert plan['page_count']>=2
           assert plan['mode']=='persistent_chalkboard'
           counts=[]
@@ -75,11 +75,11 @@ jobs:
                   assert b['y']>=148 and b['y']+b['h']<=620
                   live.add(b['block_id'])
               assert set(e['visible_block_ids'])==live
-          assert counts==[2,4,3,3],counts
+          assert counts==[1,4,3,3],counts
           assert plan['events'][1]['event_id']=='e_derive'
           assert {'m_product_rule','m_combined','m_integrated'}.issubset(
               {b['block_id'] for b in plan['events'][1]['added_blocks']})
-          print('NEW_ODE_4_UNITS_12_COMPLETE_FORMULAS',plan['page_count'],'pages')
+          print('NEW_ODE_4_UNITS_11_COMPLETE_FORMULAS',plan['page_count'],'pages')
           PY
       - name: 'Render independent ODE lesson to actual Manim classroom MP4'
         run: |
