@@ -25,6 +25,19 @@ def main(argv: list[str] | None = None) -> int:
     preview.add_argument("--output", type=Path, required=True)
     preview.add_argument("--metrics", type=Path, required=True)
 
+    writing = subparsers.add_parser("render-writing",
+        help="Render one provenance-verified formula's authentic progressive Write MP4")
+    writing.add_argument("--storyboard", type=Path, required=True)
+    writing.add_argument("--execution", type=Path, required=True)
+    writing.add_argument("--event-id", required=True)
+    writing.add_argument("--object-id", required=True)
+    writing.add_argument("--hint", type=Path, help="Explicit approved structural parts JSON (optional)")
+    writing.add_argument("--output", type=Path, required=True)
+    writing.add_argument("--manifest", type=Path, required=True)
+    writing.add_argument("--pixel-width", type=int, default=1280)
+    writing.add_argument("--pixel-height", type=int, default=720)
+    writing.add_argument("--fps", type=int, default=15)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -32,6 +45,20 @@ def main(argv: list[str] | None = None) -> int:
             result = build_execution_plan(raw)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            return 0
+
+        if args.command == "render-writing":
+            from .writing_cues import plan_math_writing
+            from .writing_clip import render_math_writing_clip
+            raw_board = json.loads(args.storyboard.read_text(encoding="utf-8"))
+            raw_execution = json.loads(args.execution.read_text(encoding="utf-8"))
+            hint = json.loads(args.hint.read_text(encoding="utf-8")) if args.hint is not None else None
+            cue = plan_math_writing(raw_board, raw_execution,
+                event_id=args.event_id, object_id=args.object_id, hint=hint)
+            render_math_writing_clip(cue,
+                output_mp4=args.output, output_json=args.manifest,
+                pixel_width=args.pixel_width, pixel_height=args.pixel_height,
+                fps=args.fps)
             return 0
 
         # Optional import only for the real-render command: old plan users
