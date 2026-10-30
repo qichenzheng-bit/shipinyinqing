@@ -38,6 +38,14 @@ def main(argv: list[str] | None = None) -> int:
     writing.add_argument("--pixel-height", type=int, default=720)
     writing.add_argument("--fps", type=int, default=15)
 
+    layout = subparsers.add_parser("layout-board",
+        help="2.3 measured adaptive layout: JSON plan or real MathTex board PNG")
+    layout.add_argument("--storyboard", type=Path, required=True)
+    layout.add_argument("--execution", type=Path, required=True)
+    layout.add_argument("--output", type=Path, required=True)
+    layout.add_argument("--event-id", help="Render selected event as PNG; omit for JSON plan")
+    layout.add_argument("--manifest", type=Path, help="Required with --event-id")
+
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -45,6 +53,24 @@ def main(argv: list[str] | None = None) -> int:
             result = build_execution_plan(raw)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            return 0
+
+        if args.command == "layout-board":
+            from .adaptive_layout import layout_storyboard, render_layout_png
+            raw_board = json.loads(args.storyboard.read_text(encoding="utf-8"))
+            raw_execution = json.loads(args.execution.read_text(encoding="utf-8"))
+            if args.event_id is not None:
+                if args.manifest is None or args.output.suffix.lower() != ".png":
+                    raise ValueError("LAYOUT_OUTPUT: --event-id needs --output .png and --manifest .json")
+                render_layout_png(raw_board, raw_execution, event_id=args.event_id,
+                                  output_png=args.output, output_json=args.manifest)
+            else:
+                if args.manifest is not None or args.output.suffix.lower() != ".json":
+                    raise ValueError("LAYOUT_OUTPUT: planning needs --output .json only")
+                result = layout_storyboard(raw_board, raw_execution)
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                                       encoding="utf-8")
             return 0
 
         if args.command == "render-writing":
