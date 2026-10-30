@@ -44,3 +44,22 @@ math-animation preview-math --storyboard storyboard.json --execution execution.j
 **安全边界**：2.1 是离线、受审计教学输入的预览器，不接受公网任意用户提供的 TeX 直接执行。已采取严格数学宏限制，但生产服务仍需独立低权限沙箱、CPU/内存/时间限制及受控缓存。原教师与导演合同不因预览被改写。
 
 **尚未实现**：整幕老师课堂、局部分段书写、短暂蓝色高亮、自动换行/滚动/换幕、中文题干混排、真实音频与字幕秒级同步。这些在后续 2.2—2.5 专项验收。
+
+## 2.2：按数学结构分段写入 + 指定局部高亮（真实 MP4）
+
+新命令 `math-animation render-writing` 在**完整校验** `StoryboardPlan` 与 `ExecutionPlan` 后，对一条已经出现过的数学对象生成**真实的 Manim Write 动画 MP4**。不提供人工审核的分段标记时，只对原式进行整式 Write 和蓝色高亮；若提供标记，则强制片段逐字拼接等于原 LaTeX，且 `source_storyboard_sha256`、`event_id`、`object_id`、原 `action_id` 和 `speech_unit_id` 全部匹配。非法标记报错，不会自行推理或重写数学。
+
+```bash
+visual-director plan visual_director/examples/limit_teaching_package.json --output storyboard.json
+math-animation plan storyboard.json --output execution.json
+math-animation render-writing --storyboard storyboard.json --execution execution.json \
+  --event-id e_end --object-id m_end \
+  --hint animation_engine/examples/limit_sum_approved_parts.json \
+  --output writing.mp4 --manifest writing.json
+```
+
+可省略 `--hint` 以试验**安全整式回退模式**。命令行支持 `--pixel-width`、`--pixel-height`、`--fps`，默认 1280×720、15 fps。色彩固定白底 #FFFFFF、墨色 #1E293B、当前高亮 #2563EB，动画只改变颜色，不移动已写好的字符；最终恢复墨色。使用真实 MathTex 生成 MP4 和可追溯 manifest；没有配音，`timing_source=preview_only_not_audio_aligned` 的预览节奏**不是口播对齐时间**。整幕/逐步滚动以及跨多个公式位置跟踪属于后续阶段。
+
+**重要的上游布局限制**：`animation_engine/examples/sin_taylor_approved_parts.json` 可用于验证分段合同，但原视觉导演把该长泰勒式放在较窄的 scratch 区，它按正常字号可能触发 `FORMULA_OVERFLOW`，不是动画失败。2.2 不会擅自缩字/改区域；需要等 2.3 的真实版面重排。故本阶段完整 MP4 验收使用已处于正常 board 区的结论公式 `m_end`。
+
+离线可信输入专用。TeX 编译不能作为无沙箱的公网服务；通过既有宏限制并仍需服务级低权限隔离。禁止把 preview-only 时间当成真实字幕/配音时间。
