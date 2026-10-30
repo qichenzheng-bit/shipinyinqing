@@ -39,7 +39,12 @@ class LongboardPolicy:
     carry_count: int = 1
     full_width_without_diagram: bool = True
     safe_auto_break: bool = True
-    content_top_offset_px: int = 0  # reserve teaching ribbon beneath question
+    content_top_offset_px: int = 0  # reserve area for optional teacher cues
+    board_mode: str = "classic"  # classic / simple_full_board
+    board_column_width_px: int = 0  # 0 = original full width
+    math_base_scale: float = 1.0
+    math_min_scale: float = .90
+    row_gap_px: int = 15
 
     @classmethod
     def parse(cls, value: "LongboardPolicy | dict | None") -> "LongboardPolicy":
@@ -53,7 +58,8 @@ class LongboardPolicy:
             "pinned_ids", "result_ids", "break_hints", "cut_before_events",
             "allow_scroll", "max_scrolls_per_page", "max_scroll_fraction",
             "carry_count", "full_width_without_diagram", "safe_auto_break",
-            "content_top_offset_px",
+            "content_top_offset_px", "board_mode", "board_column_width_px",
+            "math_base_scale", "math_min_scale", "row_gap_px",
         }
         if set(value) - permitted:
             raise LongboardError("INVALID_POLICY: unknown keys " + str(sorted(set(value)-permitted)))
@@ -70,6 +76,11 @@ class LongboardPolicy:
                 full_width_without_diagram=value.get("full_width_without_diagram", True),
                 safe_auto_break=value.get("safe_auto_break", True),
                 content_top_offset_px=value.get("content_top_offset_px", 0),
+                board_mode=value.get("board_mode", "classic"),
+                board_column_width_px=value.get("board_column_width_px", 0),
+                math_base_scale=value.get("math_base_scale", 1.0),
+                math_min_scale=value.get("math_min_scale", .90),
+                row_gap_px=value.get("row_gap_px", 15),
             )
         except (TypeError, ValueError) as exc:
             raise LongboardError(f"INVALID_POLICY: {exc}") from exc
@@ -84,7 +95,16 @@ class LongboardPolicy:
                 raise LongboardError(f"INVALID_POLICY: {name} contains duplicate/unknown ID")
         if set(self.break_hints) - object_ids:
             raise LongboardError("INVALID_POLICY: break_hints reference unknown object")
-        if (type(self.content_top_offset_px) is not int
+        if (self.board_mode not in ("classic", "simple_full_board")
+                or type(self.board_column_width_px) is not int
+                or not 0 <= self.board_column_width_px <= 1600
+                or type(self.math_base_scale) not in (int,float)
+                or type(self.math_min_scale) not in (int,float)
+                or not math.isfinite(self.math_base_scale)
+                or not math.isfinite(self.math_min_scale)
+                or not .7 <= self.math_min_scale <= self.math_base_scale <= 1.0
+                or type(self.row_gap_px) is not int or not 8 <= self.row_gap_px <= 40
+                or type(self.content_top_offset_px) is not int
                 or not 0 <= self.content_top_offset_px <= 220
                 or type(self.safe_auto_break) is not bool
                 or type(self.allow_scroll) is not bool
@@ -255,14 +275,15 @@ def _size_parts(object_id: str, source: dict, policy: LongboardPolicy,
 
 def _make_placement(object_id: str, source: dict, measured: dict,
                     x: float, y: float, available_width: float,
-                    frame: tuple[int, int], role: str) -> dict:
+                    frame: tuple[int, int], role: str,
+                    base_scale: float = 1., min_scale: float = .90) -> dict:
     # One common scale across every fragment: never distort fractions/matrices.
-    scale = min(1., available_width / measured["width"])
-    if scale < .90 - 1e-8:
+    scale = min(base_scale, available_width / measured["width"])
+    if scale < min_scale - 1e-8:
         raise LongboardError(
             f"LONG_FORMULA_UNFIT: {object_id}; requires authorized break_hints"
         )
-    scale = max(.90, scale)
+    scale = max(min_scale, scale)
     px, py = x, y
     fragments = []
     for i, (chunk, metric) in enumerate(zip(measured["segments"], measured["metrics"])):
@@ -291,7 +312,12 @@ def _arrange(ids: list[str], fixed: list[str], sources: dict, cache: dict,
              zone: tuple[float, float, float, float],
              frame: tuple[int, int]) -> list[dict] | None:
     x, y, w, h = zone
-    pad_x, pad_y, gap = 14, 11, 15
+    pad_x, pad_y, gap = 14, 11, policy.row_gap_px
+    if policy.board_mode == "simple_full_board" and policy.board_column_width_px:
+        if policy.board_column_width_px > w:
+            raise LongboardError("CENTER_COLUMN_OVERFLOW: exceeds original board region")
+        x += (w - policy.board_column_width_px)/2
+        w = policy.board_column_width_px
     if w <= 2*pad_x or h <= 2*pad_y:
         return None
     placements: list[dict] = []
@@ -301,7 +327,8 @@ def _arrange(ids: list[str], fixed: list[str], sources: dict, cache: dict,
             metrics = _size_parts(object_id, sources[object_id], policy,
                                   size_of, frame[1], cache, w-2*pad_x)
             item = _make_placement(object_id, sources[object_id], metrics,
-                                   x+pad_x, cursor, w-2*pad_x, frame, role)
+                                   x+pad_x, cursor, w-2*pad_x, frame, role,
+                                   policy.math_base_scale, policy.math_min_scale)
             if item["y"]+item["h"] > y+h-pad_y + .5:
                 return None
             if any(_overlap(item, other) for other in placements):
@@ -530,6 +557,11 @@ def build_longboard_plan(
             "full_width_without_diagram": selected.full_width_without_diagram,
             "safe_auto_break": selected.safe_auto_break,
             "content_top_offset_px": selected.content_top_offset_px,
+            "board_mode": selected.board_mode,
+            "board_column_width_px": selected.board_column_width_px,
+            "math_base_scale": selected.math_base_scale,
+            "math_min_scale": selected.math_min_scale,
+            "row_gap_px": selected.row_gap_px,
         },
         "pages": pages, "events": events,
         "timing_source": "preview_only_not_audio_aligned",
