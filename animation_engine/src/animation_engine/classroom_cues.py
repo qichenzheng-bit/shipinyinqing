@@ -78,11 +78,51 @@ def checked_cues(source: dict, storyboard, execution) -> list[dict]:
 
 
 def draw_cue_overlay(item: dict, dest: Path, *,
-                     width: int = 1280, height: int = 720) -> dict:
+                     width: int = 1280, height: int = 720,
+                     style: str = "classic") -> dict:
     from PIL import Image, ImageDraw
 
     if width != 1280 or height != 720:
         raise LongboardError("CLASSROOM_CUE_FRAME: current design requires 1280x720")
+    if style not in ("classic","simple_full_board"):
+        raise LongboardError("CLASSROOM_CUE_STYLE")
+    if style == "simple_full_board":
+        # Chinese 五号字体 = 10.5 pt ≈ 14px at 96dpi.
+        # No giant card: put the authored explanation in the middle of the
+        # board, directly above the mathematically exact MathTex working area.
+        # The text is never a subtitle and contains no faux math glyphs.
+        center_x = width // 2
+        panel = Image.new("RGBA", (width,height), (255,255,255,0))
+        ink = ImageDraw.Draw(panel)
+        phase = PHASE_NAMES[item["phase"]]
+        heading = item["heading"]
+        detail = item["detail"]
+        line1 = phase + "  ·  " + heading
+        spec = ((line1,14,145,FONT_COLORS["ink"]),
+                (detail,14,168,FONT_COLORS["muted"]))
+        textboxes = []
+        for txt,points,y,color in spec:
+            font = _font(points)
+            bb = ink.textbbox((0,0),txt,font=font)
+            x = round(center_x - (bb[2]-bb[0])/2)
+            target_y = y-bb[1]
+            actual = ink.textbbox((x,target_y),txt,font=font)
+            if actual[0] < 82 or actual[2] > width-82 or actual[3] > 187:
+                raise LongboardError(
+                    f"CLASSROOM_COMPACT_TEXT_OVERFLOW: {item['event_id']}"
+                )
+            ink.text((x,target_y),txt,font=font,fill=color)
+            textboxes.append(list(actual))
+        dest = Path(dest)
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        panel.save(dest)
+        return {
+            "event_id":item["event_id"],"phase":item["phase"],
+            "heading":heading,"detail":detail,
+            "source_step_ids":item["source_step_ids"],
+            "style":"simple_full_board","font_pt":10.5,
+            "text_boxes_px":textboxes,"occupied_bottom_px":188,
+        }
     canvas=Image.new("RGBA",(width,height),(255,255,255,0))
     d=ImageDraw.Draw(canvas)
     x,y=66,129
