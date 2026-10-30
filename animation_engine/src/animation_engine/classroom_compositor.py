@@ -35,18 +35,22 @@ def _source_parts(question: str) -> tuple[str, str, str]:
         return question, "", ""
     chinese = question[:math_begin]
     candidate = question[math_begin:]
-    # Non-ASCII must remain in text instead of being forged as MathTex.
-    if any(ord(c) > 127 for c in candidate):
-        raise AdaptiveLayoutError(
-            "HEADER_MIXED_SEGMENTS_UNSUPPORTED: supply approved text/math segments"
-        )
     suffix = ""
     while candidate and candidate[-1] in _PUNCTUATION:
         suffix = candidate[-1] + suffix
         candidate = candidate[:-1]
+    # Trailing Chinese punctuation is permitted, but Chinese inside an
+    # expression must never be silently converted into a fake MathTex glyph.
+    if any(ord(c) > 127 for c in candidate):
+        raise AdaptiveLayoutError(
+            "HEADER_MIXED_SEGMENTS_UNSUPPORTED: supply approved text/math segments"
+        )
     if not candidate.strip():
         raise AdaptiveLayoutError("HEADER_EMPTY_MATH")
-    validate_math_latex(candidate)
+    try:
+        validate_math_latex(candidate)
+    except ValueError as exc:
+        raise AdaptiveLayoutError(str(exc)) from exc
     if chinese + candidate + suffix != question:
         raise AdaptiveLayoutError("HEADER_SOURCE_CHANGED")
     return chinese, candidate, suffix
