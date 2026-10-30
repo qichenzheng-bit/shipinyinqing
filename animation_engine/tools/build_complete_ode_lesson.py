@@ -102,7 +102,8 @@ UNITS=[
 
 def build_new():
     package,board,execution,cues=compile_teaching_units(
-        problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,units=UNITS
+        problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,units=UNITS,
+        teacher_reviewed=True  # These demo sources were independently audited.
     )
     policy=simple_classroom_policy(result_ids=("m_integrated",))
     return package,board,execution,cues,policy
