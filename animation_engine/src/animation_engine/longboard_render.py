@@ -19,7 +19,7 @@ from typing import Any
 from .longboard_plan import LongboardError, build_longboard_plan
 from .longboard_header import make_question_overlay
 from .mathtex_renderer import validate_math_latex
-from .classroom_cues import checked_cues, draw_cue_overlay, cue_hash
+from .classroom_cues import checked_cues, draw_cue_overlay, cue_hash, BOARD_GUIDANCE_PHASES
 
 
 def render_longboard_movie(
@@ -48,12 +48,15 @@ def render_longboard_movie(
     )
     cues = checked_cues(classroom_cues, board, source_plan) if classroom_cues is not None else None
     display_mode = layout["policy"]["board_mode"]
-    if cues is not None:
+    guidance_style = layout["policy"].get("guidance_style","fixed")
+    if cues is not None and guidance_style == "fixed":
         required_offset = 65 if display_mode == "simple_full_board" else 104
         if layout["policy"]["content_top_offset_px"] < required_offset:
             raise LongboardError(
                 "CLASSROOM_CUE_OVERLAP: teaching notes need clear board top offset"
             )
+    if guidance_style=="board_context" and display_mode!="simple_full_board":
+        raise LongboardError("BOARD_CONTEXT_REQUIRES_SIMPLE_FULL_BOARD")
     if display_mode == "simple_full_board" and (pixel_width,pixel_height)!=(1280,720):
         raise LongboardError("COMPACT_LAYOUT_FRAME: requires 1280x720")
     try:
@@ -97,9 +100,13 @@ def render_longboard_movie(
             )
             if cues is not None:
                 for index, cue in enumerate(cues):
-                    draw_cue_overlay(cue,temp/f"cue_{index:03d}.png",
-                                     width=pixel_width,height=pixel_height,
-                                     style=display_mode)
+                    if guidance_style=="fixed" or cue["phase"] in BOARD_GUIDANCE_PHASES:
+                        draw_cue_overlay(
+                            cue,temp/f"cue_{index:03d}.png",
+                            width=pixel_width,height=pixel_height,
+                            style=("board_context" if guidance_style=="board_context"
+                                   else display_mode)
+                        )
             with tempconfig({
                 "pixel_width": pixel_width, "pixel_height": pixel_height,
                 "frame_width": fw, "frame_height": fh, "frame_rate": fps,
@@ -119,7 +126,27 @@ def render_longboard_movie(
                         self.actual_events = []
                         for scene_index, row in enumerate(layout["events"]):
                             cue = None if cues is None else cues[scene_index]
-                            if cue is not None:
+                            start = self.time
+                            did_board_guidance = (
+                                cue is not None and guidance_style=="board_context"
+                                and cue["phase"] in BOARD_GUIDANCE_PHASES
+                            )
+                            if did_board_guidance:
+                                # Blackboard interlude at the conceptual point.
+                                # The question remains anchored; prior formula
+                                # objects are restored *unchanged* after teaching.
+                                if active:
+                                    self.play(*[FadeOut(obj) for obj in active.values()],
+                                              run_time=.22)
+                                note = ImageMobject(str(temp/f"cue_{scene_index:03d}.png"))
+                                note.scale_to_fit_width(fw).move_to([0,0,0])
+                                self.play(FadeIn(note),run_time=.30)
+                                self.wait(cue["pause_seconds"])
+                                self.play(FadeOut(note),run_time=.30)
+                                if active:
+                                    self.play(*[FadeIn(obj) for obj in active.values()],
+                                              run_time=.22)
+                            elif cue is not None and guidance_style=="fixed":
                                 new_panel = ImageMobject(str(temp/f"cue_{scene_index:03d}.png"))
                                 new_panel.scale_to_fit_width(fw).move_to([0,0,0])
                                 if active_cue is None:
@@ -128,7 +155,6 @@ def render_longboard_movie(
                                     self.play(FadeOut(active_cue),FadeIn(new_panel),run_time=.38)
                                 active_cue = new_panel
                             target = {p["object_id"]:p for p in row["placements"]}
-                            start = self.time
                             removing = [mid for mid in active if mid not in target]
                             if removing:
                                 self.play(*[FadeOut(active[mid])
@@ -207,9 +233,11 @@ def render_longboard_movie(
                                         f"HIGHLIGHT_TARGET_NOT_VISIBLE: {row['event_id']}/{mid}"
                                     )
                             if cue is not None:
-                                # Not a subtitle or audio-aligned pause. Give a
-                                # reader enough time to inspect the math on screen.
-                                self.wait(cue["pause_seconds"])
+                                # Conceptual cues have already had their
+                                # dedicated board teaching time. Calculations
+                                # stay visible for reading; this is not TTS.
+                                self.wait(.85 if did_board_guidance
+                                          else cue["pause_seconds"])
                             if row["transition"] == "cut":
                                 # No black-screen transition: the fixed header
                                 # is composed independently and stays visible.
@@ -268,8 +296,17 @@ def render_longboard_movie(
                     "source_sha256":cue_hash(classroom_cues),
                     "status":"approved_board_notes_not_speech_or_subtitles",
                     "cue_count":len(cues),
-                    "reserved_band_px":([82,145,1116,43]
-                        if display_mode=="simple_full_board" else [66,129,1129,87]),
+                    "reserved_band_px": (
+                        [] if guidance_style=="board_context"
+                        else ([82,145,1116,43] if display_mode=="simple_full_board"
+                              else [66,129,1129,87])
+                    ),
+                    "board_context_phases": sorted(BOARD_GUIDANCE_PHASES),
+                    "visible_board_interludes": (
+                        [c["event_id"] for c in cues if c["phase"] in BOARD_GUIDANCE_PHASES]
+                        if guidance_style=="board_context" else []
+                    ),
+                    "guidance_style":guidance_style,
                     "board_mode":display_mode,
                 },
                 "event_timing":event_timing,
