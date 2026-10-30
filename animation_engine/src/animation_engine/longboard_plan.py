@@ -97,7 +97,7 @@ class LongboardPolicy:
                 raise LongboardError(f"INVALID_POLICY: {name} contains duplicate/unknown ID")
         if set(self.break_hints) - object_ids:
             raise LongboardError("INVALID_POLICY: break_hints reference unknown object")
-        if (self.guidance_style not in ("fixed", "board_context")
+        if (self.guidance_style not in ("fixed", "board_context", "persistent_chalkboard")
                 or self.board_mode not in ("classic", "simple_full_board")
                 or type(self.board_column_width_px) is not int
                 or not 0 <= self.board_column_width_px <= 1600
