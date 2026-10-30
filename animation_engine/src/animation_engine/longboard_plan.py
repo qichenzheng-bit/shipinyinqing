@@ -358,7 +358,20 @@ def build_longboard_plan(
                 auto_archived.add(action.object_id)
             if action.kind in ("remove", "restore"):
                 auto_archived.discard(action.object_id)
-        visible = list(scene.visible_ids)
+        # A formula archived from the *display* by a previous page/scroll
+        # does not jump back into view merely because the upstream snapshot
+        # still lists it as visible. Only explicit teacher reuse or a pinned
+        # rule may reactivate it. Its original source remains unchanged.
+        live_refs = {a.object_id for a in execution_scene.actions
+                     if a.kind in ("progressive_write", "restore", "retain",
+                                   "group", "brief_highlight")}
+        protected = set(selected.pinned_ids) | set(selected.result_ids)
+        visible = [
+            mid for mid in scene.visible_ids
+            if mid in previous or mid not in last_seen
+            or mid in live_refs or mid in protected
+        ]
+        previously_hidden = [mid for mid in scene.visible_ids if mid not in visible]
         # Only explicitly pinned objects may survive the director's automatic
         # capacity-based archive. A teacher-directed remove is never overridden.
         fixed = [mid for mid in dict.fromkeys(
@@ -379,7 +392,7 @@ def build_longboard_plan(
                                   selected, zone, frame)
         old_page = page_number
         mode = "hold" if not new_ids else "append"
-        hidden_by_layout: list[str] = []
+        hidden_by_layout: list[str] = list(previously_hidden)
         if (all_placements is None or scene.event_id in selected.cut_before_events):
             # Only scroll away complete *previously displayed* work, never a
             # newly taught object or a pinned result.
@@ -399,7 +412,7 @@ def build_longboard_plan(
                         distance = sum(previous[m]["h"]+15 for m in removed)
                         if distance <= selected.max_scroll_fraction * zone[3]:
                             scrolling = possible
-                            hidden_by_layout = list(removed)
+                            hidden_by_layout.extend(removed)
                         break
             if scrolling is not None:
                 all_placements = scrolling
@@ -427,7 +440,7 @@ def build_longboard_plan(
                         f"PAGE_UNFIT: {scene.event_id}; pinned + complete new actions "
                         "do not fit even on a clean page"
                     )
-                hidden_by_layout = [mid for mid in working if mid not in proposed]
+                hidden_by_layout.extend(mid for mid in working if mid not in proposed)
         assert all_placements is not None
         placed = {p["object_id"]: p for p in all_placements}
         movements = []
@@ -455,6 +468,7 @@ def build_longboard_plan(
                     "previous_bbox": [previous[mid][k] for k in ("x","y","w","h")],
                     "target_bbox": None,
                 })
+        hidden_by_layout = list(dict.fromkeys(hidden_by_layout))
         for mid in hidden_by_layout:
             if mid not in last_seen and mid not in previous:
                 raise LongboardError(
