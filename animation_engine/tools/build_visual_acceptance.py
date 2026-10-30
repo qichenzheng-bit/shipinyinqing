@@ -98,7 +98,7 @@ def main(output: Path):
             screenshot = Image.open(png)
         cards.append(_annotate_card(screenshot, title=label, subtitle=desc, row=item))
 
-    combined = Image.new("RGB", (1860, 1340), "#F8FAFC")
+    combined = Image.new("RGB", (1860, 1420), "#F8FAFC")
     d = ImageDraw.Draw(combined)
     d.text((34, 23), "2.3 实际课堂板书布局验收 — 同一道极限题",
            font=_font(44), fill="#0F172A")
@@ -106,7 +106,7 @@ def main(output: Path):
            "蓝色轮廓仅用于标明新出现的公式；公式本身来自真实 MathTex 渲染。",
            font=_font(23), fill="#475569")
     for i, card in enumerate(cards):
-        combined.paste(card, (18 + (i % 2) * 922, 139 + (i // 2) * 610))
+        combined.paste(card, (18 + (i % 2) * 922, 139 + (i // 2) * 646))
     combined.save(output / "acceptance_gallery.png")
 
     # A meaningful REAL-LESSON scene transition: two existing equations stay
