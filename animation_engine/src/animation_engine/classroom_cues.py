@@ -31,6 +31,13 @@ PHASE_NAMES = {
 NOTE_CHARACTERS = re.compile(r"^[\u3400-\u9fff，。、；：？！—（）《》“”‘’·\s]+$")
 FONT_COLORS = {"ink":"#1E293B","muted":"#64748B","blue":"#2563EB"}
 
+# Actual board-writing sections inspired by reference videos: appear inside
+# the central classroom, not as a persistent line beneath the question.
+# Application and calculation explanations belong to future voice content;
+# they are NOT converted to fake subtitles or repetitive board titles.
+BOARD_GUIDANCE_PHASES = frozenset({"observe","strategy","knowledge","check","summary"})
+
+
 
 def checked_cues(source: dict, storyboard, execution) -> list[dict]:
     board = StoryboardPlan.model_validate(storyboard)
@@ -84,7 +91,52 @@ def draw_cue_overlay(item: dict, dest: Path, *,
 
     if width != 1280 or height != 720:
         raise LongboardError("CLASSROOM_CUE_FRAME: current design requires 1280x720")
-    if style not in ("classic","simple_full_board"):
+    if style == "board_context":
+        # This is a transient teaching moment in the actual working blackboard
+        # (as in the supplied classroom references), not a caption strip.
+        # The renderer hides existing mathematical ink only during this
+        # transition and restores those exact objects before next Write.
+        panel = Image.new("RGBA", (width,height), (255,255,255,0))
+        ink = ImageDraw.Draw(panel)
+        heading = PHASE_NAMES[item["phase"]] + "：" + item["heading"]
+        detail = item["detail"]
+        left, start_y, max_right = 300, 286, 990
+        font_h, font_d = _font(18), _font(16)
+        ink.text((left,start_y),heading,font=font_h,fill=FONT_COLORS["blue"])
+        if ink.textbbox((left,start_y),heading,font=font_h)[2] > max_right:
+            raise LongboardError(f"CLASSROOM_BOARD_HEADING_OVERFLOW: {item['event_id']}")
+        # A legal CJK line-break is at a Chinese character boundary; no math
+        # tokens are allowed here (all math belongs in source MathTex).
+        lines, current = [], ""
+        for char in detail:
+            candidate=current+char
+            width_candidate=ink.textbbox((0,0),candidate,font=font_d)[2]
+            if current and width_candidate > (max_right-left):
+                lines.append(current)
+                current=char
+            else:
+                current=candidate
+        if current:
+            lines.append(current)
+        if not lines or len(lines)>3:
+            raise LongboardError(f"CLASSROOM_BOARD_NOTE_OVERFLOW: {item['event_id']}")
+        for n,line in enumerate(lines):
+            y=start_y+42+28*n
+            ink.text((left,y),line,font=font_d,fill=FONT_COLORS["ink"])
+            if ink.textbbox((left,y),line,font=font_d)[2] > max_right:
+                raise LongboardError(f"CLASSROOM_BOARD_NOTE_OVERFLOW: {item['event_id']}")
+        dest=Path(dest)
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        panel.save(dest)
+        return {
+            "event_id":item["event_id"],"phase":item["phase"],
+            "heading":item["heading"],"detail":detail,
+            "source_step_ids":item["source_step_ids"],
+            "style":"board_context",
+            "bbox_px":[left,start_y,max_right-left,42+28*len(lines)],
+            "is_temporary_board_section":True,
+        }
+    if style not in ("classic","simple_full_board","board_context"):
         raise LongboardError("CLASSROOM_CUE_STYLE")
     if style == "simple_full_board":
         # Chinese 五号字体 = 10.5 pt ≈ 14px at 96dpi.
