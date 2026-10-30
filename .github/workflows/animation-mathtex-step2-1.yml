@@ -67,6 +67,28 @@ jobs:
           assert meta["render_kind"]=="manim_mathtex_static_png"
           print("REAL_PNG_OK",scene["event_id"],meta["formula_bounds_px"])
           PY
+      - name: Save actual typeset fraction, limit, integral and matrix examples
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from manim import Camera, tempconfig
+          from animation_engine.mathtex_renderer import build_measured_mathtex
+          samples = {
+            "fraction": r"\\frac{a+b}{c+d}",
+            "limit": r"\\displaystyle\\lim\\limits_{x\\to0}\\frac{\\sin x}{x}",
+            "integral": r"\\int_0^1 x\\,dx=\\frac12",
+            "matrix": r"\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+          }
+          for name, latex in samples.items():
+            glyphs, m = build_measured_mathtex(latex)
+            assert 0 < m.width_units < 12 and 0 < m.height_units < 7
+            glyphs.move_to([0,0,0])
+            with tempconfig({"pixel_width":1280,"pixel_height":720,"frame_width":14.222222222222,"frame_height":8,"background_color":"#FFFFFF"}):
+              camera=Camera()
+              camera.capture_mobjects([glyphs])
+              camera.get_image().save(Path("render-evidence") / (name + ".png"),format="PNG")
+            print("RENDERED_EXAMPLE",name,m)
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -74,4 +96,8 @@ jobs:
           path: |
             render-evidence/math.png
             render-evidence/math.json
+            render-evidence/fraction.png
+            render-evidence/limit.png
+            render-evidence/integral.png
+            render-evidence/matrix.png
           if-no-files-found: warn
