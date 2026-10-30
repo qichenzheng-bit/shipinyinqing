@@ -102,7 +102,7 @@ class LongboardPolicy:
                 or type(self.math_min_scale) not in (int,float)
                 or not math.isfinite(self.math_base_scale)
                 or not math.isfinite(self.math_min_scale)
-                or not .7 <= self.math_min_scale <= self.math_base_scale <= 1.0
+                or not .48 <= self.math_min_scale <= self.math_base_scale <= 1.0
                 or type(self.row_gap_px) is not int or not 8 <= self.row_gap_px <= 40
                 or type(self.content_top_offset_px) is not int
                 or not 0 <= self.content_top_offset_px <= 220
