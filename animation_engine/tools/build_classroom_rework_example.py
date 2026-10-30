@@ -133,7 +133,7 @@ def build():
       "pinned_ids":[],"result_ids":["m_jresult"],
       "break_hints":{},"cut_before_events":[],
       "allow_scroll":True,"max_scrolls_per_page":2,
-      "max_scroll_fraction":0.55,"carry_count":1,
+      "max_scroll_fraction":0.55,"carry_count":0,
       "full_width_without_diagram":True,"safe_auto_break":True,
       "content_top_offset_px":70,
       "board_mode":"simple_full_board",
