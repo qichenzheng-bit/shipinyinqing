@@ -21,10 +21,10 @@ def inputs():
     execution = build_execution_plan(board)
     hint = dict(
         source_storyboard_sha256=execution.source_storyboard_sha256,
-        event_id="e_k_sin", object_id="m_k_sin", action_id="b_k_sin",
-        speech_unit_id="u_k_sin",
-        parts=[r"\sin x", "=x-", r"\frac{x^3}{6}", "+o(x^3)"],
-        highlight_index=2,
+        event_id="e_end", object_id="m_end", action_id="b_end",
+        speech_unit_id="u_end",
+        parts=["L", "=", "I_1+I_2+I_3", "=", r"-\frac13", r"+\frac12", r"+\frac12", r"=\frac23"],
+        highlight_index=4,
     )
     return board, execution, hint
 
@@ -56,7 +56,7 @@ def _count_blue_pixels(mp4, second):
 
 def test_real_segmented_movie_exact_target_blue_and_restores(inputs,tmp_path):
     board,ex,hint=inputs
-    plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin",hint=hint)
+    plan=plan_math_writing(board,ex,event_id="e_end",object_id="m_end",hint=hint)
     mp4,meta=tmp_path/"segmented.mp4",tmp_path/"segmented.json"
     res=render_math_writing_clip(plan,output_mp4=mp4,output_json=meta,
                                   pixel_width=640,pixel_height=360,fps=12)
@@ -68,9 +68,9 @@ def test_real_segmented_movie_exact_target_blue_and_restores(inputs,tmp_path):
     assert data["render_kind"]=="manim_mathtex_progressive_mp4"
     assert data["mode"]=="segmented" and data["parts"]==hint["parts"]
     assert data["source_storyboard_sha256"]==ex.source_storyboard_sha256
-    assert data["source_step_ids"]==["s5a","s5"]
-    assert data["action_id"]=="b_k_sin" and data["speech_unit_id"]=="u_k_sin"
-    assert data["highlight_index"]==2
+    assert data["source_step_ids"]==["s8"]
+    assert data["action_id"]=="b_end" and data["speech_unit_id"]=="u_end"
+    assert data["highlight_index"]==4
     assert data["timing_source"]=="preview_only_not_audio_aligned"
     assert "speech_start_second" not in data and "speech_end_second" not in data
     assert data["write_part_indices"]==[0,1,2,3]
@@ -80,7 +80,7 @@ def test_real_segmented_movie_exact_target_blue_and_restores(inputs,tmp_path):
 
 def test_no_hint_real_movie_writes_entire_formula_once(inputs,tmp_path):
     board,ex,_=inputs
-    plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin")
+    plan=plan_math_writing(board,ex,event_id="e_end",object_id="m_end")
     mp4,meta=tmp_path/"whole.mp4",tmp_path/"whole.json"
     render_math_writing_clip(plan,output_mp4=mp4,output_json=meta,
                              pixel_width=640,pixel_height=360,fps=12)
@@ -96,7 +96,7 @@ def test_no_hint_real_movie_writes_entire_formula_once(inputs,tmp_path):
 def test_reject_overflow_without_creating_success_artifacts(inputs,tmp_path):
     from dataclasses import replace
     board,ex,_=inputs
-    plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin")
+    plan=plan_math_writing(board,ex,event_id="e_end",object_id="m_end")
     from visual_director.models import Rect
     too_big=replace(plan,request=replace(plan.request,region=Rect(x=.05,y=.05,w=.06,h=.06)))
     mp4,meta=tmp_path/"bad.mp4",tmp_path/"bad.json"
@@ -108,7 +108,7 @@ def test_reject_overflow_without_creating_success_artifacts(inputs,tmp_path):
 
 def test_reject_duplicate_output_paths(inputs,tmp_path):
     board,ex,_=inputs
-    plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin")
+    plan=plan_math_writing(board,ex,event_id="e_end",object_id="m_end")
     same=tmp_path/"same.mp4"
     with pytest.raises(MathWritingClipError,match="INVALID_OUTPUT"):
         render_math_writing_clip(plan,output_mp4=same,output_json=same)
@@ -122,7 +122,7 @@ def test_render_writing_cli_preserves_legacy_and_rejects_invalid_hint(inputs,tmp
     hintfile.write_text(json.dumps(hint),encoding="utf-8")
     mp4,meta=tmp_path/"cli.mp4",tmp_path/"cli.json"
     args=["render-writing","--storyboard",str(boardfile),"--execution",str(exfile),
-        "--event-id","e_k_sin","--object-id","m_k_sin","--hint",str(hintfile),
+        "--event-id","e_end","--object-id","m_end","--hint",str(hintfile),
         "--output",str(mp4),"--manifest",str(meta)]
     assert main(args)==0
     assert mp4.exists() and meta.exists()
