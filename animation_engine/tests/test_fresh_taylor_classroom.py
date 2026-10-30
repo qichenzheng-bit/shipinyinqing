@@ -24,10 +24,12 @@ def measured(latex,height):
 def test_completely_different_calculus_problem_math_and_source_integrity():
     pkg,board,execution,cues,policy=build_new()
     assert "\\tan x" in PROBLEM and "\\int" not in PROBLEM
-    assert len(cues["events"])==len(STEPS)==19
+    assert len(cues["events"])==len(STEPS)==5
+    assert sum(len(u["math"]) for u in STEPS)==12
     assert pkg["source"]["problem"]==PROBLEM
-    assert all(c["source_step_ids"]==["s"+str(i)]
-               for i,c in enumerate(cues["events"],1))
+    assert all(c["source_step_ids"]==[
+        f"s{i}_{j}" for j in range(1,len(STEPS[i-1]["math"])+1)]
+        for i,c in enumerate(cues["events"],1))
     assert cues["source_storyboard_sha256"]==execution.source_storyboard_sha256
     assert "m_final" in policy["result_ids"]
 
@@ -60,7 +62,8 @@ def test_default_preset_implements_confirmed_blackboard_requirements():
 def test_fresh_taylor_every_math_written_exactly_once_and_ink_is_persistent():
     _,board,execution,cues,policy=build_new()
     plan=make_chalkboard_plan(board,execution,cues,policy,measure=measured)
-    assert plan["event_count"]==19
+    assert plan["event_count"]==5
+    assert [e["math_write_count"] for e in plan["events"]]==[1,3,3,3,2]
     assert plan["page_count"]>=2
     assert sum(e["erase_before"] for e in plan["events"])==plan["page_count"]-1
     live={}
@@ -81,7 +84,7 @@ def test_fresh_taylor_every_math_written_exactly_once_and_ink_is_persistent():
         assert list(live)==row["visible_block_ids"]
     assert "m_final" in math_ids
     assert len(math_ids)==len(plan["math_written_ids"])
-    assert plan["events"][-1]["event_id"]=="e_final"
+    assert plan["events"][-1]["event_id"]=="e_conclusion"
 
 
 def test_new_question_does_not_erase_just_because_teaching_phase_changes():
@@ -131,4 +134,18 @@ def test_cli_defaults_to_confirmed_classroom_with_reviewed_cues(tmp_path,monkeyp
     ])
     assert code==0
     saved=json.loads(out.read_text(encoding="utf-8"))
-    assert saved=={"mode":"persistent_chalkboard","events":19}
+    assert saved=={"mode":"persistent_chalkboard","events":5}
+
+
+def test_missing_taylor_product_calculation_is_now_displayed_in_same_unit():
+    pkg,board,execution,cues,policy=build_new()
+    group=board.scenes[2]
+    assert group.event_id=="e_product"
+    writes=[a for a in group.actions if a.kind=="progressive_write"]
+    assert len(writes)==3
+    assert any(r"-\frac{x^5}{24}-\frac{x^5}{12}" in w.latex
+               for w in writes)
+    assert [a.kind for a in writes]==["progressive_write"]*3
+    # No separate scene just for a cubic or quintic coefficient.
+    assert all("quintic" not in sc.event_id and "cubic" not in sc.event_id
+               for sc in board.scenes)
