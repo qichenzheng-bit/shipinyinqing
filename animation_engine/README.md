@@ -1,6 +1,6 @@
 # 数学动画执行模块 V1.0 — 第 1 阶段：执行接口与对象状态管理
 
-**本文件开头记录 V1 第一阶段执行清单；后续 2.1—2.3 已追加真实渲染功能，2.4 的长板书实现代码已提交但按要求尚未测试。所有预览均不等于真实配音字幕同步。**
+**本文的前半部分保留 V1 早期模块历史记录。2.4 长板书、参考视频课堂、持续书写与写满擦板功能现均已有独立真实 MP4 专项验收。简单题已切换为“写上不消失、写满整板擦除”，复杂题保留旧版式。所有当前预览均不等于真实配音字幕同步。**
 
 输入严格使用视觉导演的 `StoryboardPlan v1.0`（Pydantic 原始合同）。输出 `ExecutionPlan v1.0` 包含每场景的动作前后状态、公式所在区域、可见与归档对象、稳定 SHA-256 状态指纹，以及所有来源/口播语义 ID。执行器不改原始 LaTeX、不解题、不进行模型调用。
 
@@ -65,11 +65,11 @@ math-animation render-writing --storyboard storyboard.json --execution execution
 离线可信输入专用。TeX 编译不能作为无沙箱的公网服务；通过既有宏限制并仍需服务级低权限隔离。禁止把 preview-only 时间当成真实字幕/配音时间。
 
 
-## 2.4：长计算、自然滚动、切幕与必要板书继承（代码已开发，尚未验收）
+## 2.4：长计算、自然滚动、切幕与必要板书继承（早期版本，已验收，非当前简单题默认）
 
 2.4 不再受单幕能放下多少公式的限制；从原有完整 StoryboardPlan + ExecutionPlan 生成独立、可追溯的长板书页面计划，逐事件安排固定层、工作层、显示性归档、滚动和切幕。每一幕的数学、对象 ID、步骤来源完全来自教师模块。固定题干持续展示，正常作答不加答案框。允许的移动发生在事件/步骤边界，不打断正在书写的公式。
 
-**当前仅完成代码，按照用户要求未运行任何测试、未执行下列命令、未制作验收视频。**
+**本段仅保留 2026-10-30 旧开发阶段的历史说明。2.4 此后已完成独立新题的 MP4 验收；当前简单题不再使用这种频繁重排模式。**
 
 先生成已有的 storyboard.json / execution.json，然后可在将来的验收阶段运行：
 
@@ -85,3 +85,28 @@ policy 模板包含 pinned_ids（重要条件）、result_ids（已完成结果�
 - **规范和后续验收方案**：docs/superpowers/plans/2026-10-30-animation-engine-step2-4-longboard.md
 
 完整视频会预留语音字幕区域，不伪造字幕时间码；阶段 2.5 再专项处理多题型、几何与矩阵的复杂展示以及视觉回归。2.4 未来验收需要先创造全新题目和经检查的完整参考解答，实测滚动、切幕与结果承接。**没有真实渲染通过之前，不得声称课堂效果已验收。**
+
+
+## 最新：用户确认的真实课堂持续板书模式（简单计算题）
+
+这不是覆盖原来的 2.3/2.4 代码，而是把默认简单题与复杂题分开。新入口 `classroom_policy.simple_classroom_policy()` 在传入 `--classroom-cues` 且没有显式版式时自动选用 `guidance_style=persistent_chalkboard`。指定旧政策仍走原动画逻辑。视觉导演和执行层不允许为了让公式好看而重写数学内容。
+
+- **原题**：居中且固定、真实 MathTex，数学内容与题干数学字号一致（普通约 27pt），黑色，答案不加框。
+- **知识提示**：思维引导、核心知识点、易错点、归纳总结按原定固定字号和不同颜色，属于黑板内容，只在对应数学步骤出现，写完留在画面里。
+- **持续书写**：教师事件追加写入；不滚动旧公式、不局部隐藏或淡出、不根据阶段无故切幕。满页时于完整教学事件边界执行一次擦黑板。跨页需要的已得结论依 source ID 重写。
+- **排版安全**：实测字形、逐页越界/重叠校验、完整事件不可截断、各块 stable ID 和 math provenance 校验，长公式无法容纳必须显式报错而不是糊弄缩字。
+- **未实现项**：完整真实 AI 教师、音频 TTS、字幕按口播同步、几何/矩阵等专项讲解必须独立设计和验收。真实 MP4 不代表成品视频已配音。
+
+### 最新模板及命令
+
+示例教学配置：`animation_engine/examples/simple_classroom_policy.template.json`；标准逻辑唯一入口：`animation_engine/src/animation_engine/classroom_policy.py`。**旧** `longboard_policy.template.json` 仅供多步骤滚动模式使用。
+
+```bash
+python animation_engine/tools/build_fresh_taylor_classroom.py --output taylor-demo
+math-animation render-longboard --storyboard taylor-demo/storyboard.json \
+  --execution taylor-demo/execution.json \
+  --classroom-cues taylor-demo/teacher_approved_cues.json \
+  --output taylor-demo/lesson.mp4 --manifest taylor-demo/manifest.json --fps 30
+```
+
+这是完全新编的考研数学泰勒极限测试，与之前的多项积分和分部积分题不同。构建器生成具有真正数学来源的教学包、分镜和执行计划，CI 使用 SymPy 另行计算极限以核验，随后输出真实 Manim 视频并检验擦板前后关键帧。旧阶段入口和历史测试保留，不进行破坏性替换。
