@@ -117,6 +117,21 @@ jobs:
           assert x["speech_subtitle_status"]=="not_rendered_no_audio"
           assert x["header_display_scale"]>=0.9
           PY
+          math-animation render-classroom-transition --storyboard layout-evidence/storyboard.json --execution layout-evidence/execution.json --from-event-id e_common --to-event-id e_k_eqv --output layout-evidence/showcase/real_classroom_continuity.mp4 --manifest layout-evidence/showcase/real_classroom_continuity.json --fps 30
+          ffmpeg -v error -ss 0.6 -i layout-evidence/showcase/real_classroom_continuity.mp4 -frames:v 1 -y layout-evidence/showcase/classroom_video_frame.png
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image, ImageChops
+          root=Path("layout-evidence/showcase")
+          d=json.loads((root/"real_classroom_continuity.json").read_text(encoding="utf-8"))
+          assert d["held_ids"] and d["written_ids"]
+          assert d["subtitle_status"] == "not_rendered_no_audio"
+          assert d["fps"] == 30
+          with Image.open(root/"classroom_video_frame.png") as im:
+              header=im.convert("RGB").crop((0,0,1280,125))
+              assert ImageChops.difference(header,Image.new("RGB",header.size,"white")).getbbox()
+          PY
           for file in layout-evidence/showcase/*.mp4; do
             ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of json "$file"
           done
