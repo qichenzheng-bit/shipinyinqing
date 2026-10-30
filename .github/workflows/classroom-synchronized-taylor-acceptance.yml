@@ -1,4 +1,4 @@
-name: Unified persistent classroom V1 - fresh fifth-order Taylor test
+name: Revised complete-teaching-unit Taylor limit reference regression
 on:
   push:
     branches: [feature/classroom-standard-sync-new-taylor-acceptance]
@@ -54,7 +54,8 @@ jobs:
           from pathlib import Path
           root=Path('fresh-taylor-evidence')
           p=json.loads((root/'board_pages.json').read_text())
-          assert p['event_count']==19 and p['page_count']>=2,p
+          assert p['event_count']==5 and p['page_count']>=2,p
+          assert len(p['math_written_ids'])==12
           assert sum(e['erase_before'] for e in p['events'])==p['page_count']-1
           assert 'm_final' in p['math_written_ids']
           live={}
@@ -82,8 +83,8 @@ jobs:
           m=json.loads((root/'video_manifest.json').read_text())
           data=json.loads((root/'ffprobe.json').read_text())['streams'][0]
           assert (data['width'],data['height'],data['r_frame_rate'])==(1280,720,'30/1')
-          assert int(data['nb_read_frames'])>1400
-          assert m['event_count']==19==len(m['event_timing'])
+          assert int(data['nb_read_frames'])>500
+          assert m['event_count']==5==len(m['event_timing'])
           assert m['erase_count']==m['page_count']-1>=1
           assert m['in_page_fadeout_count']==m['in_page_reposition_count']==0
           assert m['voice_status']=='not_recorded'
@@ -91,12 +92,11 @@ jobs:
           assert m['source_storyboard_sha256']==json.loads((root/'execution.json').read_text())['source_storyboard_sha256']
           def event(id): return next(e for e in m['event_timing'] if e['event_id']==id)
           captures=[
-            ('thinking',event('e_choice')['end_preview_second']-.25),
-            ('sine_knowledge',event('e_sine')['end_preview_second']-.25),
-            ('reciprocal',event('e_reciprocal')['end_preview_second']-.25),
-            ('pitfall',event('e_pitfall')['end_preview_second']-.25),
-            ('final_answer',event('e_final')['end_preview_second']-.25),
-          ]
+            ('thinking',event('e_structure')['end_preview_second']-.25),
+            ('taylors',event('e_expansions')['end_preview_second']-.25),
+            ('full_multiplication',event('e_product')['end_preview_second']-.25),
+            ('final_step',event('e_conclusion')['end_preview_second']-.25),
+            ]
           wipes=[i for i,e in enumerate(m['event_timing']) if e['erase_before']]
           assert wipes
           i=wipes[0]
