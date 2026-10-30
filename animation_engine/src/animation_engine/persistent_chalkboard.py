@@ -185,6 +185,14 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         events.append({
             "event_id":scene.event_id,"page_index":page,
             "erase_before":clear,
+            # One event is a teacher's coherent mathematical reasoning unit;
+            # it may contain several MathTex Write operations. Page erasure
+            # can occur before the entire unit but NEVER between its steps.
+            "math_write_count":len(newids),
+            "unit_source_step_ids":list(cue["source_step_ids"]),
+            "unit_heading":cue["heading"],
+            "erase_reason":("whole_reasoning_unit_cannot_fit"
+                            if clear else None),
             "added_blocks":added,
             "visible_block_ids":[a["block_id"] for a in active],
             "pause_seconds":cue["pause_seconds"],
@@ -323,6 +331,9 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                         self.timing.append({
                             "event_id":row["event_id"],"page_index":row["page_index"],
                             "erase_before":row["erase_before"],
+                            "math_write_count":row["math_write_count"],
+                            "unit_heading":row["unit_heading"],
+                            "erase_reason":row["erase_reason"],
                             "start_preview_second":start,
                             "end_preview_second":self.time,
                             "visible_block_ids":list(active),
