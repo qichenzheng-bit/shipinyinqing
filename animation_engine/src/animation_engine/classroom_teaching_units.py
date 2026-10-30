@@ -27,7 +27,8 @@ def _hash(value: dict) -> str:
 
 
 def compile_teaching_units(*, problem: str, reference_solution: str,
-                           units: list[dict[str,Any]]) -> tuple:
+                           units: list[dict[str,Any]],
+                           teacher_reviewed: bool = False) -> tuple:
     """Preserve authored math/wording and bind every source object to a unit.
 
     Units:
