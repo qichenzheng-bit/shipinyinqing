@@ -212,13 +212,35 @@ def check_plan(a: Understanding, b: TeachingPlan, c: Collector) -> None:
     for sid in b.reference_step_coverage:
         if sid not in steps:
             c.add(stage, "COVERAGE_UNKNOWN_STEP", sid)
-    # Knowledge -> application -> source derivation/proof, respecting the actual reference step.
+    # Accept either the legacy three-event classroom pattern, or one
+    # coherent teaching event containing the knowledge, application mapping
+    # and actual referenced computation. Do NOT force a standalone event
+    # for every formula: users require complete reasoning units.
     for kid, binding in bindings.items():
         ki = [i for i, e in enumerate(b.teaching_events) if e.event_type == "knowledge" and kid in e.knowledge_binding_ids]
         ai = [i for i, e in enumerate(b.teaching_events) if e.event_type == "application" and kid in e.knowledge_binding_ids]
         ri = [i for i, e in enumerate(b.teaching_events) if e.event_type in ("derivation", "proof", "branch", "subgoal") and binding.return_to_step_id in e.source_step_ids]
-        if not ki or not ai or not ri or not min(ki) < min(ai) < min(ri):
-            c.add(stage, "INVALID_KNOWLEDGE_SEQUENCE", f"{kid}: need knowledge -> application -> reference derivation/proof")
+        legacy_ordered = bool(ki and ai and ri and min(ki) < min(ai) < min(ri))
+        linked = [
+            e for e in b.teaching_events
+            if kid in e.knowledge_binding_ids
+        ]
+        unified = (
+            len(linked) == 1
+            and linked[0].event_type in (
+                "knowledge", "application", "derivation",
+                "proof", "branch", "subgoal"
+            )
+            and binding.return_to_step_id in linked[0].source_step_ids
+            and bool(linked[0].intended_board_content)
+            and bool(linked[0].mathematical_progression.strip())
+        )
+        if not legacy_ordered and not unified:
+            c.add(
+                stage, "INVALID_KNOWLEDGE_SEQUENCE",
+                f"{kid}: require either complete single-unit reasoning "
+                "or ordered knowledge/application/reference derivation"
+            )
     for request in b.supplement_requests:
         if any(s not in steps for s in request.source_step_ids):
             c.add(stage, "SUPPLEMENT_UNKNOWN_SOURCE", request.reason)
