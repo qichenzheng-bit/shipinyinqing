@@ -47,8 +47,15 @@ def render_longboard_movie(
         pixel_width=pixel_width, pixel_height=pixel_height,
     )
     cues = checked_cues(classroom_cues, board, source_plan) if classroom_cues is not None else None
-    if cues is not None and layout["policy"]["content_top_offset_px"] < 104:
-        raise LongboardError("CLASSROOM_CUE_OVERLAP: reserve at least 104px of board top")
+    display_mode = layout["policy"]["board_mode"]
+    if cues is not None:
+        required_offset = 65 if display_mode == "simple_full_board" else 104
+        if layout["policy"]["content_top_offset_px"] < required_offset:
+            raise LongboardError(
+                "CLASSROOM_CUE_OVERLAP: teaching notes need clear board top offset"
+            )
+    if display_mode == "simple_full_board" and (pixel_width,pixel_height)!=(1280,720):
+        raise LongboardError("COMPACT_LAYOUT_FRAME: requires 1280x720")
     try:
         from manim import (
             Scene, MathTex, VGroup, Write, FadeIn, FadeOut, ImageMobject, tempconfig
@@ -85,12 +92,14 @@ def render_longboard_movie(
             # Preflight the exact source header before costly full-scene rendering.
             header = make_question_overlay(
                 board, temp/"header.png", pixel_width=pixel_width,
-                pixel_height=pixel_height
+                pixel_height=pixel_height,
+                compact=(display_mode=="simple_full_board")
             )
             if cues is not None:
                 for index, cue in enumerate(cues):
                     draw_cue_overlay(cue,temp/f"cue_{index:03d}.png",
-                                     width=pixel_width,height=pixel_height)
+                                     width=pixel_width,height=pixel_height,
+                                     style=display_mode)
             with tempconfig({
                 "pixel_width": pixel_width, "pixel_height": pixel_height,
                 "frame_width": fw, "frame_height": fh, "frame_rate": fps,
@@ -259,7 +268,9 @@ def render_longboard_movie(
                     "source_sha256":cue_hash(classroom_cues),
                     "status":"approved_board_notes_not_speech_or_subtitles",
                     "cue_count":len(cues),
-                    "reserved_band_px":[66,129,1129,87],
+                    "reserved_band_px":([82,145,1116,43]
+                        if display_mode=="simple_full_board" else [66,129,1129,87]),
+                    "board_mode":display_mode,
                 },
                 "event_timing":event_timing,
                 "subtitle_status":"not_rendered_no_audio",
