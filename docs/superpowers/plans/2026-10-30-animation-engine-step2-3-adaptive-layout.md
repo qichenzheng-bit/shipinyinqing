@@ -23,10 +23,14 @@ Render: math-animation layout-board --storyboard storyboard.json --execution exe
 
 Choose a real event_id with status ready and visible mathematical objects.
 
+Transition preview: math-animation render-layout-transition --storyboard storyboard.json --execution execution.json --from-event-id PREVIOUS_EVENT_ID --to-event-id NEXT_EVENT_ID --output transition.mp4 --manifest transition.json
+
+The two event IDs must be adjacent and both fit safely; the code rejects survivor tween collisions. Timing is preview-only, never speech-aligned.
+
 ## Limitations
 
-This is Stage 2.3's initial implementation, not a completed classroom movie. No long-expression semantic multiline breaking, no actual tween video for existing objects, no full Chinese header or spoken subtitles, no audio or automatic cuts. move_at_action_boundary is planning metadata only. Stage 2.4 owns scrolling and cuts. Real glyph preview is for offline trusted mathematical content; TeX must be sandboxed before any public service.
+This is Stage 2.3's initial implementation, not a completed classroom movie. No long-expression semantic multiline breaking, no full lesson-length tween/composition system (only a real two-scene MP4 transition preview), no full Chinese header or spoken subtitles, no audio or automatic cuts. move_at_action_boundary is now implemented in the explicit two-scene render-layout-transition preview; it is not yet wired to a full audio timeline. Stage 2.4 owns scrolling and cuts. Real glyph preview is for offline trusted mathematical content; TeX must be sandboxed before any public service.
 
 ## Validation
 
-New offline geometry tests, source matching and explicit overflow tests; true MathTex PNG test under the render extra; a dedicated GitHub Actions workflow saves real visual evidence. CI alone is not human visual acceptance.
+New offline geometry tests, source matching and explicit overflow tests; true MathTex PNG and actual Manim MP4 tests under the render extra; a dedicated GitHub Actions workflow saves real visual evidence. CI alone is not human visual acceptance.
