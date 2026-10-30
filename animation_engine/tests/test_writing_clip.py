@@ -111,3 +111,27 @@ def test_reject_duplicate_output_paths(inputs,tmp_path):
     same=tmp_path/"same.mp4"
     with pytest.raises(MathWritingClipError,match="INVALID_OUTPUT"):
         render_math_writing_clip(plan,output_mp4=same,output_json=same)
+
+def test_render_writing_cli_preserves_legacy_and_rejects_invalid_hint(inputs,tmp_path):
+    from animation_engine.cli import main
+    board,ex,hint=inputs
+    boardfile,exfile,hintfile=(tmp_path/"board.json",tmp_path/"execution.json",tmp_path/"hint.json")
+    boardfile.write_text(board.model_dump_json(),encoding="utf-8")
+    exfile.write_text(ex.model_dump_json(),encoding="utf-8")
+    hintfile.write_text(json.dumps(hint),encoding="utf-8")
+    mp4,meta=tmp_path/"cli.mp4",tmp_path/"cli.json"
+    args=["render-writing","--storyboard",str(boardfile),"--execution",str(exfile),
+        "--event-id","e_k_sin","--object-id","m_k_sin","--hint",str(hintfile),
+        "--output",str(mp4),"--manifest",str(meta)]
+    assert main(args)==0
+    assert mp4.exists() and meta.exists()
+    assert json.loads(meta.read_text())["hint_source"]=="approved_explicit"
+    hint["parts"][-1]="+o(x^7)"
+    hintfile.write_text(json.dumps(hint),encoding="utf-8")
+    bad_mp4,bad_meta=tmp_path/"invalid.mp4",tmp_path/"invalid.json"
+    bad_args=args[:-4]+["--output",str(bad_mp4),"--manifest",str(bad_meta)]
+    assert main(bad_args)!=0
+    assert not bad_mp4.exists() and not bad_meta.exists()
+    # Step 2.1 and plan commands still parse unchanged.
+    planfile=tmp_path/"plan.json"
+    assert main(["plan",str(boardfile),"--output",str(planfile)])==0
