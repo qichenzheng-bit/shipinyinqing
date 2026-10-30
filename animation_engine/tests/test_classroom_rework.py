@@ -57,8 +57,9 @@ def test_compact_whole_board_centered_and_clean_without_forced_cuts():
     )
     assert len(result["events"]) == 14
     assert result["events"][-1]["new_ids"] == ["m_final"]
-    assert result["policy"]["content_top_offset_px"] == 70
-    assert result["policy"]["math_base_scale"] == .78
+    assert result["policy"]["content_top_offset_px"] == 0
+    assert result["policy"]["guidance_style"] == "board_context"
+    assert result["policy"]["math_base_scale"] == .5625
     by_event={x["event_id"]:x for x in result["events"]}
     # Write the completed J result as the last mathematical step first;
     # only the following event may move it into retained context.
@@ -68,9 +69,9 @@ def test_compact_whole_board_centered_and_clean_without_forced_cuts():
     assert "m_jresult" in by_event["e_back"]["fixed_ids"]
     assert result["policy"]["carry_count"] == 0
     assert all(
-        215 <= placement["y"] < 610
+        135 <= placement["y"] < 610
         and 210 <= placement["x"] <= 1070
-        and .72 <= placement["scale"] <= .78
+        and .54 <= placement["scale"] <= .5625
         for row in result["events"] for placement in row["placements"]
     )
 
@@ -79,7 +80,7 @@ def test_original_profile_remains_backward_compatible():
     board, plan, cues, policy = sample()
     legacy = dict(policy)
     for key in ("board_mode","board_column_width_px","math_base_scale",
-                "math_min_scale","row_gap_px"):
+                "math_min_scale","row_gap_px","guidance_style"):
         legacy.pop(key)
     assert "board_mode" not in legacy
     result = build_longboard_plan(board,plan,policy=legacy,
