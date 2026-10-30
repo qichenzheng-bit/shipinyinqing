@@ -10,7 +10,7 @@ from .models import (
 from .provider import JsonModel
 from .validator import Collector, check_input_sources, check_understanding, check_plan, check_lesson, compile_report
 
-PROMPT_VERSION = "1.0"
+PROMPT_VERSION = "1.1"
 
 
 class PipelineValidationError(RuntimeError):
