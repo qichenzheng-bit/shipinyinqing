@@ -59,6 +59,14 @@ def test_compact_whole_board_centered_and_clean_without_forced_cuts():
     assert result["events"][-1]["new_ids"] == ["m_final"]
     assert result["policy"]["content_top_offset_px"] == 70
     assert result["policy"]["math_base_scale"] == .78
+    by_event={x["event_id"]:x for x in result["events"]}
+    # Write the completed J result as the last mathematical step first;
+    # only the following event may move it into retained context.
+    assert "m_jresult" in by_event["e_jresult"]["new_ids"]
+    assert "m_jresult" in by_event["e_jresult"]["active_ids"]
+    assert "m_jresult" not in by_event["e_jresult"]["fixed_ids"]
+    assert "m_jresult" in by_event["e_back"]["fixed_ids"]
+    assert result["policy"]["carry_count"] == 0
     assert all(
         215 <= placement["y"] < 610
         and 210 <= placement["x"] <= 1070
