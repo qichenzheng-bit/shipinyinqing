@@ -131,11 +131,16 @@ def build():
                     for i,(id,_,_,phase,heading,note,pause) in enumerate(STEPS,1)]}
     policy={
       "pinned_ids":[],"result_ids":["m_jresult"],
-      "break_hints":{},"cut_before_events":["e_division","e_back"],
+      "break_hints":{},"cut_before_events":[],
       "allow_scroll":True,"max_scrolls_per_page":2,
       "max_scroll_fraction":0.55,"carry_count":1,
       "full_width_without_diagram":True,"safe_auto_break":True,
-      "content_top_offset_px":112,
+      "content_top_offset_px":70,
+      "board_mode":"simple_full_board",
+      "board_column_width_px":870,
+      "math_base_scale":0.78,
+      "math_min_scale":0.72,
+      "row_gap_px":11,
     }
     return pkg,storyboard,execution,cues,policy
 
