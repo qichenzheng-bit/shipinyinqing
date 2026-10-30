@@ -56,6 +56,14 @@ def main(argv: list[str] | None = None) -> int:
     transition.add_argument("--manifest", type=Path, required=True)
     transition.add_argument("--fps", type=int, default=15)
 
+    classroom = subparsers.add_parser("preview-classroom",
+        help="2.3 authentic mathematical question and board PNG")
+    classroom.add_argument("--storyboard", type=Path, required=True)
+    classroom.add_argument("--execution", type=Path, required=True)
+    classroom.add_argument("--event-id", required=True)
+    classroom.add_argument("--output", type=Path, required=True)
+    classroom.add_argument("--manifest", type=Path, required=True)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -63,6 +71,14 @@ def main(argv: list[str] | None = None) -> int:
             result = build_execution_plan(raw)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            return 0
+
+        if args.command == "preview-classroom":
+            from .classroom_compositor import render_classroom_board_png
+            raw_board = json.loads(args.storyboard.read_text(encoding="utf-8"))
+            raw_execution = json.loads(args.execution.read_text(encoding="utf-8"))
+            render_classroom_board_png(raw_board, raw_execution,
+                event_id=args.event_id, output_png=args.output, output_json=args.manifest)
             return 0
 
         if args.command == "render-layout-transition":

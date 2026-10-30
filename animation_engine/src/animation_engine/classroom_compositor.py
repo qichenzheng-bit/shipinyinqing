@@ -102,7 +102,7 @@ def render_classroom_board_png(
                 "frame_width": fw, "frame_height": fh,
                 "background_color": board.theme.background,
             }):
-                glyph = MathTex(math_part, color=board.theme.ink)
+                glyph = MathTex(math_part, color=board.theme.ink, font_size=34)
                 math_width = glyph.width * pixel_height / 8.0
                 math_height = glyph.height * pixel_height / 8.0
                 glyph.move_to([0, 0, 0])
@@ -120,7 +120,6 @@ def render_classroom_board_png(
         z = old_manifest["header"]
         # The same immutable header height defines the board's top boundary;
         # title is never permitted to spill into a working formula.
-        scene = next(s for s in old_manifest["scenes"] if s["event_id"] == event_id)
         original_zone = board.scenes[
             next(i for i, s in enumerate(board.scenes) if s.event_id == event_id)
         ].regions["question"]
