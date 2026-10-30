@@ -74,10 +74,10 @@ jobs:
           from manim import Camera, tempconfig
           from animation_engine.mathtex_renderer import build_measured_mathtex
           samples = {
-            "fraction": r"\\frac{a+b}{c+d}",
-            "limit": r"\\displaystyle\\lim\\limits_{x\\to0}\\frac{\\sin x}{x}",
-            "integral": r"\\int_0^1 x\\,dx=\\frac12",
-            "matrix": r"\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+            "fraction": r"\frac{a+b}{c+d}",
+            "limit": r"\displaystyle\lim\limits_{x\to0}\frac{\sin x}{x}",
+            "integral": r"\int_0^1 x\,dx=\frac12",
+            "matrix": r"\begin{pmatrix}1&2\\3&4\end{pmatrix}",
           }
           for name, latex in samples.items():
             glyphs, m = build_measured_mathtex(latex)
