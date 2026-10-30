@@ -1,0 +1,14 @@
+{
+  "source_storyboard_sha256": "d53daa2bf4cd2573ae831e4cd551e1b52cab7a3f3548b8f48d859ad009fd8205",
+  "event_id": "e_k_sin",
+  "object_id": "m_k_sin",
+  "action_id": "b_k_sin",
+  "speech_unit_id": "u_k_sin",
+  "parts": [
+    "\\sin x",
+    "=x-",
+    "\\frac{x^3}{6}",
+    "+o(x^3)"
+  ],
+  "highlight_index": 2
+}
