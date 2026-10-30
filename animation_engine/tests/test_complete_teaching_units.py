@@ -45,6 +45,11 @@ def test_display_never_splits_product_rule_unit_across_erasures():
             b["kind"]=="math" and not b.get("carry")]==[
         "m_multiply","m_product_rule","m_combined","m_integrated"
     ]
+    initial=next(e for e in layout["events"] if e["event_id"]=="e_initial")
+    if initial["erase_before"]:
+        assert any(b["block_id"]=="m_integrated" and b.get("carry")
+                   for b in initial["added_blocks"])
+    assert layout["events"][1]["math_write_count"]==4
     assert len({b["block_id"] for b in group["added_blocks"]})==len(
         group["added_blocks"]
     )
