@@ -62,7 +62,7 @@ jobs:
               previous=set(e['visible_block_ids'])
           print('REAL_PERSISTENT_BOARD_PAGE_PLAN',p['page_count'],'PAGES')
           PY
-      - name: Render real chalkboard: no step fades, no moving maths, erase only at full page
+      - name: 'Render real chalkboard: no step fades, no moving maths, erase only at full page'
         run: |
           math-animation render-longboard --storyboard persistent-evidence/storyboard.json --execution persistent-evidence/execution.json --policy persistent-evidence/page_policy.json --classroom-cues persistent-evidence/teacher_approved_cues.json --output persistent-evidence/persistent_classroom.mp4 --manifest persistent-evidence/video_manifest.json --fps 30
           ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=width,height,nb_read_frames,r_frame_rate -of json persistent-evidence/persistent_classroom.mp4 > persistent-evidence/ffprobe.json
