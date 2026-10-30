@@ -77,6 +77,11 @@ def render_longboard_movie(
     try:
         with tempfile.TemporaryDirectory(prefix="longboard-2-4-") as tmp:
             temp = Path(tmp)
+            # Preflight the exact source header before costly full-scene rendering.
+            header = make_question_overlay(
+                board, temp/"header.png", pixel_width=pixel_width,
+                pixel_height=pixel_height
+            )
             with tempconfig({
                 "pixel_width": pixel_width, "pixel_height": pixel_height,
                 "frame_width": fw, "frame_height": fh, "frame_rate": fps,
@@ -195,9 +200,6 @@ def render_longboard_movie(
                 event_timing = list(scene.actual_events)
                 duration = scene.preview_duration
 
-            header = make_question_overlay(
-                board, temp/"header.png", pixel_width=pixel_width,
-                pixel_height=pixel_height)
             result = temp/"longboard.mp4"
             proc = subprocess.run([
                 "ffmpeg","-hide_banner","-loglevel","error","-y",
