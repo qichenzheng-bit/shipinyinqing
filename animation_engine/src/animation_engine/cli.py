@@ -89,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
     longboard_plan.add_argument("--execution", type=Path, required=True)
     longboard_plan.add_argument("--policy", type=Path,
         help="Optional approved object IDs and exact LaTeX wrap hints JSON")
+    longboard_plan.add_argument("--classroom-cues",type=Path,
+        help="Mandatory for persistent classroom blackboard")
     longboard_plan.add_argument("--output", type=Path, required=True)
     longboard_plan.add_argument("--pixel-width", type=int, default=1280)
     longboard_plan.add_argument("--pixel-height", type=int, default=720)
@@ -115,12 +117,24 @@ def main(argv: list[str] | None = None) -> int:
                 json.loads(args.policy.read_text(encoding="utf-8"))
                 if args.policy is not None else None
             )
+            chalkboard=(raw_policy is not None and
+                raw_policy.get("guidance_style")=="persistent_chalkboard")
             if args.command == "plan-longboard":
-                from .longboard_plan import build_longboard_plan
-                result = build_longboard_plan(
-                    raw_board, raw_execution, policy=raw_policy,
-                    pixel_width=args.pixel_width, pixel_height=args.pixel_height,
-                )
+                if chalkboard:
+                    if args.classroom_cues is None:
+                        raise ValueError("CHALKBOARD_NEEDS_APPROVED_CUES")
+                    from .persistent_chalkboard import make_chalkboard_plan
+                    result=make_chalkboard_plan(
+                        raw_board,raw_execution,
+                        json.loads(args.classroom_cues.read_text(encoding="utf-8")),
+                        raw_policy,
+                    )
+                else:
+                    from .longboard_plan import build_longboard_plan
+                    result = build_longboard_plan(
+                        raw_board, raw_execution, policy=raw_policy,
+                        pixel_width=args.pixel_width, pixel_height=args.pixel_height,
+                    )
                 if args.output.suffix.lower() != ".json":
                     raise ValueError("LONGBOARD_OUTPUT: planning needs --output .json")
                 args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -132,13 +146,24 @@ def main(argv: list[str] | None = None) -> int:
                 from .longboard_render import render_longboard_movie
                 cue_data = (json.loads(args.classroom_cues.read_text(encoding="utf-8"))
                             if args.classroom_cues is not None else None)
-                render_longboard_movie(
-                    raw_board, raw_execution, policy=raw_policy,
-                    classroom_cues=cue_data,
-                    output_mp4=args.output, output_json=args.manifest,
-                    pixel_width=args.pixel_width, pixel_height=args.pixel_height,
-                    fps=args.fps,
-                )
+                if chalkboard:
+                    if cue_data is None:
+                        raise ValueError("CHALKBOARD_NEEDS_APPROVED_CUES")
+                    if (args.pixel_width,args.pixel_height)!=(1280,720):
+                        raise ValueError("CHALKBOARD_FRAME_REQUIRES_1280x720")
+                    from .persistent_chalkboard import render_persistent_chalkboard
+                    render_persistent_chalkboard(
+                        raw_board,raw_execution,cue_data,raw_policy,
+                        output_mp4=args.output,output_json=args.manifest,fps=args.fps,
+                    )
+                else:
+                    render_longboard_movie(
+                        raw_board, raw_execution, policy=raw_policy,
+                        classroom_cues=cue_data,
+                        output_mp4=args.output, output_json=args.manifest,
+                        pixel_width=args.pixel_width, pixel_height=args.pixel_height,
+                        fps=args.fps,
+                    )
             return 0
 
         if args.command == "plan":
