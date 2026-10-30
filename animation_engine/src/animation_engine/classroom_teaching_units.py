@@ -36,6 +36,12 @@ def compile_teaching_units(*, problem: str, reference_solution: str,
        pause_seconds, write_seconds,
        math: [{id,latex,reason},...]}
     """
+    # Integrity hashes do not prove mathematical truth. The manual fixture
+    # compiler must not label arbitrary imported/AI-generated formulas ready.
+    # This explicit approval is a trust-boundary assertion by the caller;
+    # it is NOT an automated mathematical verification.
+    if teacher_reviewed is not True:
+        raise LongboardError("TEACHING_UNITS_REQUIRES_EXPLICIT_TEACHER_REVIEW")
     if (not isinstance(problem,str) or not problem.strip()
             or not isinstance(reference_solution,str) or not reference_solution.strip()
             or not isinstance(units,list) or not 2<=len(units)<=60):
