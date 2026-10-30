@@ -18,24 +18,39 @@ from .longboard_plan import LongboardError
 from .classroom_compositor import _font
 
 
-PHASES = frozenset({"observe", "strategy", "knowledge", "application",
-                    "calculate", "check", "summary"})
+PHASES = frozenset({"observe", "strategy", "knowledge", "pitfall",
+                    "application", "calculate", "check", "summary"})
 PHASE_NAMES = {
     "observe": "观察题目", "strategy": "思路引导",
-    "knowledge": "知识回顾", "application": "本题应用",
+    "knowledge": "核心知识点", "pitfall": "易错点",
+    "application": "本题应用",
     "calculate": "逐步计算", "check": "结果检查",
     "summary": "归纳总结",
 }
 # Formula characters belong in the mathematically exact MathTex board, not
 # in the CJK teaching-note raster layer or the TTS pronunciation layer.
 NOTE_CHARACTERS = re.compile(r"^[\u3400-\u9fff，。、；：？！—（）《》“”‘’·\s]+$")
-FONT_COLORS = {"ink":"#1E293B","muted":"#64748B","blue":"#2563EB"}
+# Reference-classroom typography: fixed sizes, category-specific colors.
+# Chinese labels are PIL CJK glyphs; maths remains source MathTex.
+BOARD_TEXT_STYLE = {
+    "observe": {"heading": "#475569", "font_px": 18},
+    "strategy": {"heading": "#2563EB", "font_px": 18},
+    "knowledge": {"heading": "#7C3AED", "font_px": 18},
+    "pitfall": {"heading": "#DC2626", "font_px": 18},
+    "check": {"heading": "#D97706", "font_px": 18},
+    "summary": {"heading": "#0F766E", "font_px": 18},
+    "application": {"heading": "#111111", "font_px": 18},
+    "calculate": {"heading": "#111111", "font_px": 18},
+}
+BOARD_DETAIL_FONT_PX = 16
+BOARD_DERIVATION_INK = "#111111"
+FONT_COLORS = {"ink":BOARD_DERIVATION_INK,"muted":"#64748B","blue":"#2563EB"}
 
 # Actual board-writing sections inspired by reference videos: appear inside
 # the central classroom, not as a persistent line beneath the question.
 # Application and calculation explanations belong to future voice content;
 # they are NOT converted to fake subtitles or repetitive board titles.
-BOARD_GUIDANCE_PHASES = frozenset({"observe","strategy","knowledge","check","summary"})
+BOARD_GUIDANCE_PHASES = frozenset({"observe","strategy","knowledge","pitfall","check","summary"})
 
 
 
@@ -92,26 +107,28 @@ def draw_cue_overlay(item: dict, dest: Path, *,
     if width != 1280 or height != 720:
         raise LongboardError("CLASSROOM_CUE_FRAME: current design requires 1280x720")
     if style == "board_context":
-        # This is a transient teaching moment in the actual working blackboard
-        # (as in the supplied classroom references), not a caption strip.
-        # The renderer hides existing mathematical ink only during this
-        # transition and restores those exact objects before next Write.
+        # A real classroom section, not a banner beneath the fixed question.
+        # Keep its top near the question; the formula is laid out after the
+        # measured bottom of this note, never at a hard-coded overlapping y.
         panel = Image.new("RGBA", (width,height), (255,255,255,0))
         ink = ImageDraw.Draw(panel)
-        heading = PHASE_NAMES[item["phase"]] + "：" + item["heading"]
+        phase = item["phase"]
+        heading = PHASE_NAMES[phase] + "：" + item["heading"]
         detail = item["detail"]
-        left, start_y, max_right = 300, 286, 990
-        font_h, font_d = _font(18), _font(16)
-        ink.text((left,start_y),heading,font=font_h,fill=FONT_COLORS["blue"])
-        if ink.textbbox((left,start_y),heading,font=font_h)[2] > max_right:
-            raise LongboardError(f"CLASSROOM_BOARD_HEADING_OVERFLOW: {item['event_id']}")
-        # A legal CJK line-break is at a Chinese character boundary; no math
-        # tokens are allowed here (all math belongs in source MathTex).
+        left, top, right = 320, 150, 1010
+        font_h = _font(BOARD_TEXT_STYLE[phase]["font_px"])
+        font_d = _font(BOARD_DETAIL_FONT_PX)
+        head_rect = ink.textbbox((left,top),heading,font=font_h)
+        if head_rect[0]<left or head_rect[2]>right:
+            raise LongboardError(
+                f"CLASSROOM_BOARD_HEADING_OVERFLOW: {item['event_id']}"
+            )
+        ink.text((left,top),heading,font=font_h,
+                 fill=BOARD_TEXT_STYLE[phase]["heading"])
         lines, current = [], ""
         for char in detail:
             candidate=current+char
-            width_candidate=ink.textbbox((0,0),candidate,font=font_d)[2]
-            if current and width_candidate > (max_right-left):
+            if current and ink.textbbox((0,0),candidate,font=font_d)[2]>right-left:
                 lines.append(current)
                 current=char
             else:
@@ -119,21 +136,37 @@ def draw_cue_overlay(item: dict, dest: Path, *,
         if current:
             lines.append(current)
         if not lines or len(lines)>3:
-            raise LongboardError(f"CLASSROOM_BOARD_NOTE_OVERFLOW: {item['event_id']}")
-        for n,line in enumerate(lines):
-            y=start_y+42+28*n
-            ink.text((left,y),line,font=font_d,fill=FONT_COLORS["ink"])
-            if ink.textbbox((left,y),line,font=font_d)[2] > max_right:
-                raise LongboardError(f"CLASSROOM_BOARD_NOTE_OVERFLOW: {item['event_id']}")
+            raise LongboardError(
+                f"CLASSROOM_BOARD_NOTE_OVERFLOW: {item['event_id']}"
+            )
+        bottom = head_rect[3]
+        for i,line in enumerate(lines):
+            y=top+33+i*25
+            rect=ink.textbbox((left,y),line,font=font_d)
+            if rect[0]<left or rect[2]>right:
+                raise LongboardError(
+                    f"CLASSROOM_BOARD_NOTE_OVERFLOW: {item['event_id']}"
+                )
+            ink.text((left,y),line,font=font_d,fill=BOARD_DERIVATION_INK)
+            bottom=max(bottom,rect[3])
+        if bottom>285:
+            raise LongboardError(
+                f"CLASSROOM_BOARD_NOTE_HEIGHT: {item['event_id']}"
+            )
         dest=Path(dest)
         dest.parent.mkdir(parents=True,exist_ok=True)
         panel.save(dest)
         return {
-            "event_id":item["event_id"],"phase":item["phase"],
+            "event_id":item["event_id"],"phase":phase,
             "heading":item["heading"],"detail":detail,
             "source_step_ids":item["source_step_ids"],
             "style":"board_context",
-            "bbox_px":[left,start_y,max_right-left,42+28*len(lines)],
+            "title_color":BOARD_TEXT_STYLE[phase]["heading"],
+            "title_font_px":BOARD_TEXT_STYLE[phase]["font_px"],
+            "detail_color":BOARD_DERIVATION_INK,
+            "detail_font_px":BOARD_DETAIL_FONT_PX,
+            "bbox_px":[left,top,right-left,bottom-top],
+            "text_bottom_px":bottom,
             "is_temporary_board_section":True,
         }
     if style not in ("classic","simple_full_board","board_context"):
