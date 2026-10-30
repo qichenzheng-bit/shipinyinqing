@@ -38,6 +38,7 @@ class LongboardPolicy:
     max_scroll_fraction: float = 0.48
     carry_count: int = 1
     full_width_without_diagram: bool = True
+    safe_auto_break: bool = True
 
     @classmethod
     def parse(cls, value: "LongboardPolicy | dict | None") -> "LongboardPolicy":
@@ -50,7 +51,7 @@ class LongboardPolicy:
         permitted = {
             "pinned_ids", "result_ids", "break_hints", "cut_before_events",
             "allow_scroll", "max_scrolls_per_page", "max_scroll_fraction",
-            "carry_count", "full_width_without_diagram",
+            "carry_count", "full_width_without_diagram", "safe_auto_break",
         }
         if set(value) - permitted:
             raise LongboardError("INVALID_POLICY: unknown keys " + str(sorted(set(value)-permitted)))
@@ -65,6 +66,7 @@ class LongboardPolicy:
                 max_scroll_fraction=value.get("max_scroll_fraction", .48),
                 carry_count=value.get("carry_count", 1),
                 full_width_without_diagram=value.get("full_width_without_diagram", True),
+                safe_auto_break=value.get("safe_auto_break", True),
             )
         except (TypeError, ValueError) as exc:
             raise LongboardError(f"INVALID_POLICY: {exc}") from exc
@@ -79,7 +81,8 @@ class LongboardPolicy:
                 raise LongboardError(f"INVALID_POLICY: {name} contains duplicate/unknown ID")
         if set(self.break_hints) - object_ids:
             raise LongboardError("INVALID_POLICY: break_hints reference unknown object")
-        if (type(self.allow_scroll) is not bool
+        if (type(self.safe_auto_break) is not bool
+                or type(self.allow_scroll) is not bool
                 or type(self.full_width_without_diagram) is not bool
                 or type(self.max_scrolls_per_page) is not int
                 or not 0 <= self.max_scrolls_per_page <= 20
@@ -142,11 +145,88 @@ def _workspace(scene, width: int, height: int, full_width: bool):
             round((x2-x1) * width, 3), round(z.h * height, 3))
 
 
+def _operator_chunks(latex: str) -> list[str]:
+    """Conservative display-only split before top-level + or -.
+
+    Never traverse inside braces, \left...\right, or environments. Fragments
+    must rejoin byte-for-byte into source and each be independently renderable.
+    No fraction/radical/matrix is divided. Multiplicative/implicit expressions
+    with no safe top-level operator are deliberately left unchanged.
+    """
+    if "\\begin{" in latex or "\\end{" in latex:
+        return [latex]
+    brace_depth, delimiter_depth = 0, 0
+    starts = [0]
+    i = 0
+    while i < len(latex):
+        if latex[i] == "\\":
+            j = i + 1
+            while j < len(latex) and latex[j].isalpha():
+                j += 1
+            command = latex[i+1:j]
+            if command == "left":
+                delimiter_depth += 1
+            elif command == "right":
+                delimiter_depth = max(0,delimiter_depth-1)
+            i = max(j,i+2)
+            continue
+        char = latex[i]
+        if char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth -= 1
+        elif char in "+-" and brace_depth == delimiter_depth == 0:
+            if i > starts[-1] and i < len(latex)-1:
+                starts.append(i)
+        i += 1
+    return [latex[a:b] for a,b in zip(starts,starts[1:]+[len(latex)])]
+
+
+def _auto_safe_break(latex: str, usable_width: float,
+                     measure: Callable[[str,int],GlyphSize],
+                     pixel_height: int) -> tuple[str,...] | None:
+    tokens = _operator_chunks(latex)
+    if len(tokens) < 2:
+        return None
+    grouped: list[str] = []
+    for token in tokens:
+        candidate = (grouped[-1]+token) if grouped else token
+        try:
+            # Deliberately measure real fragments; a legal TeX source split
+            # does not imply that all pieces can render independently.
+            measure(candidate,pixel_height)
+        except (ValueError, RuntimeError):
+            return None
+        if grouped and measure(candidate,pixel_height).width_px > usable_width:
+            try:
+                validate_math_latex(token)
+                m = measure(token,pixel_height)
+            except (ValueError,RuntimeError):
+                return None
+            if m.width_px > usable_width:
+                return None
+            grouped.append(token)
+        elif grouped:
+            grouped[-1] = candidate
+        else:
+            grouped.append(candidate)
+    if len(grouped) < 2 or len(grouped)>8 or "".join(grouped)!=latex:
+        return None
+    return tuple(grouped)
+
+
 def _size_parts(object_id: str, source: dict, policy: LongboardPolicy,
                 measure: Callable[[str, int], GlyphSize], frame_height: int,
-                cache: dict[str, dict]) -> dict:
+                cache: dict[str, dict], usable_width: float) -> dict:
     if object_id not in cache:
         parts = policy.break_hints.get(object_id, (source["latex"],))
+        if (object_id not in policy.break_hints and policy.safe_auto_break):
+            entire = measure(source["latex"],frame_height)
+            if entire.width_px * .90 > usable_width:
+                automatic = _auto_safe_break(source["latex"],usable_width,
+                                             measure,frame_height)
+                if automatic is not None:
+                    parts = automatic
         metrics = []
         for chunk in parts:
             validate_math_latex(chunk)
@@ -211,7 +291,7 @@ def _arrange(ids: list[str], fixed: list[str], sources: dict, cache: dict,
     for role, ordered in (("fixed", fixed), ("working", ids)):
         for object_id in ordered:
             metrics = _size_parts(object_id, sources[object_id], policy,
-                                  size_of, frame[1], cache)
+                                  size_of, frame[1], cache, w-2*pad_x)
             item = _make_placement(object_id, sources[object_id], metrics,
                                    x+pad_x, cursor, w-2*pad_x, frame, role)
             if item["y"]+item["h"] > y+h-pad_y + .5:
@@ -414,6 +494,7 @@ def build_longboard_plan(
             "max_scroll_fraction": selected.max_scroll_fraction,
             "carry_count": selected.carry_count,
             "full_width_without_diagram": selected.full_width_without_diagram,
+            "safe_auto_break": selected.safe_auto_break,
         },
         "pages": pages, "events": events,
         "timing_source": "preview_only_not_audio_aligned",
