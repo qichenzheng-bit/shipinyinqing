@@ -93,7 +93,7 @@ def render_longboard_movie(
                         active = {}
                         previous = {}
                         self.actual_events = []
-                        for row in layout["events"]:
+                        for scene_index, row in enumerate(layout["events"]):
                             target = {p["object_id"]:p for p in row["placements"]}
                             start = self.time
                             removing = [mid for mid in active if mid not in target]
@@ -140,6 +140,32 @@ def render_longboard_movie(
                                 else:
                                     self.play(FadeIn(obj),run_time=.22)
                                     added.append({"object_id":mid,"kind":"carry"})
+                            highlights = []
+                            header_highlights_deferred = []
+                            for action in source_plan.scenes[scene_index].actions:
+                                if action.kind != "brief_highlight":
+                                    continue
+                                mid = action.object_id
+                                if mid in active:
+                                    self.play(
+                                        active[mid].animate.set_color(board.theme.highlight),
+                                        run_time=.20
+                                    )
+                                    self.wait(.14)
+                                    self.play(
+                                        active[mid].animate.set_color(board.theme.ink),
+                                        run_time=.20
+                                    )
+                                    highlights.append(mid)
+                                elif action.to_region == "question":
+                                    # The fixed header is composed AFTER video
+                                    # rendering. Do not pretend a static overlay
+                                    # implements animated question highlighting.
+                                    header_highlights_deferred.append(mid)
+                                else:
+                                    raise LongboardError(
+                                        f"HIGHLIGHT_TARGET_NOT_VISIBLE: {row['event_id']}/{mid}"
+                                    )
                             if row["transition"] == "cut":
                                 # No black-screen transition: the fixed header
                                 # is composed independently and stays visible.
@@ -148,6 +174,8 @@ def render_longboard_movie(
                                 self.wait(.12)
                             previous = target
                             self.actual_events.append({
+                                "highlighted_ids": highlights,
+                                "header_highlights_not_animated": header_highlights_deferred,
                                 "event_id":row["event_id"],
                                 "page_index":row["page_index"],
                                 "transition":row["transition"],
