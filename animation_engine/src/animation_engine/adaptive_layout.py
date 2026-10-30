@@ -52,10 +52,8 @@ def _real_measure(latex: str, pixel_height: int) -> GlyphSize:
         with tempconfig({"frame_height": 8.0, "frame_width": 8.0 * 16 / 9}):
             glyph = MathTex(latex, substrings_to_isolate=["="])
             px_per_unit = pixel_height / 8.0
-            first_equals = next(
-                (part for part in glyph.submobjects
-                 if part.get_tex_string() == "="), None
-            )
+            equal_parts = glyph.get_parts_by_tex("=", substring=False)
+            first_equals = equal_parts[0] if len(equal_parts) else None
             offset = None if first_equals is None else (
                 float(first_equals.get_center()[0] - glyph.get_left()[0]) * px_per_unit
             )
