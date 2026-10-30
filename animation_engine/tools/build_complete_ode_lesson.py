@@ -35,8 +35,6 @@ UNITS=[
     "goal":"认出线性方程的系数并计算积分因子，为后续整体求导做准备。",
     "pause_seconds":2.6,"write_seconds":1.05,
     "math":[
-      {"id":"linear","latex":r"y'+2xy=2x",
-       "reason":"标准形式是导数加二倍未知函数项。"},
       {"id":"factor",
        "latex":r"\mu(x)=e^{\int 2x\,\mathrm{d}x}=e^{x^2}",
        "reason":"将未知函数前的系数积分并取指数，得到正确的积分因子。"},
