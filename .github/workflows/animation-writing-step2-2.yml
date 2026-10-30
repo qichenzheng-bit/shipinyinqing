@@ -26,3 +26,17 @@ jobs:
           cd teacher_module && python -m pytest -q
           cd ../visual_director && python -m pytest -q
           cd ../animation_engine && python -m pytest -q
+  real-writing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install real Manim TeX and FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript
+      - run: python -m pip install -e './visual_director[test]' -e './animation_engine[render,test]'
+      - name: Real videos RED GREEN
+        run: cd animation_engine && timeout 240s python -m pytest tests/test_writing_clip.py -q
