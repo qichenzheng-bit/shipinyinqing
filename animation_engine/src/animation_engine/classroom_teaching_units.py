@@ -160,7 +160,7 @@ def compile_teaching_units(*, problem: str, reference_solution: str,
     package={
         "schema_version":"1.0","input_sha256":_hash(source),
         "prompt_versions":{
-            "global":"reviewed-complete-pedagogical-units",
+            "global":"human-asserted-reviewed-pedagogical-units",
             "A":"teacher-authored","B":"unit-grouped","C":"source-verified"},
         "source":source,
         "plan":{"teaching_events":teacher},
