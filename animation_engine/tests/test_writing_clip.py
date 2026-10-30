@@ -136,3 +136,33 @@ def test_render_writing_cli_preserves_legacy_and_rejects_invalid_hint(inputs,tmp
     # Step 2.1 and plan commands still parse unchanged.
     planfile=tmp_path/"plan.json"
     assert main(["plan",str(boardfile),"--output",str(planfile)])==0
+
+def test_repeated_identical_math_parts_highlight_only_selected_occurrence(inputs,tmp_path):
+    import io
+    from PIL import Image
+    board,ex,hint=inputs
+    assert hint["parts"][5] == hint["parts"][6] == r"+\frac12"
+    hint["highlight_index"]=6
+    plan=plan_math_writing(board,ex,event_id="e_end",object_id="m_end",hint=hint)
+    mp4,meta=tmp_path/"repeated.mp4",tmp_path/"repeated.json"
+    render_math_writing_clip(plan,output_mp4=mp4,output_json=meta,
+                             pixel_width=640,pixel_height=360,fps=12)
+    data=json.loads(meta.read_text())
+    bounds=data["part_bounds_px"]
+    assert len(bounds)==len(hint["parts"])
+    assert bounds[5]!=bounds[6]
+    p=subprocess.run(["ffmpeg","-v","error","-ss",str(data["highlight_sample_second"]),
+        "-i",str(mp4),"-frames:v","1","-f","image2pipe","-vcodec","png","-"],
+        capture_output=True,check=True)
+    im=Image.open(io.BytesIO(p.stdout)).convert("RGB")
+    def blue_count(box):
+        left,top,right,bottom=box
+        n=0
+        for yy in range(max(0,int(top)),min(im.height,int(bottom)+1)):
+            for xx in range(max(0,int(left)),min(im.width,int(right)+1)):
+                r,g,b=im.getpixel((xx,yy))
+                if b>r*1.4 and b>g*1.12 and b>90:
+                    n+=1
+        return n
+    assert blue_count(bounds[6])>5
+    assert blue_count(bounds[5])==0
