@@ -3,20 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from build_classroom_rework_example import build
+from animation_engine.classroom_policy import simple_classroom_policy
 
 def main(root: Path):
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
     pkg,board,execution,cues,policy=build()
-    policy=dict(policy)
-    policy.update({
-        "guidance_style":"persistent_chalkboard",
-        "board_mode":"simple_full_board",
-        "cut_before_events":[],
-        "allow_scroll":False,
-        "max_scrolls_per_page":0,
-        "carry_count":0,
-        "pinned_ids":[],
-    })
+    policy=simple_classroom_policy(result_ids=("m_jresult",))
     values={
         "teaching_package.json":pkg,
         "storyboard.json":board.model_dump(mode="json"),
