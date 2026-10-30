@@ -46,6 +46,16 @@ def main(argv: list[str] | None = None) -> int:
     layout.add_argument("--event-id", help="Render selected event as PNG; omit for JSON plan")
     layout.add_argument("--manifest", type=Path, help="Required with --event-id")
 
+    transition = subparsers.add_parser("render-layout-transition",
+        help="2.3 genuine MathTex MP4 between two consecutive approved scenes")
+    transition.add_argument("--storyboard", type=Path, required=True)
+    transition.add_argument("--execution", type=Path, required=True)
+    transition.add_argument("--from-event-id", required=True)
+    transition.add_argument("--to-event-id", required=True)
+    transition.add_argument("--output", type=Path, required=True)
+    transition.add_argument("--manifest", type=Path, required=True)
+    transition.add_argument("--fps", type=int, default=15)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -53,6 +63,16 @@ def main(argv: list[str] | None = None) -> int:
             result = build_execution_plan(raw)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            return 0
+
+        if args.command == "render-layout-transition":
+            from .layout_transition import render_layout_transition
+            raw_board = json.loads(args.storyboard.read_text(encoding="utf-8"))
+            raw_execution = json.loads(args.execution.read_text(encoding="utf-8"))
+            render_layout_transition(
+                raw_board, raw_execution,
+                from_event_id=args.from_event_id, to_event_id=args.to_event_id,
+                output_mp4=args.output, output_json=args.manifest, fps=args.fps)
             return 0
 
         if args.command == "layout-board":
