@@ -11,6 +11,7 @@ dependencies = ["pydantic>=2.7,<3", "shipinyinqing-visual-director>=0.1.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+render = ["manim==0.22.1", "Pillow>=10"]
 
 [project.scripts]
 math-animation = "animation_engine.cli:main"
