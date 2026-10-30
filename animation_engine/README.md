@@ -1,6 +1,6 @@
 # 数学动画执行模块 V1.0 — 第 1 阶段：执行接口与对象状态管理
 
-**当前只输出执行清单 JSON，不生成 Manim 动画、图片、MP4、真实字幕秒数或配音。**
+**本文件开头记录 V1 第一阶段执行清单；后续 2.1—2.3 已追加真实渲染功能，2.4 的长板书实现代码已提交但按要求尚未测试。所有预览均不等于真实配音字幕同步。**
 
 输入严格使用视觉导演的 `StoryboardPlan v1.0`（Pydantic 原始合同）。输出 `ExecutionPlan v1.0` 包含每场景的动作前后状态、公式所在区域、可见与归档对象、稳定 SHA-256 状态指纹，以及所有来源/口播语义 ID。执行器不改原始 LaTeX、不解题、不进行模型调用。
 
@@ -63,3 +63,25 @@ math-animation render-writing --storyboard storyboard.json --execution execution
 **重要的上游布局限制**：`animation_engine/examples/sin_taylor_approved_parts.json` 可用于验证分段合同，但原视觉导演把该长泰勒式放在较窄的 scratch 区，它按正常字号可能触发 `FORMULA_OVERFLOW`，不是动画失败。2.2 不会擅自缩字/改区域；需要等 2.3 的真实版面重排。故本阶段完整 MP4 验收使用已处于正常 board 区的结论公式 `m_end`。
 
 离线可信输入专用。TeX 编译不能作为无沙箱的公网服务；通过既有宏限制并仍需服务级低权限隔离。禁止把 preview-only 时间当成真实字幕/配音时间。
+
+
+## 2.4：长计算、自然滚动、切幕与必要板书继承（代码已开发，尚未验收）
+
+2.4 不再受单幕能放下多少公式的限制；从原有完整 StoryboardPlan + ExecutionPlan 生成独立、可追溯的长板书页面计划，逐事件安排固定层、工作层、显示性归档、滚动和切幕。每一幕的数学、对象 ID、步骤来源完全来自教师模块。固定题干持续展示，正常作答不加答案框。允许的移动发生在事件/步骤边界，不打断正在书写的公式。
+
+**当前仅完成代码，按照用户要求未运行任何测试、未执行下列命令、未制作验收视频。**
+
+先生成已有的 storyboard.json / execution.json，然后可在将来的验收阶段运行：
+
+    math-animation plan-longboard --storyboard storyboard.json --execution execution.json --policy animation_engine/examples/longboard_policy.template.json --output longboard.json
+
+    math-animation render-longboard --storyboard storyboard.json --execution execution.json --policy animation_engine/examples/longboard_policy.template.json --output lesson.mp4 --manifest lesson.json --fps 30
+
+policy 模板包含 pinned_ids（重要条件）、result_ids（已完成结果）、break_hints（原 LaTeX 严格逐字符重组的合法分行）、cut_before_events（人工批准的事件切幕点）和动态滚动限制。未定义数学语义的对象不可以由动画引擎猜测为答案。默认仅尝试在顶层 + / - 处安全断行；分式、矩阵等不能随意拆散。公式仍不能放下时显式报错，不无限缩小字体，也不偷偷裁切。
+
+- **纯规划**：animation_engine/src/animation_engine/longboard_plan.py
+- **真实视频执行**：animation_engine/src/animation_engine/longboard_render.py
+- **固定中文/MathTex 题干**：animation_engine/src/animation_engine/longboard_header.py
+- **规范和后续验收方案**：docs/superpowers/plans/2026-10-30-animation-engine-step2-4-longboard.md
+
+完整视频会预留语音字幕区域，不伪造字幕时间码；阶段 2.5 再专项处理多题型、几何与矩阵的复杂展示以及视觉回归。2.4 未来验收需要先创造全新题目和经检查的完整参考解答，实测滚动、切幕与结果承接。**没有真实渲染通过之前，不得声称课堂效果已验收。**
