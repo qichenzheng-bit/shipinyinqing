@@ -104,8 +104,54 @@ def main(argv: list[str] | None = None) -> int:
     longboard_render.add_argument("--pixel-height", type=int, default=720)
     longboard_render.add_argument("--fps", type=int, default=30)
 
+    group_plan = subparsers.add_parser(
+        "plan-calculation", help="2.5.1 reviewed part-by-part calculation board JSON")
+    group_render = subparsers.add_parser(
+        "render-calculation", help="2.5.1 real grouped Manim classroom MP4")
+    for target in (group_plan, group_render):
+        target.add_argument("--storyboard", type=Path, required=True)
+        target.add_argument("--execution", type=Path, required=True)
+        target.add_argument("--overlay", type=Path, required=True,
+            help="Teacher-reviewed CalculationGroupOverlay v1 JSON")
+        target.add_argument("--policy", type=Path,
+            help="Optional 2.4 longboard policy")
+        target.add_argument("--pixel-width", type=int, default=1280)
+        target.add_argument("--pixel-height", type=int, default=720)
+        target.add_argument("--output", type=Path, required=True)
+    group_render.add_argument("--manifest", type=Path, required=True)
+    group_render.add_argument("--fps", type=int, default=30)
+
     args = parser.parse_args(argv)
     try:
+        if args.command in ("plan-calculation", "render-calculation"):
+            board = json.loads(args.storyboard.read_text(encoding="utf-8"))
+            execution = json.loads(args.execution.read_text(encoding="utf-8"))
+            overlay = json.loads(args.overlay.read_text(encoding="utf-8"))
+            policy = json.loads(args.policy.read_text(encoding="utf-8")) if args.policy else None
+            if args.command == "plan-calculation":
+                if args.output.suffix.lower() != ".json":
+                    raise ValueError("CALC_OUTPUT: planning needs .json")
+                from .calculation_group_plan import build_calculation_group_plan
+                result = build_calculation_group_plan(
+                    board, execution, overlay=overlay, policy=policy,
+                    pixel_width=args.pixel_width, pixel_height=args.pixel_height,
+                )
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                args.output.write_text(
+                    json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            else:
+                from .longboard_render import render_longboard_movie
+                render_longboard_movie(
+                    board, execution, policy=policy,
+                    calculation_group_overlay=overlay,
+                    output_mp4=args.output, output_json=args.manifest,
+                    pixel_width=args.pixel_width, pixel_height=args.pixel_height,
+                    fps=args.fps,
+                )
+            return 0
+
         if args.command in ("plan-longboard", "render-longboard"):
             raw_board = json.loads(args.storyboard.read_text(encoding="utf-8"))
             raw_execution = json.loads(args.execution.read_text(encoding="utf-8"))
