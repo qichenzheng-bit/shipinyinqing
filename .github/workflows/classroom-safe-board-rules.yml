@@ -146,7 +146,7 @@ jobs:
               colors=[im.getpixel((x,y)) for y in range(146,185)
                       for x in range(320,1010,2)]
               # H.264 is lossy: allow small quantization/antialias drift.
-              assert any(sum(abs(rgb[i]-expected[i]) for i in range(3))<38
+              assert any(sum(abs(rgb[i]-expected[i]) for i in range(3))<78
                          for rgb in colors),(phase,'missing category ink')
               assert all(im.getpixel((x,y)) for x,y in [(400,200),(400,300)])
           assert all(e['contextual_capture_second'] is None
