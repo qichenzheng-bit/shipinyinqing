@@ -81,8 +81,10 @@ def compile_teaching_units(*, problem: str, reference_solution: str,
         steps=unit["math"]
         if not isinstance(steps,list) or not 1<=len(steps)<=6:
             raise LongboardError(f"TEACHING_UNIT_MATH_COVERAGE: {uid}")
-        if unit["phase"] in ("knowledge","strategy") and len(steps)<2:
-            raise LongboardError(f"TEACHING_UNIT_UNNECESSARY_FRAGMENT: {uid}")
+        # Formula count is NOT a proxy for teaching quality: a meaningful
+        # insight can be one line, while a difficult derivation needs many.
+        # The authored goal + per-line reasoning remain mandatory. A separate
+        # review checks whether unrelated standalone events can be merged.
         if not 1<=unit["pause_seconds"]<=4.5 or not .6<=unit["write_seconds"]<=2.2:
             raise LongboardError(f"TEACHING_UNIT_PACING: {uid}")
         math_ids=[]
