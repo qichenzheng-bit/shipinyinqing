@@ -138,10 +138,14 @@ def render_math_writing_clip(
                             self.play(Write(part), run_time=_WRITE_SECONDS)
                         self.play(target.animate.set_color(plan.request.theme.highlight),
                                   run_time=_COLOR_SECONDS)
+                        self.blue_end_time = self.time
                         self.wait(_HIGHLIGHT_HOLD_SECONDS)
+                        self.blue_hold_end_time = self.time
                         self.play(target.animate.set_color(plan.request.theme.ink),
                                   run_time=_COLOR_SECONDS)
+                        self.restore_end_time = self.time
                         self.wait(_FINAL_HOLD_SECONDS)
+                        self.final_end_time = self.time
 
                 scene = ApprovedWritingScene()
                 scene.render()
@@ -169,15 +173,15 @@ def render_math_writing_clip(
                 "fps": fps,
                 "timing_source": "preview_only_not_audio_aligned",
                 "preview_highlight_seconds": _COLOR_SECONDS,
+                # Use actual Manim renderer time, not theoretical run_time:
+                # animation subclips round to whole frames at a given fps.
                 "highlight_sample_second": (
-                    len(plan.parts) * _WRITE_SECONDS +
-                    _COLOR_SECONDS + _HIGHLIGHT_HOLD_SECONDS / 2
-                ),
+                    scene.blue_end_time + scene.blue_hold_end_time
+                ) / 2,
                 "final_sample_second": (
-                    len(plan.parts) * _WRITE_SECONDS +
-                    2 * _COLOR_SECONDS + _HIGHLIGHT_HOLD_SECONDS +
-                    _FINAL_HOLD_SECONDS / 2
-                ),
+                    scene.restore_end_time + scene.final_end_time
+                ) / 2,
+                "actual_preview_render_seconds": scene.final_end_time,
             }
             tmp_json = Path(work) / "math_writing.json"
             tmp_json.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
