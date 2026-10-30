@@ -98,6 +98,8 @@ def main(argv: list[str] | None = None) -> int:
     longboard_render.add_argument("--storyboard", type=Path, required=True)
     longboard_render.add_argument("--execution", type=Path, required=True)
     longboard_render.add_argument("--policy", type=Path)
+    longboard_render.add_argument("--classroom-cues", type=Path,
+        help="Teacher-approved event-by-event reasoning prompts, not voice subtitles")
     longboard_render.add_argument("--output", type=Path, required=True)
     longboard_render.add_argument("--manifest", type=Path, required=True)
     longboard_render.add_argument("--pixel-width", type=int, default=1280)
@@ -128,8 +130,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 from .longboard_render import render_longboard_movie
+                cue_data = (json.loads(args.classroom_cues.read_text(encoding="utf-8"))
+                            if args.classroom_cues is not None else None)
                 render_longboard_movie(
                     raw_board, raw_execution, policy=raw_policy,
+                    classroom_cues=cue_data,
                     output_mp4=args.output, output_json=args.manifest,
                     pixel_width=args.pixel_width, pixel_height=args.pixel_height,
                     fps=args.fps,
