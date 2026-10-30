@@ -135,11 +135,12 @@ def build():
       "allow_scroll":True,"max_scrolls_per_page":2,
       "max_scroll_fraction":0.55,"carry_count":0,
       "full_width_without_diagram":True,"safe_auto_break":True,
-      "content_top_offset_px":70,
+      "content_top_offset_px":0,
+      "guidance_style":"board_context",
       "board_mode":"simple_full_board",
       "board_column_width_px":660,
-      "math_base_scale":0.78,
-      "math_min_scale":0.72,
+      "math_base_scale":0.5625,
+      "math_min_scale":0.54,
       "row_gap_px":11,
     }
     return pkg,storyboard,execution,cues,policy
