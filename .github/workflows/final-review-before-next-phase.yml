@@ -23,6 +23,59 @@ jobs:
         run: cd animation_engine && python -m pytest -q -m 'not render'
       - name: Confirm Python modules can be compiled
         run: python -m compileall -q teacher_module/src visual_director/src animation_engine/src animation_engine/tools
+  real-render-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install genuine MathTex LaTeX, CJK and FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+      - run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test]' sympy
+      - name: Independently check actual ODE solution
+        run: |
+          python - <<'PY'
+          import sympy as s
+          x=s.symbols('x',real=True)
+          y=1-s.exp(-x*x)
+          assert s.simplify(s.diff(y,x)+2*x*y-2*x)==0
+          assert y.subs(x,0)==0
+          PY
+      - name: Render real new-unit ODE and ensure geometry is rejected
+        run: |
+          mkdir -p final-review-real
+          python animation_engine/tools/build_complete_ode_lesson.py --output final-review-real
+          math-animation plan-longboard --storyboard final-review-real/storyboard.json --execution final-review-real/execution.json --classroom-cues final-review-real/teacher_approved_cues.json --policy final-review-real/page_policy.json --output final-review-real/board_plan.json
+          math-animation render-longboard --storyboard final-review-real/storyboard.json --execution final-review-real/execution.json --classroom-cues final-review-real/teacher_approved_cues.json --policy final-review-real/page_policy.json --output final-review-real/smoke.mp4 --manifest final-review-real/manifest.json --fps 30
+          ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=width,height,nb_read_frames,r_frame_rate -of json final-review-real/smoke.mp4 > final-review-real/probe.json
+      - name: Source/board/frames invariants after hardening
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('final-review-real')
+          layout=json.loads((p/'board_plan.json').read_text())
+          m=json.loads((p/'manifest.json').read_text())
+          stream=json.loads((p/'probe.json').read_text())['streams'][0]
+          assert (stream['width'],stream['height'],stream['r_frame_rate'])==(1280,720,'30/1')
+          assert int(stream['nb_read_frames'])>500
+          assert layout['event_count']==4
+          assert len(layout['math_written_ids'])==11
+          assert m['erase_count']==m['page_count']-1==1
+          assert m['in_page_fadeout_count']==m['in_page_reposition_count']==0
+          assert m['source_storyboard_sha256']==layout['source_storyboard_sha256']
+          assert m['voice_status']=='not_recorded'
+          print('FINAL_AUDIT_ACTUAL_MP4_PASS',stream['nb_read_frames'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: final-audit-real-mathtex-ode-smoke
+          path: final-review-real/
+          if-no-files-found: warn
   source-inspection-bundle:
     runs-on: ubuntu-latest
     timeout-minutes: 10
