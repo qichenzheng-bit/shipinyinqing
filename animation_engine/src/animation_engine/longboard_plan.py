@@ -194,10 +194,10 @@ def _auto_safe_break(latex: str, usable_width: float,
         try:
             # Deliberately measure real fragments; a legal TeX source split
             # does not imply that all pieces can render independently.
-            measure(candidate,pixel_height)
+            candidate_metrics = measure(candidate,pixel_height)
         except (ValueError, RuntimeError):
             return None
-        if grouped and measure(candidate,pixel_height).width_px > usable_width:
+        if grouped and candidate_metrics.width_px > usable_width:
             try:
                 validate_math_latex(token)
                 m = measure(token,pixel_height)
@@ -334,7 +334,15 @@ def build_longboard_plan(
     event_ids = {s.event_id for s in board.scenes}
     selected = LongboardPolicy.parse(policy)
     selected.validate(set(sources), event_ids, sources)
-    size_of = measure or _real_measure
+    original_measurer = measure or _real_measure
+    measured_cache: dict[tuple[str, int], GlyphSize] = {}
+
+    def size_of(latex: str, frame_height: int) -> GlyphSize:
+        signature = (latex, frame_height)
+        if signature not in measured_cache:
+            measured_cache[signature] = original_measurer(latex, frame_height)
+        return measured_cache[signature]
+
     frame = (pixel_width, pixel_height)
     page_number, scrolls = 1, 0
     previous: dict[str, dict] = {}
