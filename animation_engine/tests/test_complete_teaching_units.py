@@ -82,18 +82,18 @@ def test_reject_absent_reasons_and_pointless_knowledge_one_line():
     bad[1]["math"][1]["reason"]=""
     with pytest.raises(LongboardError,match="REASON_MISSING"):
         compile_teaching_units(problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,
-                               units=bad)
+                               units=bad,teacher_reviewed=True)
     bad=copy.deepcopy(UNITS)
     bad[1]["math"]=[]
     with pytest.raises(LongboardError,match="MATH_COVERAGE"):
         compile_teaching_units(problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,
-                               units=bad)
+                               units=bad,teacher_reviewed=True)
     # One genuinely useful mathematical fact may deserve its own moment:
     # never force the author to invent another line only to pass a count rule.
     one_line=copy.deepcopy(UNITS)
     one_line[1]["math"]=one_line[1]["math"][:1]
     compile_teaching_units(problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,
-                           units=one_line)
+                           units=one_line,teacher_reviewed=True)
 
 
 def test_reject_modified_source_or_oversized_math_instead_of_truncating():
