@@ -45,8 +45,8 @@ jobs:
           mkdir -p writing-evidence
           visual-director plan visual_director/examples/limit_teaching_package.json --output writing-evidence/storyboard.json
           math-animation plan writing-evidence/storyboard.json --output writing-evidence/execution.json
-          math-animation render-writing --storyboard writing-evidence/storyboard.json --execution writing-evidence/execution.json --event-id e_k_sin --object-id m_k_sin --hint animation_engine/examples/sin_taylor_approved_parts.json --output writing-evidence/segmented.mp4 --manifest writing-evidence/segmented.json --pixel-width 640 --pixel-height 360 --fps 12
-          math-animation render-writing --storyboard writing-evidence/storyboard.json --execution writing-evidence/execution.json --event-id e_k_sin --object-id m_k_sin --output writing-evidence/fallback.mp4 --manifest writing-evidence/fallback.json --pixel-width 640 --pixel-height 360 --fps 12
+          math-animation render-writing --storyboard writing-evidence/storyboard.json --execution writing-evidence/execution.json --event-id e_end --object-id m_end --hint animation_engine/examples/limit_sum_approved_parts.json --output writing-evidence/segmented.mp4 --manifest writing-evidence/segmented.json --pixel-width 640 --pixel-height 360 --fps 12
+          math-animation render-writing --storyboard writing-evidence/storyboard.json --execution writing-evidence/execution.json --event-id e_end --object-id m_end --output writing-evidence/fallback.mp4 --manifest writing-evidence/fallback.json --pixel-width 640 --pixel-height 360 --fps 12
           python - <<'PY'
           from pathlib import Path
           import json,subprocess
@@ -54,8 +54,8 @@ jobs:
           for name in ("segmented","fallback"):
               metadata=json.loads((folder/(name+".json")).read_text(encoding="utf-8"))
               assert metadata["timing_source"]=="preview_only_not_audio_aligned"
-              assert metadata["speech_unit_id"]=="u_k_sin"
-              assert metadata["source_step_ids"]==["s5a","s5"]
+              assert metadata["speech_unit_id"]=="u_end"
+              assert metadata["source_step_ids"]==["s8"]
               for label,second in (("highlight",metadata["highlight_sample_second"]),
                                    ("final",metadata["final_sample_second"])):
                   subprocess.run(["ffmpeg","-v","error","-ss",str(second),
