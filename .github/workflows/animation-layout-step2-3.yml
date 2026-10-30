@@ -20,6 +20,8 @@ jobs:
       - run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
       - name: New 2.3 layout tests excluding optional real renderer
         run: cd animation_engine && python -m pytest tests/test_adaptive_layout.py -q -m "not render"
+      - name: Transition movement safety tests
+        run: cd animation_engine && python -m pytest tests/test_layout_transition.py -q -m "not render"
       - name: Full backward-compatibility regressions
         run: |
           cd teacher_module && python -m pytest -q
@@ -39,6 +41,8 @@ jobs:
       - run: python -m pip install -e './visual_director[test]' -e './animation_engine[render,test]'
       - name: Real glyph measurement and multi-formula PNG
         run: cd animation_engine && python -m pytest tests/test_adaptive_layout.py -q -m render
+      - name: True two-scene layout transition MP4 test
+        run: cd animation_engine && python -m pytest tests/test_layout_transition.py -q -m render
       - name: Authentic storyboard and adaptive layout CLI artifact
         run: |
           mkdir -p layout-evidence
@@ -57,6 +61,18 @@ jobs:
                 sum(s["status"]=="cut_required" for s in d["scenes"]))
           Path("layout-evidence/event.txt").write_text(ready[0]["event_id"])
           PY
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          scenes=json.loads(Path("layout-evidence/layout.json").read_text(encoding="utf-8"))["scenes"]
+          pair=next(((a,b) for a,b in zip(scenes, scenes[1:])
+                     if a["status"]==b["status"]=="ready" and b["placements"]), None)
+          assert pair is not None
+          Path("layout-evidence/from-event.txt").write_text(pair[0]["event_id"])
+          Path("layout-evidence/to-event.txt").write_text(pair[1]["event_id"])
+          PY
+          math-animation render-layout-transition --storyboard layout-evidence/storyboard.json --execution layout-evidence/execution.json --from-event-id "$(cat layout-evidence/from-event.txt)" --to-event-id "$(cat layout-evidence/to-event.txt)" --output layout-evidence/transition.mp4 --manifest layout-evidence/transition.json
+          ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of json layout-evidence/transition.mp4
           EVENT_ID="$(cat layout-evidence/event.txt)"
           math-animation layout-board --storyboard layout-evidence/storyboard.json --execution layout-evidence/execution.json --event-id "$EVENT_ID" --output layout-evidence/board.png --manifest layout-evidence/board.json
           python - <<'PY'
@@ -78,4 +94,6 @@ jobs:
             layout-evidence/board.png
             layout-evidence/board.json
             layout-evidence/event.txt
+            layout-evidence/transition.mp4
+            layout-evidence/transition.json
           if-no-files-found: warn
