@@ -45,6 +45,7 @@ class LongboardPolicy:
     math_base_scale: float = 1.0
     math_min_scale: float = .90
     row_gap_px: int = 15
+    guidance_style: str = "fixed"  # fixed or board_context
 
     @classmethod
     def parse(cls, value: "LongboardPolicy | dict | None") -> "LongboardPolicy":
@@ -59,7 +60,7 @@ class LongboardPolicy:
             "allow_scroll", "max_scrolls_per_page", "max_scroll_fraction",
             "carry_count", "full_width_without_diagram", "safe_auto_break",
             "content_top_offset_px", "board_mode", "board_column_width_px",
-            "math_base_scale", "math_min_scale", "row_gap_px",
+            "math_base_scale", "math_min_scale", "row_gap_px", "guidance_style",
         }
         if set(value) - permitted:
             raise LongboardError("INVALID_POLICY: unknown keys " + str(sorted(set(value)-permitted)))
@@ -81,6 +82,7 @@ class LongboardPolicy:
                 math_base_scale=value.get("math_base_scale", 1.0),
                 math_min_scale=value.get("math_min_scale", .90),
                 row_gap_px=value.get("row_gap_px", 15),
+                guidance_style=value.get("guidance_style", "fixed"),
             )
         except (TypeError, ValueError) as exc:
             raise LongboardError(f"INVALID_POLICY: {exc}") from exc
@@ -95,7 +97,8 @@ class LongboardPolicy:
                 raise LongboardError(f"INVALID_POLICY: {name} contains duplicate/unknown ID")
         if set(self.break_hints) - object_ids:
             raise LongboardError("INVALID_POLICY: break_hints reference unknown object")
-        if (self.board_mode not in ("classic", "simple_full_board")
+        if (self.guidance_style not in ("fixed", "board_context")
+                or self.board_mode not in ("classic", "simple_full_board")
                 or type(self.board_column_width_px) is not int
                 or not 0 <= self.board_column_width_px <= 1600
                 or type(self.math_base_scale) not in (int,float)
@@ -566,6 +569,7 @@ def build_longboard_plan(
             "math_base_scale": selected.math_base_scale,
             "math_min_scale": selected.math_min_scale,
             "row_gap_px": selected.row_gap_px,
+            "guidance_style": selected.guidance_style,
         },
         "pages": pages, "events": events,
         "timing_source": "preview_only_not_audio_aligned",
