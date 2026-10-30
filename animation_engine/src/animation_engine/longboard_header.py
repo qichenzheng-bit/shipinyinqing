@@ -14,11 +14,13 @@ from .classroom_compositor import _source_parts, _font
 
 def make_question_overlay(storyboard, destination: Path, *,
                           pixel_width: int = 1280, pixel_height: int = 720,
-                          compact: bool = False) -> dict:
+                          compact: bool = False,
+                          ink_color: str | None = None) -> dict:
     from visual_director.models import StoryboardPlan
     from PIL import Image, ImageDraw, ImageChops
 
     board = StoryboardPlan.model_validate(storyboard)
+    ink_color = ink_color or board.theme.ink
     first = board.scenes[0]
     for scene in board.scenes:
         if scene.regions.get("question") != first.regions.get("question"):
@@ -45,7 +47,7 @@ def make_question_overlay(storyboard, destination: Path, *,
         with tempconfig({"pixel_width": pixel_width, "pixel_height": pixel_height,
                          "frame_width": fw, "frame_height": fh,
                          "background_color": board.theme.background}):
-            glyph = MathTex(math_part, color=board.theme.ink, font_size=(27 if compact else 34))
+            glyph = MathTex(math_part, color=ink_color, font_size=(27 if compact else 34))
             glyph.move_to([0,0,0])
             camera = Camera()
             camera.capture_mobjects([glyph])
@@ -99,7 +101,7 @@ def make_question_overlay(storyboard, destination: Path, *,
     mid_y = top + height/2
     if text_part:
         draw.text((round(x),round(mid_y-t[1]/2-t[2])), text_part,
-                  font=font, fill=board.theme.ink)
+                  font=font, fill=ink_color)
     x += t[0]
     if math_sprite is not None:
         x += gap/2
@@ -107,7 +109,7 @@ def make_question_overlay(storyboard, destination: Path, *,
         x += mw+gap/2
     if suffix:
         draw.text((round(x),round(mid_y-s[1]/2-s[2])), suffix,
-                  font=font, fill=board.theme.ink)
+                  font=font, fill=ink_color)
     # After drawing, *every visible pixel* must remain in the approved header.
     alpha_box = opaque.getchannel("A").getbbox()
     if (alpha_box is None or alpha_box[0] < left-2 or alpha_box[1] < top-2
@@ -123,5 +125,6 @@ def make_question_overlay(storyboard, destination: Path, *,
         "scale": round(factor,6),
         "style": "compact_question" if compact else "classic_question",
         "math_latex": math_part,
+        "ink_color": ink_color,
         "subtitle_status": "reserved_not_rendered",
     }
