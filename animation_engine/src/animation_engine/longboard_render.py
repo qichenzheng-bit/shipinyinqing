@@ -24,6 +24,7 @@ from .mathtex_renderer import validate_math_latex
 def render_longboard_movie(
     storyboard: Any, execution: Any, *, output_mp4: Path,
     output_json: Path, policy: dict | None = None,
+    calculation_group_overlay: dict | None = None,
     pixel_width: int = 1280, pixel_height: int = 720,
     fps: int = 30,
 ) -> dict:
@@ -40,10 +41,17 @@ def render_longboard_movie(
     from .models import ExecutionPlan
     board = StoryboardPlan.model_validate(storyboard)
     source_plan = ExecutionPlan.model_validate(execution)
-    layout = build_longboard_plan(
-        board, source_plan, policy=policy,
-        pixel_width=pixel_width, pixel_height=pixel_height,
-    )
+    if calculation_group_overlay is None:
+        layout = build_longboard_plan(
+            board, source_plan, policy=policy,
+            pixel_width=pixel_width, pixel_height=pixel_height,
+        )
+    else:
+        from .calculation_group_plan import build_calculation_group_plan
+        layout = build_calculation_group_plan(
+            board, source_plan, overlay=calculation_group_overlay,
+            policy=policy, pixel_width=pixel_width, pixel_height=pixel_height,
+        )
     try:
         from manim import (
             Scene, MathTex, VGroup, Write, FadeIn, FadeOut, tempconfig
@@ -221,7 +229,9 @@ def render_longboard_movie(
                 )
             metadata = {
                 **layout,
-                "render_kind":"manim_mathtex_longboard_continuous_mp4",
+                "render_kind":("manim_mathtex_calculation_group_mp4"
+                    if calculation_group_overlay is not None else
+                    "manim_mathtex_longboard_continuous_mp4"),
                 "actual_preview_duration":duration,
                 "fps":fps,
                 "header":header,
