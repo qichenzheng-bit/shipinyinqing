@@ -55,6 +55,12 @@ def render_layout_transition(
             or output_mp4.suffix.lower() != ".mp4"
             or output_json.suffix.lower() != ".json"):
         raise AdaptiveLayoutError("INVALID_OUTPUT")
+    # Reject impossible event requests before launching an optional TeX compiler.
+    from visual_director.models import StoryboardPlan
+    event_names = [scene.event_id for scene in StoryboardPlan.model_validate(storyboard).scenes]
+    if (from_event_id not in event_names or to_event_id not in event_names
+            or event_names.index(to_event_id) != event_names.index(from_event_id) + 1):
+        raise AdaptiveLayoutError("NONCONSECUTIVE_EVENTS")
     layout = layout_storyboard(storyboard, execution,
                                pixel_width=pixel_width, pixel_height=pixel_height)
     positions = {s["event_id"]: i for i, s in enumerate(layout["scenes"])}
