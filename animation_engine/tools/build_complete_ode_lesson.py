@@ -104,7 +104,7 @@ def build_new():
     package,board,execution,cues=compile_teaching_units(
         problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,units=UNITS
     )
-    policy=simple_classroom_policy(result_ids=("m_solution",))
+    policy=simple_classroom_policy(result_ids=("m_integrated",))
     return package,board,execution,cues,policy
 
 
