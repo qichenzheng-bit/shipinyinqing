@@ -65,8 +65,8 @@ def validate_math_latex(latex: str) -> None:
     # Manim may silently rewrite unmatched delimiters (e.g. \\left to
     # \\big) before LaTeX compilation; reject the source rather than render
     # a subtly different mathematical expression.
-    lefts = len(re.findall(r"\\\\left(?![A-Za-z])", latex))
-    rights = len(re.findall(r"\\\\right(?![A-Za-z])", latex))
+    lefts = len(re.findall(r"\\left(?![A-Za-z])", latex))
+    rights = len(re.findall(r"\\right(?![A-Za-z])", latex))
     if lefts != rights:
         raise MathTexRenderError("TEX_COMPILE_FAILED: unmatched \\left/\\right delimiters")
 
