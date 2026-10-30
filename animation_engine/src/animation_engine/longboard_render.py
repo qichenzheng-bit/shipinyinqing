@@ -142,6 +142,7 @@ def render_longboard_movie(
                             )
                             target = {p["object_id"]:p for p in row["placements"]}
                             staged_math = {}
+                            contextual_capture_second = None
                             if did_board_guidance:
                                 # The reference videos introduce a core concept
                                 # *in the working blackboard*, then write the
@@ -180,6 +181,9 @@ def render_longboard_movie(
                                     self.add(obj)
                                     staged_math[mid]=obj
                                     context_cursor_px = ink_bottom + 18
+                                contextual_capture_second = (
+                                    self.time + cue["pause_seconds"] / 2
+                                )
                                 self.wait(cue["pause_seconds"])
                                 self.play(FadeOut(note),run_time=.30)
                                 # OLD FORMULAS MUST REMAIN HIDDEN while the newly
@@ -336,6 +340,7 @@ def render_longboard_movie(
                                     "source_step_ids":cue["source_step_ids"],
                                     "pause_seconds":cue["pause_seconds"],
                                 },
+                                "contextual_capture_second": contextual_capture_second,
                                 "highlighted_ids": highlights,
                                 "header_highlights_not_animated": header_highlights_deferred,
                                 "event_id":row["event_id"],
