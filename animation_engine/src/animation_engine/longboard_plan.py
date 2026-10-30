@@ -411,8 +411,12 @@ def build_longboard_plan(
         # capacity-based archive. A teacher-directed remove is never overridden.
         fixed = [mid for mid in dict.fromkeys(
             selected.pinned_ids + selected.result_ids)
-            if mid in visible or (mid in scene.archived_ids and mid in auto_archived
-                                  and mid in last_seen)]
+            # A new result first writes at its natural mathematical position.
+            # Only a result already written in an earlier event may move to
+            # the fixed context region; otherwise chronology is reversed.
+            if mid in last_seen and (
+                mid in visible or (mid in scene.archived_ids and mid in auto_archived)
+            )]
         working = [mid for mid in visible if mid not in fixed]
         new_ids = [a.object_id for a in execution_scene.actions
                    if a.kind in ("progressive_write", "restore")
