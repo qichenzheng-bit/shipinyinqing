@@ -136,3 +136,32 @@ def test_quote_must_be_substring_of_real_source(source, understanding):
     c = Collector()
     check_understanding(source.with_sources(), understanding, c)
     assert "SOURCE_QUOTE_MISMATCH" in _codes(c)
+
+
+
+def test_complete_single_event_knowledge_application_derivation_is_accepted(
+        understanding, plan):
+    """A real teacher may explain a tool and apply it in one coherent goal."""
+    from math_teacher.validator import Collector, check_plan
+
+    read, _, _, derive, end = plan.teaching_events
+    derive.knowledge_binding_ids = ["k1"]
+    derive.intended_board_content = [
+        r"\ln(1+u)=u-u^2/2+o(u^2)",
+        r"u=x^2",
+        r"\ln(1+x^2)=x^2-x^4/2+o(x^4)"
+    ]
+    derive.mathematical_progression = (
+        "先列出展开条件并把本题的 u 取为 x 平方，"
+        "再代入得到实际展开，不拆成三个无意义事件。"
+    )
+    plan.teaching_events = [read, derive, end]
+    plan.reference_step_coverage["s1"] = ["e_read", "e_derive", "e_end"]
+    issues = Collector()
+    check_plan(understanding, plan, issues)
+    assert not [i.code for i in issues.issues if i.severity == "error"]
+
+
+def test_teacher_prompt_version_bumped_for_complete_units():
+    from math_teacher.pipeline import PROMPT_VERSION
+    assert PROMPT_VERSION == "1.1"
