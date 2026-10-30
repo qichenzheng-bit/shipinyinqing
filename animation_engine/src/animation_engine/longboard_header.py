@@ -13,7 +13,8 @@ from .classroom_compositor import _source_parts, _font
 
 
 def make_question_overlay(storyboard, destination: Path, *,
-                          pixel_width: int = 1280, pixel_height: int = 720) -> dict:
+                          pixel_width: int = 1280, pixel_height: int = 720,
+                          compact: bool = False) -> dict:
     from visual_director.models import StoryboardPlan
     from PIL import Image, ImageDraw, ImageChops
 
@@ -33,7 +34,7 @@ def make_question_overlay(storyboard, destination: Path, *,
     padding = 6
     opaque = Image.new("RGBA", (pixel_width, pixel_height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(opaque)
-    font = _font(31 if pixel_height >= 600 else max(17, pixel_height//25))
+    font = _font((20 if compact else 31) if pixel_height >= 600 else max(17, pixel_height//25))
     math_sprite = None
     if math_part:
         try:
@@ -44,7 +45,7 @@ def make_question_overlay(storyboard, destination: Path, *,
         with tempconfig({"pixel_width": pixel_width, "pixel_height": pixel_height,
                          "frame_width": fw, "frame_height": fh,
                          "background_color": board.theme.background}):
-            glyph = MathTex(math_part, color=board.theme.ink, font_size=34)
+            glyph = MathTex(math_part, color=board.theme.ink, font_size=(27 if compact else 34))
             glyph.move_to([0,0,0])
             camera = Camera()
             camera.capture_mobjects([glyph])
@@ -120,6 +121,7 @@ def make_question_overlay(storyboard, destination: Path, *,
         "header_bbox_px": [round(left),round(top),round(width),round(height)],
         "visible_pixel_bbox": list(alpha_box),
         "scale": round(factor,6),
+        "style": "compact_question" if compact else "classic_question",
         "math_latex": math_part,
         "subtitle_status": "reserved_not_rendered",
     }
