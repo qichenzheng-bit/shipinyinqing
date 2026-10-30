@@ -41,3 +41,71 @@ jobs:
           assert r['calculation_group']['math_added_or_changed'] is False
           print('CALC_2_5_1_VERIFIED',len(r['events']),r['calculation_group']['capacity_strategy'])
           PY
+  real-grouped-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 42
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install genuine Manim, TeX, FFmpeg and CJK fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+          python -m pip install -e './visual_director[test]' -e './animation_engine[render,test]'
+      - name: Build approved source contracts and group overlay
+        run: |
+          mkdir -p calculation251-evidence
+          python animation_engine/tools/build_fresh_integral_acceptance.py --output calculation251-evidence
+          python animation_engine/tools/build_fresh_integral_group_overlay.py --execution calculation251-evidence/execution.json --output calculation251-evidence/overlay.json
+      - name: Plan real measured grouped worksheet
+        run: |
+          math-animation plan-calculation --storyboard calculation251-evidence/storyboard.json --execution calculation251-evidence/execution.json --overlay calculation251-evidence/overlay.json --policy animation_engine/examples/new_integral_acceptance_policy.json --output calculation251-evidence/group_plan.json
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('calculation251-evidence/group_plan.json')
+          obj=json.loads(p.read_text())
+          assert len(obj['events'])==20
+          assert obj['events'][-1]['group_state']['phase']=='conclusion'
+          assert any(e['layout_mode']=='group_bands' for e in obj['events']), 'GROUP_LAYOUT_NOT_USED'
+          assert all(x['placements'] for x in obj['events'] if x['new_ids'])
+          assert obj['calculation_group']['math_added_or_changed'] is False
+          print('TRUE_GLYPH_GROUP_PLANNING',obj['calculation_group']['capacity_strategy'])
+          PY
+      - name: Render actual Manim 1280x720 30fps grouped classroom
+        run: |
+          math-animation render-calculation --storyboard calculation251-evidence/storyboard.json --execution calculation251-evidence/execution.json --overlay calculation251-evidence/overlay.json --policy animation_engine/examples/new_integral_acceptance_policy.json --output calculation251-evidence/three_integral_group.mp4 --manifest calculation251-evidence/video_manifest.json --fps 30
+          ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=width,height,nb_read_frames,r_frame_rate -of json calculation251-evidence/three_integral_group.mp4 > calculation251-evidence/ffprobe.json
+      - name: Verify source frames and export milestone keyframes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, subprocess
+          p=Path('calculation251-evidence')
+          meta=json.loads((p/'video_manifest.json').read_text())
+          stream=json.loads((p/'ffprobe.json').read_text())['streams'][0]
+          assert stream['width']==1280 and stream['height']==720
+          assert stream['r_frame_rate']=='30/1'
+          assert int(stream['nb_read_frames'])>200
+          assert meta['render_kind']=='manim_mathtex_calculation_group_mp4'
+          assert meta['audio_status']=='no_audio'
+          assert len(meta['event_timing'])==20
+          actual=[z for e in meta['event_timing'] for z in e['written_or_carried'] if z['kind']=='write']
+          written_ids=[z['object_id'] for z in actual]
+          assert len(written_ids)==len(set(written_ids)),('REWRITTEN_MATH',written_ids)
+          for event_id in ['e_a_done','e_b_done','e_c_done','e_final']:
+              e=next(e for e in meta['event_timing'] if e['event_id']==event_id)
+              at=e['end_preview_second']-0.04
+              subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y',
+                  '-ss',str(at),'-i',str(p/'three_integral_group.mp4'),
+                  '-frames:v','1',str(p/(event_id+'.png'))],check=True)
+          print('REAL_CALC251_VIDEO',stream['nb_read_frames'],'UNIQUE_WRITE',len(written_ids))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: step-2-5-1-real-grouped-calculation
+          path: calculation251-evidence/
+          if-no-files-found: warn
