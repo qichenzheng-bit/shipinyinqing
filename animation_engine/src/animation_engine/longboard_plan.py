@@ -39,6 +39,7 @@ class LongboardPolicy:
     carry_count: int = 1
     full_width_without_diagram: bool = True
     safe_auto_break: bool = True
+    content_top_offset_px: int = 0  # reserve teaching ribbon beneath question
 
     @classmethod
     def parse(cls, value: "LongboardPolicy | dict | None") -> "LongboardPolicy":
@@ -52,6 +53,7 @@ class LongboardPolicy:
             "pinned_ids", "result_ids", "break_hints", "cut_before_events",
             "allow_scroll", "max_scrolls_per_page", "max_scroll_fraction",
             "carry_count", "full_width_without_diagram", "safe_auto_break",
+            "content_top_offset_px",
         }
         if set(value) - permitted:
             raise LongboardError("INVALID_POLICY: unknown keys " + str(sorted(set(value)-permitted)))
@@ -67,6 +69,7 @@ class LongboardPolicy:
                 carry_count=value.get("carry_count", 1),
                 full_width_without_diagram=value.get("full_width_without_diagram", True),
                 safe_auto_break=value.get("safe_auto_break", True),
+                content_top_offset_px=value.get("content_top_offset_px", 0),
             )
         except (TypeError, ValueError) as exc:
             raise LongboardError(f"INVALID_POLICY: {exc}") from exc
@@ -81,7 +84,9 @@ class LongboardPolicy:
                 raise LongboardError(f"INVALID_POLICY: {name} contains duplicate/unknown ID")
         if set(self.break_hints) - object_ids:
             raise LongboardError("INVALID_POLICY: break_hints reference unknown object")
-        if (type(self.safe_auto_break) is not bool
+        if (type(self.content_top_offset_px) is not int
+                or not 0 <= self.content_top_offset_px <= 220
+                or type(self.safe_auto_break) is not bool
                 or type(self.allow_scroll) is not bool
                 or type(self.full_width_without_diagram) is not bool
                 or type(self.max_scrolls_per_page) is not int
@@ -132,7 +137,8 @@ def _sources(plan: ExecutionPlan) -> dict[str, dict]:
     return records
 
 
-def _workspace(scene, width: int, height: int, full_width: bool):
+def _workspace(scene, width: int, height: int, full_width: bool,
+               top_offset_px: int = 0):
     z = scene.regions.get("board")
     if z is None:
         raise LongboardError(f"NO_BOARD_REGION: {scene.event_id}")
@@ -141,8 +147,10 @@ def _workspace(scene, width: int, height: int, full_width: bool):
         scratch = scene.regions["scratch"]
         x1 = min(x1, scratch.x)
         x2 = max(x2, scratch.x + scratch.w)
-    return (round(x1 * width, 3), round(z.y * height, 3),
-            round((x2-x1) * width, 3), round(z.h * height, 3))
+    full_top, full_bottom = z.y*height, (z.y+z.h)*height
+    top = full_top + top_offset_px
+    return (round(x1 * width, 3), round(top, 3),
+            round((x2-x1) * width, 3), round(full_bottom-top, 3))
 
 
 def _operator_chunks(latex: str) -> list[str]:
@@ -384,7 +392,8 @@ def build_longboard_plan(
                    and a.object_id in working + fixed]
         # Headline/highlight-only events do not count as newly written maths.
         new_ids = list(dict.fromkeys(new_ids))
-        zone = _workspace(scene, *frame, selected.full_width_without_diagram)
+        zone = _workspace(scene, *frame, selected.full_width_without_diagram,
+                          selected.content_top_offset_px)
         if scene.diagram is not None and any(scene.object_regions.get(mid) == "diagram"
                                              for mid in visible):
             raise LongboardError(f"DIAGRAM_LAYOUT_UNSUPPORTED: {scene.event_id}")
@@ -520,6 +529,7 @@ def build_longboard_plan(
             "carry_count": selected.carry_count,
             "full_width_without_diagram": selected.full_width_without_diagram,
             "safe_auto_break": selected.safe_auto_break,
+            "content_top_offset_px": selected.content_top_offset_px,
         },
         "pages": pages, "events": events,
         "timing_source": "preview_only_not_audio_aligned",
