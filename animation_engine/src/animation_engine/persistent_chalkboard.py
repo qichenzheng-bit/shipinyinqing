@@ -157,7 +157,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 raise LongboardError(
                     f"CHALKBOARD_EVENT_TOO_TALL: {scene.event_id}"
                 )
-            active=carried[:]
+            active=[]
             proposed=carried+proposed
         added=[]
         for item in proposed:
