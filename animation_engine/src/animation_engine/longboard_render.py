@@ -105,6 +105,7 @@ def render_longboard_movie(
                     def construct(self):
                         active = {}
                         previous = {}
+                        ever_presented = set()
                         self.actual_events = []
                         for scene_index, row in enumerate(layout["events"]):
                             target = {p["object_id"]:p for p in row["placements"]}
@@ -144,7 +145,10 @@ def render_longboard_movie(
                                     continue
                                 obj = make_object(p)
                                 active[mid] = obj
-                                if mid in row["new_ids"]:
+                                if mid in row["new_ids"] and (
+                                    calculation_group_overlay is None
+                                    or mid not in ever_presented
+                                ):
                                     # Exactly one mathematical event, segmented
                                     # only when a validated break hint exists.
                                     for frag in obj:
@@ -159,6 +163,7 @@ def render_longboard_movie(
                                 else:
                                     self.play(FadeIn(obj),run_time=.22)
                                     added.append({"object_id":mid,"kind":"carry"})
+                                ever_presented.add(mid)
                             highlights = []
                             header_highlights_deferred = []
                             for action in source_plan.scenes[scene_index].actions:
