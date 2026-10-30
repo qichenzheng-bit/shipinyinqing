@@ -108,10 +108,15 @@ REFERENCE_SOLUTION="\n".join([
 def build_new():
     # The generic function only assembles source-verified event contracts;
     # every actual mathematical expression above is independent and new.
-    scaffold.PROBLEM=PROBLEM
-    scaffold.STEPS=STEPS
-    scaffold.REFERENCE_SOLUTION=REFERENCE_SOLUTION
-    pkg,board,execution,cues,_=scaffold.build()
+    original=(scaffold.PROBLEM,scaffold.STEPS,scaffold.REFERENCE_SOLUTION)
+    try:
+        scaffold.PROBLEM=PROBLEM
+        scaffold.STEPS=STEPS
+        scaffold.REFERENCE_SOLUTION=REFERENCE_SOLUTION
+        pkg,board,execution,cues,_=scaffold.build()
+    finally:
+        (scaffold.PROBLEM,scaffold.STEPS,
+         scaffold.REFERENCE_SOLUTION)=original
     policy=simple_classroom_policy(result_ids=("m_final",))
     return pkg,board,execution,cues,policy
 
