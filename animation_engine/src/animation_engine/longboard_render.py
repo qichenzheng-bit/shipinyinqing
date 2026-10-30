@@ -19,11 +19,13 @@ from typing import Any
 from .longboard_plan import LongboardError, build_longboard_plan
 from .longboard_header import make_question_overlay
 from .mathtex_renderer import validate_math_latex
+from .classroom_cues import checked_cues, draw_cue_overlay, cue_hash
 
 
 def render_longboard_movie(
     storyboard: Any, execution: Any, *, output_mp4: Path,
     output_json: Path, policy: dict | None = None,
+    classroom_cues: dict | None = None,
     pixel_width: int = 1280, pixel_height: int = 720,
     fps: int = 30,
 ) -> dict:
@@ -44,9 +46,12 @@ def render_longboard_movie(
         board, source_plan, policy=policy,
         pixel_width=pixel_width, pixel_height=pixel_height,
     )
+    cues = checked_cues(classroom_cues, board, source_plan) if classroom_cues is not None else None
+    if cues is not None and layout["policy"]["content_top_offset_px"] < 104:
+        raise LongboardError("CLASSROOM_CUE_OVERLAP: reserve at least 104px of board top")
     try:
         from manim import (
-            Scene, MathTex, VGroup, Write, FadeIn, FadeOut, tempconfig
+            Scene, MathTex, VGroup, Write, FadeIn, FadeOut, ImageMobject, tempconfig
         )
     except ImportError as exc:
         raise LongboardError("MANIM_UNAVAILABLE: install animation_engine[render]") from exc
@@ -82,6 +87,10 @@ def render_longboard_movie(
                 board, temp/"header.png", pixel_width=pixel_width,
                 pixel_height=pixel_height
             )
+            if cues is not None:
+                for index, cue in enumerate(cues):
+                    draw_cue_overlay(cue,temp/f"cue_{index:03d}.png",
+                                     width=pixel_width,height=pixel_height)
             with tempconfig({
                 "pixel_width": pixel_width, "pixel_height": pixel_height,
                 "frame_width": fw, "frame_height": fh, "frame_rate": fps,
@@ -97,8 +106,18 @@ def render_longboard_movie(
                     def construct(self):
                         active = {}
                         previous = {}
+                        active_cue = None
                         self.actual_events = []
                         for scene_index, row in enumerate(layout["events"]):
+                            cue = None if cues is None else cues[scene_index]
+                            if cue is not None:
+                                new_panel = ImageMobject(str(temp/f"cue_{scene_index:03d}.png"))
+                                new_panel.scale_to_fit_width(fw).move_to([0,0,0])
+                                if active_cue is None:
+                                    self.play(FadeIn(new_panel),run_time=.32)
+                                else:
+                                    self.play(FadeOut(active_cue),FadeIn(new_panel),run_time=.38)
+                                active_cue = new_panel
                             target = {p["object_id"]:p for p in row["placements"]}
                             start = self.time
                             removing = [mid for mid in active if mid not in target]
@@ -140,7 +159,8 @@ def render_longboard_movie(
                                     # Exactly one mathematical event, segmented
                                     # only when a validated break hint exists.
                                     for frag in obj:
-                                        self.play(Write(frag),run_time=.55)
+                                        self.play(Write(frag),run_time=(
+                                            cue["write_seconds"] if cue is not None else .55))
                                     # Register the completed formula as one
                                     # persistent scene object. Its parts were
                                     # written separately, but future moves and
@@ -177,6 +197,10 @@ def render_longboard_movie(
                                     raise LongboardError(
                                         f"HIGHLIGHT_TARGET_NOT_VISIBLE: {row['event_id']}/{mid}"
                                     )
+                            if cue is not None:
+                                # Not a subtitle or audio-aligned pause. Give a
+                                # reader enough time to inspect the math on screen.
+                                self.wait(cue["pause_seconds"])
                             if row["transition"] == "cut":
                                 # No black-screen transition: the fixed header
                                 # is composed independently and stays visible.
@@ -185,6 +209,12 @@ def render_longboard_movie(
                                 self.wait(.12)
                             previous = target
                             self.actual_events.append({
+                                "teaching_cue":None if cue is None else {
+                                    "phase":cue["phase"], "heading":cue["heading"],
+                                    "detail":cue["detail"],
+                                    "source_step_ids":cue["source_step_ids"],
+                                    "pause_seconds":cue["pause_seconds"],
+                                },
                                 "highlighted_ids": highlights,
                                 "header_highlights_not_animated": header_highlights_deferred,
                                 "event_id":row["event_id"],
@@ -225,6 +255,12 @@ def render_longboard_movie(
                 "actual_preview_duration":duration,
                 "fps":fps,
                 "header":header,
+                "classroom_direction":None if cues is None else {
+                    "source_sha256":cue_hash(classroom_cues),
+                    "status":"approved_board_notes_not_speech_or_subtitles",
+                    "cue_count":len(cues),
+                    "reserved_band_px":[66,129,1129,87],
+                },
                 "event_timing":event_timing,
                 "subtitle_status":"not_rendered_no_audio",
                 "audio_status":"no_audio",
