@@ -15,27 +15,27 @@
 
 `animation_engine/src/animation_engine/classroom_policy.py` 是简单题标准课堂配置的统一入口。带教师审核教学提示 `--classroom-cues` 且未显式指定 `--policy` 时，`plan-longboard` / `render-longboard` 默认使用该持续板书模式；复杂教学可显式传入专业版式配置。
 
-新的独立验收是五阶泰勒展开极限题（不同于此前所有分部积分视频）：
+此前的五阶泰勒极限题现已从19次机械拆分重构为5个完整教学环节，并补上遗漏的高阶乘法推导。此次另选**一阶线性微分方程初值问题**作为全新题型验收：
 
 ```bash
-python animation_engine/tools/build_fresh_taylor_classroom.py --output taylor-demo
+python animation_engine/tools/build_complete_ode_lesson.py --output ode-demo
 
 math-animation plan-longboard \
-  --storyboard taylor-demo/storyboard.json \
-  --execution taylor-demo/execution.json \
-  --classroom-cues taylor-demo/teacher_approved_cues.json \
-  --policy taylor-demo/page_policy.json \
-  --output taylor-demo/board_pages.json
+  --storyboard ode-demo/storyboard.json \
+  --execution ode-demo/execution.json \
+  --classroom-cues ode-demo/teacher_approved_cues.json \
+  --policy ode-demo/page_policy.json \
+  --output ode-demo/board_pages.json
 
 math-animation render-longboard \
-  --storyboard taylor-demo/storyboard.json \
-  --execution taylor-demo/execution.json \
-  --classroom-cues taylor-demo/teacher_approved_cues.json \
-  --policy taylor-demo/page_policy.json \
-  --output taylor-demo/classroom.mp4 \
-  --manifest taylor-demo/video_manifest.json --fps 30
+  --storyboard ode-demo/storyboard.json \
+  --execution ode-demo/execution.json \
+  --classroom-cues ode-demo/teacher_approved_cues.json \
+  --policy ode-demo/page_policy.json \
+  --output ode-demo/classroom.mp4 \
+  --manifest ode-demo/video_manifest.json --fps 30
 ```
 
-CI workflow: `.github/workflows/classroom-synchronized-taylor-acceptance.yml`，包括数学独立核验、模块回归、真实 MathTex 尺寸检查、逐页板书与实际 MP4 帧截图。先安装 `visual_director`、`animation_engine[render,test]` 及对应系统 LaTeX/Manim/FFmpeg 依赖。
+CI workflow: `.github/workflows/classroom-complete-units-fresh-ode.yml`，包括旧泰勒内容重构回归、新微分方程的 SymPy 独立验算、所有动画模块回归、真实 MathTex 排版、逐页板书与 MP4 关键帧。教学编译器 `classroom_teaching_units.py` 支持一个完整教学环节连续写多条公式，不再强制每条公式变成一个独立讲解。先安装 `visual_director`、`animation_engine[render,test]` 及对应系统 LaTeX/Manim/FFmpeg 依赖。
 
 详见 `animation_engine/README.md` 和 `docs/superpowers/plans/`；所有专项 PR 均先保持 Draft，不自动合并 `main`。
