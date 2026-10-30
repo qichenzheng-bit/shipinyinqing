@@ -24,6 +24,8 @@ jobs:
         run: cd animation_engine && python -m pytest tests/test_layout_transition.py -q -m "not render"
       - name: Source-exact header validation (offline)
         run: cd animation_engine && python -m pytest tests/test_classroom_compositor.py -q -m "not render"
+      - name: Multi-scene preview event validation
+        run: cd animation_engine && python -m pytest tests/test_classroom_sequence.py -q -m "not render"
       - name: Full backward-compatibility regressions
         run: |
           cd teacher_module && python -m pytest -q
@@ -131,6 +133,23 @@ jobs:
           with Image.open(root/"classroom_video_frame.png") as im:
               header=im.convert("RGB").crop((0,0,1280,125))
               assert ImageChops.difference(header,Image.new("RGB",header.size,"white")).getbbox()
+          PY
+          math-animation render-classroom-sequence --storyboard layout-evidence/storyboard.json --execution layout-evidence/execution.json --event-ids e_read e_orient e_common e_k_eqv e_app_eqv e_d_eqv e_split_idea --output layout-evidence/showcase/classroom_six_transitions.mp4 --manifest layout-evidence/showcase/classroom_six_transitions.json --fps 30
+          ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of json layout-evidence/showcase/classroom_six_transitions.mp4 > layout-evidence/showcase/sequence_ffprobe.json
+          ffmpeg -v error -ss 4 -i layout-evidence/showcase/classroom_six_transitions.mp4 -frames:v 1 -y layout-evidence/showcase/sequence_frame.png
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          root=Path("layout-evidence/showcase")
+          meta=json.loads((root/"classroom_six_transitions.json").read_text(encoding="utf-8"))
+          probe=json.loads((root/"sequence_ffprobe.json").read_text(encoding="utf-8"))
+          assert meta["segment_count"]==6
+          assert len(meta["event_ids"])==7
+          assert meta["fps"]==30
+          assert meta["subtitle_status"]=="not_rendered_no_audio"
+          assert int(probe["streams"][0]["nb_read_frames"])>=120
+          assert sum(len(s["written_ids"]) for s in meta["segments"])>=4
+          print("CLASSROOM_SEQUENTIAL_VIDEO",meta["event_ids"])
           PY
           for file in layout-evidence/showcase/*.mp4; do
             ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of json "$file"

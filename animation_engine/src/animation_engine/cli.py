@@ -74,6 +74,15 @@ def main(argv: list[str] | None = None) -> int:
     classroom_movie.add_argument("--manifest", type=Path, required=True)
     classroom_movie.add_argument("--fps", type=int, default=30)
 
+    sequence = subparsers.add_parser("render-classroom-sequence",
+        help="Real MathTex multi-scene classroom preview, no inferred speech timing")
+    sequence.add_argument("--storyboard", type=Path, required=True)
+    sequence.add_argument("--execution", type=Path, required=True)
+    sequence.add_argument("--event-ids", nargs="+", required=True)
+    sequence.add_argument("--output", type=Path, required=True)
+    sequence.add_argument("--manifest", type=Path, required=True)
+    sequence.add_argument("--fps", type=int, default=30)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -81,6 +90,15 @@ def main(argv: list[str] | None = None) -> int:
             result = build_execution_plan(raw)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+            return 0
+
+        if args.command == "render-classroom-sequence":
+            from .classroom_sequence import render_classroom_sequence
+            raw_board = json.loads(args.storyboard.read_text(encoding="utf-8"))
+            raw_execution = json.loads(args.execution.read_text(encoding="utf-8"))
+            render_classroom_sequence(raw_board, raw_execution,
+                event_ids=args.event_ids, output_mp4=args.output,
+                output_json=args.manifest, fps=args.fps)
             return 0
 
         if args.command == "render-classroom-transition":
