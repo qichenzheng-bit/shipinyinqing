@@ -250,7 +250,7 @@ def _size_parts(object_id: str, source: dict, policy: LongboardPolicy,
         parts = policy.break_hints.get(object_id, (source["latex"],))
         if (object_id not in policy.break_hints and policy.safe_auto_break):
             entire = measure(source["latex"],frame_height)
-            if entire.width_px * .90 > usable_width:
+            if entire.width_px * policy.math_min_scale > usable_width:
                 automatic = _auto_safe_break(source["latex"],usable_width,
                                              measure,frame_height)
                 if automatic is not None:
