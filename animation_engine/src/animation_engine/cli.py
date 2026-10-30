@@ -117,6 +117,12 @@ def main(argv: list[str] | None = None) -> int:
                 json.loads(args.policy.read_text(encoding="utf-8"))
                 if args.policy is not None else None
             )
+            # User-approved classroom default for a simple lesson whose
+            # reviewed pedagogical cue data is supplied. Specialized large
+            # proof/diagram lessons can still pass an explicit layout policy.
+            if args.classroom_cues is not None and raw_policy is None:
+                from .classroom_policy import simple_classroom_policy
+                raw_policy=simple_classroom_policy()
             chalkboard=(raw_policy is not None and
                 raw_policy.get("guidance_style")=="persistent_chalkboard")
             if args.command == "plan-longboard":
