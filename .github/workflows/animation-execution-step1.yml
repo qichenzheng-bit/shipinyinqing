@@ -1,0 +1,24 @@
+name: Animation execution step 1 tests
+on:
+  push:
+    branches:
+      - feature/animation-engine-v1-step1
+  pull_request:
+    paths:
+      - 'animation_engine/**'
+      - '.github/workflows/animation-execution-step1.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  execution-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install upstream contract and testing tools
+        run: python -m pip install -e './visual_director[test]' pytest
+      - name: Run independent animation execution test suite
+        run: PYTHONPATH=animation_engine/src python -m pytest animation_engine/tests -q
