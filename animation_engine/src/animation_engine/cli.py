@@ -121,6 +121,22 @@ def main(argv: list[str] | None = None) -> int:
             # reviewed pedagogical cue data is supplied. Specialized large
             # proof/diagram lessons can still pass an explicit layout policy.
             if args.classroom_cues is not None and raw_policy is None:
+                # The simple classroom cannot render explicit geometry,
+                # matrix layouts or proof-scroll. Never silently drop them.
+                scenes=raw_board.get("scenes",[])
+                incompatible=[
+                    s.get("event_id","?")
+                    for s in scenes
+                    if s.get("diagram") is not None
+                    or s.get("layout") in (
+                        "diagram_split","matrix_compare","proof_scroll"
+                    )
+                ]
+                if incompatible:
+                    raise ValueError(
+                        "CLASSROOM_SPECIAL_LAYOUT_REQUIRES_EXPLICIT_POLICY: "+
+                        ",".join(incompatible)
+                    )
                 from .classroom_policy import simple_classroom_policy
                 raw_policy=simple_classroom_policy()
             chalkboard=(raw_policy is not None and
