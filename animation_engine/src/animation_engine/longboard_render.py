@@ -141,6 +141,12 @@ def render_longboard_movie(
                                     # only when a validated break hint exists.
                                     for frag in obj:
                                         self.play(Write(frag),run_time=.55)
+                                    # Register the completed formula as one
+                                    # persistent scene object. Its parts were
+                                    # written separately, but future moves and
+                                    # archives must address the same VGroup.
+                                    self.remove(*obj.submobjects)
+                                    self.add(obj)
                                     added.append({"object_id":mid,"kind":"write"})
                                 else:
                                     self.play(FadeIn(obj),run_time=.22)
