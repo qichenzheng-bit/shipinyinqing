@@ -118,6 +118,17 @@ def render_math_writing_clip(
                     float((full.get_right()[0] / fw + .5) * pixel_width),
                     float((.5 - full.get_bottom()[1] / fh) * pixel_height),
                 )
+                # Each approved part has its own measured outline. Identical
+                # LaTeX strings remain distinct by ordinal position.
+                part_bounds = [
+                    [
+                        float((part.get_left()[0] / fw + .5) * pixel_width),
+                        float((.5 - part.get_top()[1] / fh) * pixel_height),
+                        float((part.get_right()[0] / fw + .5) * pixel_width),
+                        float((.5 - part.get_bottom()[1] / fh) * pixel_height),
+                    ]
+                    for part in full.submobjects
+                ]
                 target_index = plan.highlight_index
                 target = full if target_index is None else full[target_index]
 
@@ -153,6 +164,7 @@ def render_math_writing_clip(
                 "highlight_index": plan.highlight_index,
                 "write_part_indices": list(range(len(plan.parts))),
                 "formula_bounds_px": list(bounds),
+                "part_bounds_px": part_bounds,
                 "frame_size_px": [pixel_width, pixel_height],
                 "fps": fps,
                 "timing_source": "preview_only_not_audio_aligned",
