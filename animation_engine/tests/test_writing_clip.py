@@ -74,12 +74,6 @@ def test_real_segmented_movie_exact_target_blue_and_restores(inputs,tmp_path):
     assert data["timing_source"]=="preview_only_not_audio_aligned"
     assert "speech_start_second" not in data and "speech_end_second" not in data
     assert data["write_part_indices"]==list(range(len(hint["parts"])))
-    probed=subprocess.run(["ffprobe","-v","error","-show_entries","format=duration",
-        "-of","json",str(mp4)],capture_output=True,text=True,check=True)
-    actual_duration=float(json.loads(probed.stdout)["format"]["duration"])
-    samples=[t/10 for t in range(0,max(0,int((actual_duration-.2)*10)),5)]
-    print("BLUE_SCAN", "video_duration",actual_duration,
-          [(t,_count_blue_pixels(mp4,t)) for t in samples])
     assert _count_blue_pixels(mp4, data["highlight_sample_second"])>5
     assert _count_blue_pixels(mp4, data["final_sample_second"])==0
 
