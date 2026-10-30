@@ -1,0 +1,28 @@
+name: Animation real-writing step 2.2
+on:
+  push:
+    branches: [feature/animation-engine-v1-step2-2]
+  pull_request:
+    paths:
+      - 'animation_engine/**'
+      - '.github/workflows/animation-writing-step2-2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: New writing cues RED GREEN
+        run: |
+          cd animation_engine
+          python -m pytest tests/test_writing_cues.py -q
+      - name: Existing teacher director animation contract regression
+        run: |
+          cd teacher_module && python -m pytest -q
+          cd ../visual_director && python -m pytest -q
+          cd ../animation_engine && python -m pytest -q
