@@ -1,6 +1,9 @@
 """Classroom-led redesign contract tests: not visual proof by themselves."""
 import copy
+import sys
+from pathlib import Path
 import pytest
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from animation_engine.classroom_cues import checked_cues
 from animation_engine.longboard_plan import LongboardError, build_longboard_plan, GlyphSize
 from build_classroom_rework_example import build
