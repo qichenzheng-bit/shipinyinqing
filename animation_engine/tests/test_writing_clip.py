@@ -97,7 +97,8 @@ def test_reject_overflow_without_creating_success_artifacts(inputs,tmp_path):
     from dataclasses import replace
     board,ex,_=inputs
     plan=plan_math_writing(board,ex,event_id="e_k_sin",object_id="m_k_sin")
-    too_big=replace(plan,parts=("x"*400,),request=replace(plan.request,latex="x"*400))
+    from visual_director.models import Rect
+    too_big=replace(plan,request=replace(plan.request,region=Rect(x=.05,y=.05,w=.06,h=.06)))
     mp4,meta=tmp_path/"bad.mp4",tmp_path/"bad.json"
     with pytest.raises(MathWritingClipError,match="FORMULA_OVERFLOW"):
         render_math_writing_clip(too_big,output_mp4=mp4,output_json=meta,
