@@ -4,7 +4,8 @@ import json
 import os
 from typing import Protocol, TypeVar
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 from pydantic import BaseModel, ValidationError
 
 T = TypeVar("T", bound=BaseModel)
@@ -16,6 +17,13 @@ class JsonModel(Protocol):
 
 class ProviderError(RuntimeError):
     pass
+
+
+class _RejectRedirects(HTTPRedirectHandler):
+    """Do not forward bearer credentials to redirect targets."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 class OpenAICompatibleJsonModel:
@@ -34,7 +42,17 @@ class OpenAICompatibleJsonModel:
         self.timeout = timeout
         if not self.model or not self.api_key:
             raise ProviderError("Set MATH_TEACHER_MODEL and MATH_TEACHER_API_KEY (or pass model/key explicitly)")
-        if not self.base_url.startswith(("https://", "http://localhost", "http://127.0.0.1")):
+        # URL prefixes are not trust boundaries: 'localhost.evil.example' is
+        # an external hostname despite beginning with 'localhost'.
+        try:
+            parsed = urlsplit(self.base_url)
+            host = parsed.hostname
+            port = parsed.port  # validate malformed ports before use
+        except ValueError as exc:
+            raise ProviderError("Invalid provider URL") from exc
+        if (not host or parsed.username is not None or parsed.password is not None
+                or (parsed.scheme != "https" and
+                    not (parsed.scheme == "http" and host in ("localhost", "127.0.0.1")))):
             raise ProviderError("Provider URL must use HTTPS, or local loopback HTTP")
 
     def generate(self, *, stage: str, system: str, user_json: str, schema: type[T]) -> T:
@@ -59,7 +77,9 @@ class OpenAICompatibleJsonModel:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
+            # urllib's default redirect handler copies Authorization to the
+            # redirected request. Reject *all* redirects for this API boundary.
+            with build_opener(_RejectRedirects()).open(request, timeout=self.timeout) as response:
                 result = json.load(response)
         except HTTPError as exc:
             # Avoid echoing private input/auth; response bodies may contain traces.
