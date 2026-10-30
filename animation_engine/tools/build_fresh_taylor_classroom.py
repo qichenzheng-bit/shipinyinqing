@@ -1,149 +1,154 @@
-"""New, independent postgraduate calculus limit lesson.
+"""Reworked Taylor limit lesson: complete derivations, not 19 pseudo-lessons.
 
-Unlike either earlier integral test, this proves a fifth-order Taylor limit
-from sine/cosine and a reciprocal expansion. All steps are separately written,
-mathematically authored and independently verified with SymPy in CI.
-This program reuses the generic source-to-package builder, NOT its math.
+The earlier demonstration split individual coefficients into separate teacher
+events and omitted the multiplication that produced them. Five meaningful
+pedagogical goals now contain the entire calculation; all display math is
+source-approved MathTex and there are no unnecessary standalone steps.
 """
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
-import build_classroom_rework_example as scaffold
+
+from animation_engine.classroom_teaching_units import compile_teaching_units
 from animation_engine.classroom_policy import simple_classroom_policy
+
 
 PROBLEM=(
     r"求极限：\lim_{x\to0}\frac{\tan x-\sin x-\frac{x^3}{2}}{x^5}."
 )
-STEPS=[
- ("read","read_question",
-  r"L=\lim_{x\to0}\frac{\tan x-\sin x-\frac{x^3}{2}}{x^5}",
-  "observe","先看分母的阶数",
-  "分母是五次幂，应判断分子经过抵消后最先剩下哪一阶。",2.5),
- ("choice","orient",
-  r"\tan x=\frac{\sin x}{\cos x}",
-  "strategy","先把正切函数转化",
-  "正切由正弦和余弦组成，分别展开就能算出所需的高阶项。",2.4),
- ("sine","knowledge",
-  r"\sin x=x-\frac{x^3}{6}+\frac{x^5}{120}+o(x^5)",
-  "knowledge","先写正弦的五阶展开",
-  "正弦展开包含一次项三次项和五次项，此题需要保留五次项。",2.7),
- ("cosine","derivation",
-  r"\cos x=1-\frac{x^2}{2}+\frac{x^4}{24}+o(x^4)",
-  "calculate","写出余弦的四阶展开",
-  "后面要计算正切，因此还需要余弦函数的倒数。",2.1),
- ("reciprule","knowledge",
-  r"\frac1{1+u}=1-u+u^2+o(u^2)",
-  "knowledge","倒数可以用展开公式",
-  "余弦接近一，使用倒数展开能避免复杂的多项式长除法。",2.5),
- ("setu","application",
-  r"u=-\frac{x^2}{2}+\frac{x^4}{24}+o(x^4)",
-  "application","对应代入余弦的部分",
-  "把余弦减去一后剩下的部分代入倒数展开式。",2.0),
- ("usquared","derivation",
-  r"u^2=\frac{x^4}{4}+o(x^4)",
-  "calculate","先算平方项的阶数",
-  "只要保留四次项，其余更高阶项此时都可以合并。",2.0),
- ("reciprocal","derivation",
-  r"\frac1{\cos x}=1+\frac{x^2}{2}+\frac{5x^4}{24}+o(x^4)",
-  "calculate","合并得到余弦的倒数",
-  "代回前面的展开并合并二次项和四次项。",2.7),
- ("product","application",
-  r"\tan x=\sin x\cdot\frac1{\cos x}",
-  "application","接着计算正切的展开",
-  "正切就是刚才得到的正弦展开乘上余弦倒数展开。",2.1),
- ("cubic","derivation",
-  r"\frac12-\frac16=\frac13",
-  "calculate","整理三次项的系数",
-  "三次项由一次项乘二次项以及原来的三次项相加得到。",2.0),
- ("quintic","derivation",
-  r"\frac5{24}-\frac1{12}+\frac1{120}=\frac2{15}",
-  "calculate","整理五次项的系数",
-  "五次项来自三种乘积，分别计算后再合并。",2.5),
- ("tanexp","derivation",
-  r"\tan x=x+\frac{x^3}{3}+\frac{2x^5}{15}+o(x^5)",
-  "check","写出完整的正切展开",
-  "三次项和五次项都已算清，现在可以与正弦展开作差。",2.5),
- ("pitfall","knowledge",
-  r"\frac13+\frac16-\frac12=0",
-  "pitfall","注意三次项会完全抵消",
-  "如果只算到三次项就结束，会错过真正决定极限的五次项。",2.8),
- ("subtract","application",
-  r"\tan x-\sin x=\frac{x^3}{2}+\left(\frac2{15}-\frac1{120}\right)x^5+o(x^5)",
-  "application","按同次幂逐项相减",
-  "一次项相消，剩下三次项以及需要精确计算的五次项。",2.8),
- ("coefficient","derivation",
-  r"\frac2{15}-\frac1{120}=\frac18",
-  "calculate","合并五次项的系数",
-  "通分后相减，得到五次项的准确系数。",2.0),
- ("numerator","derivation",
-  r"\tan x-\sin x-\frac{x^3}{2}=\frac{x^5}{8}+o(x^5)",
-  "calculate","最后消去三次项",
-  "题目分子恰好减去了三次项，因此只剩五次项和高阶小量。",2.6),
- ("limitsub","application",
-  r"L=\lim_{x\to0}\left(\frac18+\frac{o(x^5)}{x^5}\right)",
-  "application","除以分母的五次幂",
-  "把分子表达式整体除以五次幂，再分别观察两项。",2.5),
- ("littleo","knowledge",
-  r"\lim_{x\to0}\frac{o(x^5)}{x^5}=0",
-  "knowledge","高阶小量的定义",
-  "高阶小量除以对应的五次幂后趋于零。",2.2),
- ("final","summary",
-  r"L=\frac18",
-  "summary","归纳这道题的思路",
-  "先找到抵消后所需的阶数，再展开到该阶并准确合并系数。",3.5),
-]
 REFERENCE_SOLUTION="\n".join([
-  r"设 L=\lim_{x\to0}\frac{\tan x-\sin x-\frac{x^3}{2}}{x^5}。",
-  r"已知 \sin x=x-\frac{x^3}{6}+\frac{x^5}{120}+o(x^5)，\cos x=1-\frac{x^2}{2}+\frac{x^4}{24}+o(x^4)。",
-  r"利用 \frac1{1+u}=1-u+u^2+o(u^2)，令 u=-\frac{x^2}{2}+\frac{x^4}{24}+o(x^4)，则 u^2=\frac{x^4}{4}+o(x^4)。",
-  r"所以 \frac1{\cos x}=1+\frac{x^2}{2}+\frac{5x^4}{24}+o(x^4)。",
-  r"\tan x=\sin x/\cos x=x+\frac{x^3}{3}+\frac{2x^5}{15}+o(x^5)，其中五次项系数为 \frac5{24}-\frac1{12}+\frac1{120}=\frac2{15}。",
-  r"\tan x-\sin x=\frac{x^3}{2}+\left(\frac2{15}-\frac1{120}\right)x^5+o(x^5)=\frac{x^3}{2}+\frac{x^5}{8}+o(x^5)。",
-  r"\tan x-\sin x-\frac{x^3}{2}=\frac{x^5}{8}+o(x^5)，所以 L=\frac18。",
+    r"先把正切与正弦合并：\tan x-\sin x=\sin x(1-\cos x)/\cos x。",
+    r"展开：\sin x=x-\frac{x^3}{6}+o(x^3)，",
+    r"1-\cos x=\frac{x^2}{2}-\frac{x^4}{24}+o(x^4)，",
+    r"\frac1{\cos x}=1+\frac{x^2}{2}+o(x^2)。",
+    r"逐项相乘：\sin x(1-\cos x)"
+    r"=(x-\frac{x^3}{6})(\frac{x^2}{2}-\frac{x^4}{24})+o(x^5)"
+    r"=\frac{x^3}{2}-\frac{x^5}{24}-\frac{x^5}{12}+o(x^5)"
+    r"=\frac{x^3}{2}-\frac{x^5}{8}+o(x^5)。",
+    r"所以 \tan x-\sin x="
+    r"(\frac{x^3}{2}-\frac{x^5}{8})(1+\frac{x^2}{2})+o(x^5)"
+    r"=\frac{x^3}{2}+(\frac14-\frac18)x^5+o(x^5)"
+    r"=\frac{x^3}{2}+\frac{x^5}{8}+o(x^5)。",
+    r"再减去题目给出的三次项，得"
+    r"\tan x-\sin x-\frac{x^3}{2}=\frac{x^5}{8}+o(x^5)，"
+    r"极限等于 \frac18。",
 ])
+
+UNITS=[
+  {"id":"structure","event_type":"orient","phase":"strategy",
+   "heading":"先把差式化为乘积",
+   "detail":"合并正切与正弦，观察乘积中哪些阶数将决定最后结果。",
+   "goal":"通过恒等变形确定分子主要阶数，避免盲目展开正切。",
+   "pause_seconds":2.4,"write_seconds":1.1,
+   "math":[
+      {"id":"identity",
+       "latex":r"\tan x-\sin x=\frac{\sin x(1-\cos x)}{\cos x}",
+       "reason":"使用正切等于正弦除余弦，直接取得可控乘积结构。"},
+   ]},
+  {"id":"expansions","event_type":"knowledge","phase":"knowledge",
+   "heading":"只展开到需要的阶",
+   "detail":"分母是五次幂，三个因子按乘积阶数分别保留足够的项。",
+   "goal":"说明正弦保留三次、余弦差保留四次、倒数保留二次。",
+   "pause_seconds":2.4,"write_seconds":1.0,
+   "math":[
+      {"id":"sin",
+       "latex":r"\sin x=x-\frac{x^3}{6}+o(x^3)",
+       "reason":"正弦乘至少二次因子，保留到三次便足够。"},
+      {"id":"cosdiff",
+       "latex":r"1-\cos x=\frac{x^2}{2}-\frac{x^4}{24}+o(x^4)",
+       "reason":"与正弦一次项相乘，四次项正好影响五次项。"},
+      {"id":"invcos",
+       "latex":r"\frac1{\cos x}=1+\frac{x^2}{2}+o(x^2)",
+       "reason":"被乘积前三次项所乘，倒数只需二次项。"},
+   ]},
+  {"id":"product","event_type":"derivation","phase":"application",
+   "heading":"展开两个函数的乘积",
+   "detail":"五次项分别来自一次乘四次，以及三次乘二次，不省略这步计算。",
+   "goal":"完整写出产生五次项的两个来源并合并系数。",
+   "pause_seconds":2.6,"write_seconds":1.0,
+   "math":[
+      {"id":"product_substitution",
+       "latex":r"\sin x(1-\cos x)=(x-\frac{x^3}{6})(\frac{x^2}{2}-\frac{x^4}{24})+o(x^5)",
+       "reason":"先把两种泰勒展开代入乘积式，准确保留余项。"},
+      {"id":"product_terms",
+       "latex":r"=\frac{x^3}{2}-\frac{x^5}{24}-\frac{x^5}{12}+o(x^5)",
+       "reason":"展示一次乘四次和三次乘二次各自得到的五次项。"},
+      {"id":"product_result",
+       "latex":r"=\frac{x^3}{2}-\frac{x^5}{8}+o(x^5)",
+       "reason":"合并两个五次项，得到分子的核心中间结果。"},
+   ]},
+  {"id":"quotient","event_type":"derivation","phase":"application",
+   "heading":"再乘余弦函数倒数",
+   "detail":"只保留影响五次项的乘积，并把三次项与五次项分别合并。",
+   "goal":"从中间乘积推导出正切与正弦差式的完整五阶展开。",
+   "pause_seconds":2.5,"write_seconds":1.0,
+   "math":[
+      {"id":"quotient_substitution",
+       "latex":r"\tan x-\sin x=(\frac{x^3}{2}-\frac{x^5}{8})(1+\frac{x^2}{2})+o(x^5)",
+       "reason":"代入余弦的倒数并展示乘法关系。"},
+      {"id":"quotient_terms",
+       "latex":r"=\frac{x^3}{2}+(\frac14-\frac18)x^5+o(x^5)",
+       "reason":"明确五次项除了原乘积项，还来自三次项乘二次项。"},
+      {"id":"quotient_result",
+       "latex":r"=\frac{x^3}{2}+\frac{x^5}{8}+o(x^5)",
+       "reason":"合并五次项，为题目减去三次项做好准备。"},
+   ]},
+  {"id":"conclusion","event_type":"summary","phase":"pitfall",
+   "heading":"三次项必须准确抵消",
+   "detail":"题目减去了整个三次项，剩余五次项才决定极限，不能提前停止。",
+   "goal":"展示三次项消去与小量除法，不将最终答案变成无依据孤立数字。",
+   "pause_seconds":2.8,"write_seconds":1.0,
+   "math":[
+      {"id":"numerator",
+       "latex":r"\tan x-\sin x-\frac{x^3}{2}=\frac{x^5}{8}+o(x^5)",
+       "reason":"代入实际题目，三次项完整抵消，仅剩五次项。"},
+      {"id":"final",
+       "latex":r"L=\lim_{x\to0}(\frac18+\frac{o(x^5)}{x^5})=\frac18",
+       "reason":"利用高阶小量定义得到最终极限。"},
+   ]},
+]
+# Legacy callers may still inspect STEPS; these are now complete teaching
+# UNITS, not one-formula pseudo-events.
+STEPS=UNITS
 
 
 def build_new():
-    # The generic function only assembles source-verified event contracts;
-    # every actual mathematical expression above is independent and new.
-    original=(scaffold.PROBLEM,scaffold.STEPS,scaffold.REFERENCE_SOLUTION)
-    try:
-        scaffold.PROBLEM=PROBLEM
-        scaffold.STEPS=STEPS
-        scaffold.REFERENCE_SOLUTION=REFERENCE_SOLUTION
-        pkg,board,execution,cues,_=scaffold.build()
-    finally:
-        (scaffold.PROBLEM,scaffold.STEPS,
-         scaffold.REFERENCE_SOLUTION)=original
+    pkg,board,execution,cues=compile_teaching_units(
+        problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,units=UNITS
+    )
     policy=simple_classroom_policy(result_ids=("m_final",))
     return pkg,board,execution,cues,policy
 
 
 def main(output:Path):
-    output=Path(output)
-    output.mkdir(parents=True,exist_ok=True)
+    output=Path(output);output.mkdir(parents=True,exist_ok=True)
     pkg,board,execution,cues,policy=build_new()
     data={
-      "problem_and_reference_solution.json":{
-          "problem":PROBLEM,"solution":REFERENCE_SOLUTION,
-          "expected_limit":"1/8","source_type":"new_teacher_authored"},
-      "teaching_package.json":pkg,
-      "storyboard.json":board.model_dump(mode="json"),
-      "execution.json":execution.model_dump(mode="json"),
-      "teacher_approved_cues.json":cues,
-      "page_policy.json":policy,
+       "problem_and_reference_solution.json":{
+           "problem":PROBLEM,"solution":REFERENCE_SOLUTION,
+           "expected_limit":"1/8","source_type":"teacher-authored-revised",
+           "unit_count":len(UNITS),
+           "formula_write_count":sum(len(u["math"]) for u in UNITS)},
+       "teaching_units.json":{"schema_version":"1.0","units":UNITS},
+       "teaching_package.json":pkg,
+       "storyboard.json":board.model_dump(mode="json"),
+       "execution.json":execution.model_dump(mode="json"),
+       "teacher_approved_cues.json":cues,
+       "page_policy.json":policy,
     }
     for name,value in data.items():
         (output/name).write_text(
             json.dumps(value,ensure_ascii=False,indent=2)+"\n",
             encoding="utf-8"
         )
-    print("FRESH_TAYLOR_LIMIT_LESSON",len(STEPS),"events; no audio")
+    print("REVISED_TAYLOR_COMPLETE_UNITS",len(UNITS),
+          "MATH_WRITES",sum(len(u["math"]) for u in UNITS),
+          "no isolated coefficient pseudo-events")
 
 
 if __name__=="__main__":
-    p=argparse.ArgumentParser()
-    p.add_argument("--output",required=True,type=Path)
-    main(p.parse_args().output)
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--output",type=Path,required=True)
+    main(parser.parse_args().output)
