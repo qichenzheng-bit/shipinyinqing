@@ -137,7 +137,7 @@ def build():
       "full_width_without_diagram":True,"safe_auto_break":True,
       "content_top_offset_px":70,
       "board_mode":"simple_full_board",
-      "board_column_width_px":870,
+      "board_column_width_px":660,
       "math_base_scale":0.78,
       "math_min_scale":0.72,
       "row_gap_px":11,
