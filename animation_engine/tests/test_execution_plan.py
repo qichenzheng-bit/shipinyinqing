@@ -120,3 +120,39 @@ def test_plan_requires_valid_schema(storyboard):
     malformed["schema_version"] = "7.0"
     with pytest.raises(ExecutionError, match="STORYBOARD_SCHEMA"):
         build_execution_plan(malformed)
+
+
+def test_archived_object_restores_without_rewriting_mathematics():
+    from visual_director import DirectorOptions
+
+    package = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    last = package["lesson"]["board_actions"][-1]
+    last["math_object_id"] = "m_orient"
+    last["action"] = "retain"
+    storyboard = build_storyboard(package, DirectorOptions(max_visible_formulas=3))
+    execution = build_execution_plan(storyboard)
+    final_scene = execution.scenes[-1]
+    assert any(a.object_id == "m_orient" and a.kind == "restore"
+               and a.before == "archived" and a.after == "visible"
+               for a in final_scene.actions)
+    assert "m_orient" in final_scene.visible_ids
+    assert "m_orient" not in final_scene.archived_ids
+
+
+def test_remove_existing_board_object_clears_registry_state(storyboard):
+    scene = storyboard.scenes[1].model_copy(deep=True)
+    scene.event_id = "e_remove"
+    scene.actions[0].event_id = "e_remove"
+    scene.actions[0].action_id = "test:remove:m_orient"
+    scene.actions[0].kind = "remove"
+    scene.actions[0].source_action = "remove"
+    scene.visible_ids = []
+    scene.archived_ids = []
+    scene.object_regions = {}
+    storyboard.scenes = storyboard.scenes[:2] + [scene]
+
+    execution = build_execution_plan(storyboard)
+    action = execution.scenes[-1].actions[0]
+    assert action.before == "visible" and action.after == "absent"
+    assert action.from_region == "board" and action.to_region is None
+    assert execution.scenes[-1].visible_ids == []
