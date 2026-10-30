@@ -74,6 +74,7 @@ def test_real_segmented_movie_exact_target_blue_and_restores(inputs,tmp_path):
     assert data["timing_source"]=="preview_only_not_audio_aligned"
     assert "speech_start_second" not in data and "speech_end_second" not in data
     assert data["write_part_indices"]==list(range(len(hint["parts"])))
+    print("BLUE_SCAN", [(round(t/10,1), _count_blue_pixels(mp4,t/10)) for t in range(0,80,5)])
     assert _count_blue_pixels(mp4, data["highlight_sample_second"])>5
     assert _count_blue_pixels(mp4, data["final_sample_second"])==0
 
