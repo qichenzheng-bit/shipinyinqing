@@ -11,14 +11,34 @@ on:
 permissions:
   contents: read
 jobs:
-  execution-contract:
+  full-contract-regression:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - name: Install upstream contract and testing tools
-        run: python -m pip install -e './visual_director[test]' pytest
-      - name: Run independent animation execution test suite
-        run: PYTHONPATH=animation_engine/src python -m pytest animation_engine/tests -q
+      - name: Install all contract modules
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Teacher regression
+        run: cd teacher_module && python -m pytest -q
+      - name: Visual director regression
+        run: cd visual_director && python -m pytest -q
+      - name: Animation execution regression
+        run: cd animation_engine && python -m pytest -q
+      - name: Offline full-contract CLI smoke test
+        shell: bash
+        run: |
+          tmpdir="$(mktemp -d)"
+          visual-director plan visual_director/examples/limit_teaching_package.json --output "$tmpdir/storyboard.json"
+          math-animation plan "$tmpdir/storyboard.json" --output "$tmpdir/execution.json"
+          python - "$tmpdir/execution.json" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as file:
+              plan = json.load(file)
+          assert len(plan["scenes"]) == 19
+          assert plan["sync_status"] == "semantic_anchors_only"
+          assert not any("start_second" in scene for scene in plan["scenes"])
+          print("CLI contract smoke test passed: 19 ordered scenes")
+          PY
