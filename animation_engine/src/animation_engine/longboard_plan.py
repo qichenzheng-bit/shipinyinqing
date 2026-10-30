@@ -399,6 +399,7 @@ def build_longboard_plan(
             remaining = list(working)
             scrolling = None
             if (selected.allow_scroll and all_placements is None
+                    and scene.event_id not in selected.cut_before_events
                     and scrolls < selected.max_scrolls_per_page):
                 removed = []
                 for mid in working:
