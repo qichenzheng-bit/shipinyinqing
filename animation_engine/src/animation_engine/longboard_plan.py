@@ -432,7 +432,9 @@ def build_longboard_plan(
                                           selected, zone, frame)
                 while all_placements is None and carry:
                     carry.pop(0)
-                proposed = list(dict.fromkeys(carry + [mid for mid in new_ids if mid in working]))
+                    proposed = list(dict.fromkeys(
+                        carry + [mid for mid in new_ids if mid in working]
+                    ))
                     all_placements = _arrange(proposed, fixed, sources, cache, size_of,
                                               selected, zone, frame)
                 if all_placements is None:
