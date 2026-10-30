@@ -49,6 +49,19 @@ def _strict_sources(storyboard, execution, cues, policy):
     teaching=checked_cues(cues,board,plan)
     selected=LongboardPolicy.parse(policy)
     selected.validate(set(_sources(plan)),{s.event_id for s in board.scenes},_sources(plan))
+    # This specialized layout never renders diagram objects, matrix columns
+    # or proof-scroll regions. Reject incompatible source rather than produce
+    # a plausible-looking MP4 that silently omits essential content.
+    unsupported=[
+        scene.event_id for scene in board.scenes
+        if scene.diagram is not None
+        or scene.layout in ("diagram_split","matrix_compare","proof_scroll")
+    ]
+    if unsupported:
+        raise LongboardError(
+            "CHALKBOARD_UNSUPPORTED_SPECIAL_LAYOUT: "+
+            ",".join(unsupported)
+        )
     if selected.guidance_style != "persistent_chalkboard":
         raise LongboardError("CHALKBOARD_REQUIRES_PERSISTENT_GUIDANCE_STYLE")
     if selected.board_mode != "simple_full_board":
