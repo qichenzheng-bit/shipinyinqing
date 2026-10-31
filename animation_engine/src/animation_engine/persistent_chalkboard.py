@@ -86,11 +86,17 @@ def _math_placement(mid,sources,selected,measure,size_cache,y):
 
 
 def make_chalkboard_plan(storyboard,execution,cues,policy, *,
-                         measure=None) -> dict:
+                         measure=None, computation_manifest=None) -> dict:
     board,execution_plan,teaching,selected=_strict_sources(
         storyboard,execution,cues,policy
     )
     sources=_sources(execution_plan)
+    computation=None
+    if computation_manifest is not None:
+        from .computation_groups import checked_computation_groups
+        computation=checked_computation_groups(
+            computation_manifest,board,execution_plan
+        )
     original_measure=measure or _real_measure
     measurements={}
     def size_of(latex,height):
@@ -105,6 +111,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
     written=set()
     events=[]
     all_math=set()
+    last_event_id=None
     for scene,action_scene,cue in zip(board.scenes,execution_plan.scenes,teaching):
         newids=list(dict.fromkeys(
             a.object_id for a in action_scene.actions
@@ -147,13 +154,24 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 raise LongboardError(
                     f"CHALKBOARD_EVENT_TOO_TALL: {scene.event_id}"
                 )
+            if (computation is not None and last_event_id is not None
+                    and not computation.is_safe_page_boundary(
+                        last_event_id,scene.event_id)):
+                raise LongboardError(
+                    "COMPUTATION_NO_SAFE_BREAK: "+
+                    last_event_id+" -> "+scene.event_id
+                )
             clear=True
             page+=1
             cursor=BOARD_START_Y
             # Carry only explicit, already-computed mathematical results.
             # Copying results follows a real classroom's new page and never
             # implies calculating them before the original teacher event.
-            carryids=[mid for mid in selected.result_ids if mid in written]
+            carryids=(
+                computation.carry_at(scene.event_id,written)
+                if computation is not None
+                else [mid for mid in selected.result_ids if mid in written]
+            )
             carried=[]
             for mid in carryids:
                 item=_math_placement(mid,sources,selected,size_of,size_cache,cursor)
@@ -161,8 +179,12 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 cursor+=item["h"]+BOARD_ROW_GAP
             proposed,next_y=group_at(cursor)
             if next_y>BOARD_BOTTOM_Y:
-                # Do not attempt to cram a formula into the footer. When this
-                # event itself needs space, drop optional carried results.
+                if computation is not None:
+                    raise LongboardError(
+                        "COMPUTATION_MANDATORY_CARRY_OVERFLOW: "+
+                        scene.event_id
+                    )
+                # Legacy classroom mode: optional carry may be skipped.
                 carried=[]
                 cursor=BOARD_START_Y
                 proposed,next_y=group_at(cursor)
@@ -197,6 +219,12 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         cursor=next_y
         events.append({
             "event_id":scene.event_id,"page_index":page,
+            **(computation.event_info(scene.event_id)
+               if computation is not None else {}),
+            "carry_object_ids":(
+                [a["block_id"] for a in added if a.get("carry")]
+                if computation is not None else []
+            ),
             "erase_before":clear,
             # One event is a teacher's coherent mathematical reasoning unit;
             # it may contain several MathTex Write operations. Page erasure
@@ -211,6 +239,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "pause_seconds":cue["pause_seconds"],
             "write_seconds":cue["write_seconds"],
         })
+        last_event_id=scene.event_id
     # Every requested write event must have survived the planning pass.
     expected={a.object_id for sc in execution_plan.scenes for a in sc.actions
               if a.kind in ("progressive_write","restore")
@@ -225,6 +254,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         "coordinates":{"start_y":BOARD_START_Y,"bottom_y":BOARD_BOTTOM_Y,
                        "board_left":BOARD_X,"board_width":BOARD_WIDTH},
         "events":events,
+        **({"computation_groups":computation.as_manifest()}
+           if computation is not None else {}),
     }
 
 
@@ -252,7 +283,8 @@ def _note_png(block,output):
 
 
 def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
-                                 output_mp4:Path,output_json:Path,fps:int=30):
+                                 output_mp4:Path,output_json:Path,fps:int=30,
+                                 computation_manifest=None):
     """Real uninterrupted-ink Manim video; erase only on board-full cut."""
     if not isinstance(fps,int) or not 8<=fps<=60:
         raise LongboardError("CHALKBOARD_INVALID_FPS")
@@ -262,7 +294,10 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
     if not shutil.which("ffmpeg"):
         raise LongboardError("CHALKBOARD_FFMPEG_UNAVAILABLE")
     board,contract,teaching,selected=_strict_sources(storyboard,execution,cues,policy)
-    layout=make_chalkboard_plan(board,contract,cues,selected)
+    layout=make_chalkboard_plan(
+        board,contract,cues,selected,
+        computation_manifest=computation_manifest
+    )
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
                        tempconfig,linear)
     fw=8*1280/720
