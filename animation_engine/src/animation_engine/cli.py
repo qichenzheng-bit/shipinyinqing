@@ -124,8 +124,39 @@ def main(argv: list[str] | None = None) -> int:
     longboard_render.add_argument("--pixel-height", type=int, default=720)
     longboard_render.add_argument("--fps", type=int, default=30)
 
+    flow_plan = subparsers.add_parser(
+        "plan-flow", help="V2.6.1 source-verified mixed classroom stages")
+    flow_plan.add_argument("--flow",type=Path,required=True,
+        help="Reviewed unified_flow.json with relative stage directories")
+    flow_plan.add_argument("--output",type=Path,required=True)
+
+    flow_render = subparsers.add_parser(
+        "render-flow", help="V2.6.1 real multi-engine Manim MP4 with math-exact handoffs")
+    flow_render.add_argument("--flow",type=Path,required=True)
+    flow_render.add_argument("--output",type=Path,required=True)
+    flow_render.add_argument("--manifest",type=Path,required=True)
+    flow_render.add_argument("--fps",type=int,default=30)
+
     args = parser.parse_args(argv)
     try:
+        if args.command == "plan-flow":
+            if args.output.suffix.lower()!=".json":
+                raise ValueError("FLOW_PLAN_REQUIRES_JSON_OUTPUT")
+            from .unified_classroom_flow import plan_flow
+            result=plan_flow(args.flow)
+            args.output.parent.mkdir(parents=True,exist_ok=True)
+            args.output.write_text(
+                json.dumps(result,ensure_ascii=False,indent=2)+"\n",
+                encoding="utf-8"
+            )
+            return 0
+        if args.command == "render-flow":
+            from .unified_classroom_flow import render_flow
+            render_flow(
+                args.flow,output_mp4=args.output,
+                output_json=args.manifest,fps=args.fps
+            )
+            return 0
         if args.command in ("plan-longboard", "render-longboard"):
             raw_board = json.loads(args.storyboard.read_text(encoding="utf-8"))
             raw_execution = json.loads(args.execution.read_text(encoding="utf-8"))
