@@ -137,8 +137,37 @@ def main(argv: list[str] | None = None) -> int:
     flow_render.add_argument("--manifest",type=Path,required=True)
     flow_render.add_argument("--fps",type=int,default=30)
 
+    adaptive_plan = subparsers.add_parser(
+        "plan-adaptive-flow", help="V2.6.2 teacher-reviewed diagram lifecycle and native board layout")
+    adaptive_plan.add_argument("--layout", type=Path, required=True)
+    adaptive_plan.add_argument("--output", type=Path, required=True)
+    adaptive_render = subparsers.add_parser(
+        "render-adaptive-flow", help="V2.6.2 authentic MathTex plus persistent source diagram MP4")
+    adaptive_render.add_argument("--layout", type=Path, required=True)
+    adaptive_render.add_argument("--output", type=Path, required=True)
+    adaptive_render.add_argument("--manifest", type=Path, required=True)
+    adaptive_render.add_argument("--fps", type=int, default=30)
+
     args = parser.parse_args(argv)
     try:
+        if args.command == "plan-adaptive-flow":
+            if args.output.suffix.lower() != ".json":
+                raise ValueError("ADAPTIVE_PLAN_REQUIRES_JSON_OUTPUT")
+            from .adaptive_classroom_flow import plan_adaptive_flow
+            result = plan_adaptive_flow(args.layout)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            return 0
+        if args.command == "render-adaptive-flow":
+            from .adaptive_classroom_flow import render_adaptive_flow
+            render_adaptive_flow(
+                args.layout, output_mp4=args.output,
+                output_json=args.manifest, fps=args.fps,
+            )
+            return 0
         if args.command == "plan-flow":
             if args.output.suffix.lower()!=".json":
                 raise ValueError("FLOW_PLAN_REQUIRES_JSON_OUTPUT")
