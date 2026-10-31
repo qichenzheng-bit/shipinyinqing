@@ -24,6 +24,7 @@ ROOT = frozenset({
 })
 EVENT = frozenset({
     "stage_id", "event_id", "pedagogical_cue_covered", "spans",
+    "question_read_aloud", "question_source_sha256",
 })
 SPAN = frozenset({"kind", "object_id", "parts"})
 TEXT_PART = frozenset({"kind", "value"})
@@ -144,7 +145,7 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
             or len(doc["events"]) != len(required)):
         raise LongboardError("SPOKEN_EVENT_COVERAGE")
     validated = []
-    for recorded, planned in zip(doc["events"], required):
+    for index,(recorded, planned) in enumerate(zip(doc["events"], required)):
         if not isinstance(recorded, dict) or set(recorded) != EVENT:
             raise LongboardError("SPOKEN_EVENT_FIELDS")
         if (recorded["stage_id"], recorded["event_id"]) != (
@@ -152,6 +153,14 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
             raise LongboardError("SPOKEN_EVENT_ORDER")
         if recorded["pedagogical_cue_covered"] is not True:
             raise LongboardError("SPOKEN_TEACHING_CUE_UNCOVERED")
+        if index == 0:
+            if recorded["question_read_aloud"] is not True:
+                raise LongboardError("SPOKEN_QUESTION_NOT_READ")
+            if recorded["question_source_sha256"] != canonical_sha(flow.problem):
+                raise LongboardError("SPOKEN_QUESTION_SOURCE_MUTATED")
+        elif (recorded["question_read_aloud"] is not False or
+              recorded["question_source_sha256"] is not None):
+            raise LongboardError("SPOKEN_QUESTION_DUPLICATED_ON_NEW_STAGE")
         spans = recorded["spans"]
         if not isinstance(spans, list) or len(spans) != len(planned["actions"]):
             raise LongboardError("SPOKEN_ACTION_COVERAGE")
