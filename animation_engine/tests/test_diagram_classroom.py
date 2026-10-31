@@ -70,6 +70,39 @@ def test_diagrams_have_frozen_source_and_stage_by_stage_reveal(
     assert set(shown)==set(verified.objects)
 
 
+
+@pytest.mark.parametrize("variant",["A","B","C"])
+def test_auxiliary_coordinates_are_not_displayed_as_unwanted_dots(variant):
+    _,board,exe,cues,policy,manifest,units,catalog=build_variant(variant)
+    check=checked_diagram_classroom(manifest,board,exe)
+    labels={p.id for p in board.scenes[0].diagram.points if p.label}
+    for p in board.scenes[0].diagram.points:
+        assert check.objects[p.id]["kind"]==(
+            "point" if p.id in labels else "coordinate"
+        )
+    if variant=="C":
+        assert all(check.objects[x]["kind"]=="coordinate"
+                   for x in ("U","V","W"))
+
+
+def test_integral_page_two_retains_formula_and_previous_area_work():
+    _,board,exe,cues,policy,manifest,units,catalog=build_variant("B")
+    plan=make_chalkboard_plan(
+        board,exe,cues,policy,measure=lambda tex,height:GlyphSize(205,55),
+        diagram_manifest=manifest
+    )
+    if plan["page_count"]==1:
+        pytest.skip("Mock glyphs happened to fit one page")
+    second=next(e for e in plan["events"] if e["erase_before"])
+    ids=second["carry_object_ids"]
+    assert "m_area_rule" in ids and "m_area_step" in ids
+    for block in second["added_blocks"]:
+        if block.get("carry"):
+            assert abs((block["x"]+block["w"]/2)-
+                       (DIAGRAM_FORMULA_X+DIAGRAM_FORMULA_W/2))<1
+    assert len(second["diagram_carry_ids"])>0
+
+
 def test_graph_coordinates_have_real_parabola_and_tangent_derivative():
     _,b,e,c,p,m,u,k=build_variant("A")
     source=b.scenes[0].diagram
