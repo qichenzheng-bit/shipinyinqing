@@ -91,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Optional approved object IDs and exact LaTeX wrap hints JSON")
     longboard_plan.add_argument("--classroom-cues",type=Path,
         help="Mandatory for persistent classroom blackboard")
+    longboard_plan.add_argument("--computation-groups",type=Path,
+        help="V2.5.1 reviewed multi-part computation and carry ledger")
     longboard_plan.add_argument("--output", type=Path, required=True)
     longboard_plan.add_argument("--pixel-width", type=int, default=1280)
     longboard_plan.add_argument("--pixel-height", type=int, default=720)
@@ -102,6 +104,8 @@ def main(argv: list[str] | None = None) -> int:
     longboard_render.add_argument("--policy", type=Path)
     longboard_render.add_argument("--classroom-cues", type=Path,
         help="Teacher-approved event-by-event reasoning prompts, not voice subtitles")
+    longboard_render.add_argument("--computation-groups",type=Path,
+        help="V2.5.1 source-verified subproblem decomposition and safe breaks")
     longboard_render.add_argument("--output", type=Path, required=True)
     longboard_render.add_argument("--manifest", type=Path, required=True)
     longboard_render.add_argument("--pixel-width", type=int, default=1280)
@@ -141,6 +145,12 @@ def main(argv: list[str] | None = None) -> int:
                 raw_policy=simple_classroom_policy()
             chalkboard=(raw_policy is not None and
                 raw_policy.get("guidance_style")=="persistent_chalkboard")
+            computation_data=(
+                json.loads(args.computation_groups.read_text(encoding="utf-8"))
+                if args.computation_groups is not None else None
+            )
+            if computation_data is not None and not chalkboard:
+                raise ValueError("COMPUTATION_GROUPS_REQUIRES_PERSISTENT_CHALKBOARD")
             if args.command == "plan-longboard":
                 if chalkboard:
                     if args.classroom_cues is None:
@@ -150,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
                         raw_board,raw_execution,
                         json.loads(args.classroom_cues.read_text(encoding="utf-8")),
                         raw_policy,
+                        computation_manifest=computation_data,
                     )
                 else:
                     from .longboard_plan import build_longboard_plan
@@ -177,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
                     render_persistent_chalkboard(
                         raw_board,raw_execution,cue_data,raw_policy,
                         output_mp4=args.output,output_json=args.manifest,fps=args.fps,
+                        computation_manifest=computation_data,
                     )
                 else:
                     render_longboard_movie(
