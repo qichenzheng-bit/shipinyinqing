@@ -873,6 +873,66 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                 raise LongboardError("CHALKBOARD_TRUE_SIZE_MISMATCH")
             pieces.append(glyph)
         return VGroup(*pieces)
+    def diagram_point(u,v):
+        panel=diagram.public_manifest()["panel"]
+        x=panel["x"]+u*panel["w"]
+        y=panel["y"]+v*panel["h"]
+        return [((x/1280)-.5)*fw, (.5-y/720)*fh,0]
+
+    def build_diagram(ident):
+        """Only model-data objects from the verified immutable source."""
+        from manim import (
+            Line,DashedLine,Dot,VMobject,Polygon,MathTex,
+            BLUE,BLACK
+        )
+        record=diagram.objects[ident]
+        kind=record["kind"]
+        if kind=="point":
+            return Dot(diagram_point(record["x"],record["y"]),
+                       radius=.043,color=BLACK)
+        if kind=="line":
+            start=diagram.objects[record["start"]]
+            end=diagram.objects[record["end"]]
+            cls=DashedLine if record["dashed"] else Line
+            return cls(
+                diagram_point(start["x"],start["y"]),
+                diagram_point(end["x"],end["y"]),
+                color=BLACK,stroke_width=2.2
+            )
+        if kind=="curve":
+            obj=VMobject(color=BLUE,stroke_width=3)
+            obj.set_points_smoothly(
+                [diagram_point(x,y) for x,y in record["points"]]
+            )
+            return obj
+        if kind=="region":
+            obj=Polygon(
+                *(diagram_point(x,y) for x,y in record["boundary"]),
+                stroke_width=0,fill_color="#93C5FD",
+                fill_opacity=.32
+            )
+            obj.set_z_index(-1)
+            return obj
+        if kind=="label":
+            from manim import MathTex
+            obj=MathTex(record["latex"],color=BLACK)
+            # Labels are genuine MathTex and must fit their authored,
+            # line-avoiding region at a readable fixed mathematical scale.
+            obj.scale(.42)
+            panel=diagram.public_manifest()["panel"]
+            limit_w=record["w"]*panel["w"]*.94
+            limit_h=record["h"]*panel["h"]*.94
+            if obj.width*90>limit_w+.7 or obj.height*90>limit_h+.7:
+                raise LongboardError(
+                    "DIAGRAM_REAL_MATHTEX_LABEL_OVERFLOW: "+ident
+                )
+            obj.move_to(diagram_point(
+                record["x"]+record["w"]/2,
+                record["y"]+record["h"]/2
+            ))
+            return obj
+        raise LongboardError("DIAGRAM_UNKNOWN_DRAW_KIND")
+
     with tempfile.TemporaryDirectory(prefix="classroom-chalkboard-") as directory:
         temp=Path(directory)
         header=make_question_overlay(board,temp/"header.png",
@@ -892,6 +952,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
             class ChalkboardScene(Scene):
                 def construct(self):
                     active={}
+                    diagram_active={}
                     self.timing=[]
                     for row in layout["events"]:
                         start=self.time
@@ -907,10 +968,41 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             self.add(eraser)
                             self.play(eraser.animate.move_to([0,-.45,0]),
                                       run_time=.75,rate_func=linear)
-                            for obj in active.values():
+                            for obj in list(active.values())+list(
+                                    diagram_active.values()):
                                 self.remove(obj)
                             active.clear()
+                            diagram_active.clear()
                             self.remove(eraser)
+                        if diagram is not None:
+                            # Previously drawn sources survive only by an
+                            # explicit, identical re-draw after a full wipe.
+                            if list(diagram_active)!=[]:
+                                # No unrequested disappearance or movement.
+                                if row["erase_before"]:
+                                    raise LongboardError(
+                                        "DIAGRAM_ERASURE_LIFECYCLE"
+                                    )
+                            for ident in row["diagram_carry_ids"]:
+                                if ident in diagram_active:
+                                    raise LongboardError("DIAGRAM_CARRY_DUPLICATE")
+                                obj=build_diagram(ident)
+                                self.add(obj)
+                                diagram_active[ident]=obj
+                            def reveal_diagram():
+                                from manim import Create,FadeIn
+                                for ident in row["diagram_reveal_ids"]:
+                                    if ident in diagram_active:
+                                        raise LongboardError("DIAGRAM_REVEAL_LIVE")
+                                    obj=build_diagram(ident)
+                                    mode=diagram.objects[ident]["kind"]
+                                    if mode in ("line","curve"):
+                                        self.play(Create(obj),run_time=.72)
+                                    else:
+                                        self.play(FadeIn(obj),run_time=.36)
+                                    diagram_active[ident]=obj
+                            if row["diagram_order"]=="diagram_then_math":
+                                reveal_diagram()
                         for block in row["added_blocks"]:
                             ident=block["block_id"]
                             if ident in active:
@@ -927,6 +1019,14 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                 self.remove(*obj.submobjects)
                                 self.add(obj)
                             active[ident]=obj
+                        if (diagram is not None and
+                                row["diagram_order"]=="math_then_diagram"):
+                            reveal_diagram()
+                        if (diagram is not None and
+                                row["visible_diagram_ids"]!=list(diagram_active)):
+                            raise LongboardError(
+                                "DIAGRAM_VISIBLE_LIFECYCLE_MISMATCH"
+                            )
                         # Printed ink is persistent until a real page erase.
                         if row["visible_block_ids"] != list(active.keys()):
                             raise LongboardError(
@@ -942,6 +1042,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             "start_preview_second":start,
                             "end_preview_second":self.time,
                             "visible_block_ids":list(active),
+                            **({"visible_diagram_ids":list(diagram_active)}
+                               if diagram is not None else {}),
                         })
                     self.total=self.time
             scene=ChalkboardScene()
