@@ -125,9 +125,6 @@ def _common(variant: str):
         )
         part_formulas=[I1,I2,I3,I4,I5]
         final=[
-            math("final_sum",
-                 r"I=1+\frac12\ln2+\frac13+(1-\cos1)+(e-1)",
-                 "五项都计算完毕才把五个结果组合。"),
             math("final",
                  r"I=e+\frac43+\frac12\ln2-\cos1",
                  "最后合并常数，不遗漏任何一项。"),
@@ -210,6 +207,16 @@ def build_variant(variant: str):
                 "result_object_id":"m_"+items[-1]["id"],
                 "safe_break_after":[],"checkpoints":[]
             })
+    if variant=="C":
+        units.append(unit(
+            "recap","把五项结果汇到同一行",
+            "五个结果都已经算完，先按原式列出再进行最后合并。",
+            "在长题换板时用已审核的完整五项结果承接后续计算。",
+            [math("recap",
+                  r"I=1+\frac12\ln2+\frac13+(1-\cos1)+(e-1)",
+                  "只引用已经全部算出的五项真实结果。")],
+            phase="application",type="application"
+        ))
     units.append(unit(
         "final","把已得的各项结果汇总",
         "前面的每个积分都有了结果，现在统一代入总关系计算。",
@@ -236,6 +243,10 @@ def build_variant(variant: str):
         "parts":groups,
         "final":{"event_id":"e_final","object_id":"m_final"},
     }
+    if variant=="C":
+        groups_manifest["recap"]={
+            "event_id":"e_recap","object_id":"m_recap"
+        }
     # Computation carry is determined by the verified result ledger, not a
     # fixed handpicked set from the previous demo's single equation.
     policy=simple_classroom_policy()
