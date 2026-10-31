@@ -379,9 +379,10 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                          measure=None, computation_manifest=None,
                          matrix_manifest=None, proof_manifest=None,
                          diagram_manifest=None, layout_hint=None) -> dict:
-    if layout_hint not in (None, "diagram_left") or (
+    if layout_hint not in (None, "diagram_left", "preserve_diagram") or (
             layout_hint == "diagram_left" and any(x is not None for x in (
-                computation_manifest, matrix_manifest, proof_manifest, diagram_manifest))):
+                computation_manifest, matrix_manifest, proof_manifest, diagram_manifest))) or (
+            layout_hint == "preserve_diagram" and diagram_manifest is None):
         raise LongboardError("CHALKBOARD_UNSUPPORTED_ADAPTIVE_COLUMN")
     if sum(x is not None for x in (
             computation_manifest,matrix_manifest,proof_manifest,
@@ -977,35 +978,47 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                     self.timing=[]
                     for row in layout["events"]:
                         start=self.time
+                        keep_graph = (
+                            diagram is not None and layout_hint == "preserve_diagram"
+                            and bool(diagram_active) and row["erase_before"]
+                        )
                         if row["erase_before"]:
-                            # A classroom-style horizontal eraser sweep.
-                            # No partial-content fade/move during lecture.
+                            # Preserve already revealed diagram ink in V2.6.2.
+                            # The existing V2.5 behavior is untouched without
+                            # the explicit, source-checked adaptive hint.
+                            erase_w = (
+                                (680 - 20) / 90 if keep_graph else fw + .2
+                            )
+                            erase_target = (
+                                -fw/2 + erase_w/2 if keep_graph else 0
+                            )
                             eraser=Rectangle(
-                                width=fw+.2,height=fh*.81,
+                                width=erase_w,height=fh*.81,
                                 fill_color=WHITE,fill_opacity=1,
                                 stroke_opacity=0
                             )
                             eraser.move_to([-fw, -.45, 0])
                             self.add(eraser)
-                            self.play(eraser.animate.move_to([0,-.45,0]),
-                                      run_time=.75,rate_func=linear)
-                            for obj in list(active.values())+list(
-                                    diagram_active.values()):
+                            self.play(
+                                eraser.animate.move_to([erase_target,-.45,0]),
+                                run_time=.75,rate_func=linear
+                            )
+                            removing=list(active.values())+(
+                                [] if keep_graph else list(diagram_active.values())
+                            )
+                            for obj in removing:
                                 if obj is not None:
                                     self.remove(obj)
                             active.clear()
-                            diagram_active.clear()
+                            if not keep_graph:
+                                diagram_active.clear()
                             self.remove(eraser)
                         if diagram is not None:
-                            # Previously drawn sources survive only by an
-                            # explicit, identical re-draw after a full wipe.
-                            if list(diagram_active)!=[]:
-                                # No unrequested disappearance or movement.
-                                if row["erase_before"]:
-                                    raise LongboardError(
-                                        "DIAGRAM_ERASURE_LIFECYCLE"
-                                    )
+                            if keep_graph and list(diagram_active) != row["diagram_carry_ids"]:
+                                raise LongboardError("DIAGRAM_PERSISTENCE_STATE_MISMATCH")
                             for ident in row["diagram_carry_ids"]:
+                                if keep_graph and ident in diagram_active:
+                                    continue  # same live object, never redrawn
                                 if ident in diagram_active:
                                     raise LongboardError("DIAGRAM_CARRY_DUPLICATE")
                                 obj=build_diagram(ident)
