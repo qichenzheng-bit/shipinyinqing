@@ -195,13 +195,13 @@ def build_variant(variant: str):
             "safe_break_after":[],"checkpoints":[]
         })
         units.append(unit(
-            "i2start","分部积分公式与本题取值",
+            "i2start","分部积分基本公式",
             "先把二次幂降低为一次幂，保留需要继续计算的中间积分。",
             "第一段求出第二次分部积分所依赖的准确中间关系。",
             segments[1],phase="knowledge"
         ))
         units.append(unit(
-            "i2finish","分部积分法求子积分",
+            "i2finish","分部积分公式的再次应用",
             "再次使用分部积分公式求子积分，算完后代回原式。",
             "沿用前面已经得到的中间关系，完成第二项。",
             segments[2],phase="knowledge"
@@ -270,9 +270,24 @@ def build_variant(variant: str):
         + [w["latex"] for u in units for w in u["math"]]
         + ["所有步骤均已由教师逐式审核。"]
     )
+    # Every knowledge cue must visibly start with a reusable integral rule,
+    # not with a local manipulation or a narration-only heading.
+    knowledge_units=[u for u in units if u["phase"]=="knowledge"]
+    knowledge_catalog={
+        "schema_version":"1.0","teacher_reviewed":True,
+        "points":[{
+            "event_id":"e_"+u["id"],
+            "topic_id":"integral_"+u["id"],
+            "title":u["heading"],
+            "kind":"formula",
+            "formulae":[{"object_id":"m_"+u["math"][0]["id"],
+                         "latex":u["math"][0]["latex"]}],
+            "used_in":["e_"+u["id"]],
+        } for u in knowledge_units],
+    }
     package,board,execution,cues=compile_teaching_units(
         problem=problem,reference_solution=ref,units=units,
-        teacher_reviewed=True
+        teacher_reviewed=True,knowledge_catalog=knowledge_catalog
     )
     groups_manifest={
         "schema_version":"1.0",
@@ -312,6 +327,18 @@ def export_variant(output: Path,variant: str):
         "teacher_approved_cues.json":cues,
         "page_policy.json":policy,
         "computation_groups.json":groups,
+        "core_knowledge.json":{
+            "schema_version":"1.0","teacher_reviewed":True,
+            "points":[{
+                "event_id":"e_"+u["id"],
+                "topic_id":"integral_"+u["id"],
+                "title":u["heading"],
+                "kind":"formula",
+                "formulae":[{"object_id":"m_"+u["math"][0]["id"],
+                             "latex":u["math"][0]["latex"]}],
+                "used_in":["e_"+u["id"]],
+            } for u in units if u["phase"]=="knowledge"],
+        },
     }
     for name,data in records.items():
         (output/name).write_text(
