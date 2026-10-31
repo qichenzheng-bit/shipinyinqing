@@ -160,7 +160,8 @@ def main(argv: list[str] | None = None) -> int:
                         raw_board,raw_execution,
                         json.loads(args.classroom_cues.read_text(encoding="utf-8")),
                         raw_policy,
-                        computation_manifest=computation_data,
+                        **({"computation_manifest":computation_data}
+                           if computation_data is not None else {}),
                     )
                 else:
                     from .longboard_plan import build_longboard_plan
@@ -188,7 +189,8 @@ def main(argv: list[str] | None = None) -> int:
                     render_persistent_chalkboard(
                         raw_board,raw_execution,cue_data,raw_policy,
                         output_mp4=args.output,output_json=args.manifest,fps=args.fps,
-                        computation_manifest=computation_data,
+                        **({"computation_manifest":computation_data}
+                           if computation_data is not None else {}),
                     )
                 else:
                     render_longboard_movie(
