@@ -442,7 +442,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                if proof is not None else {}),
             "carry_object_ids":(
                 [a["block_id"] for a in added if a.get("carry")]
-                if computation is not None else []
+                if computation is not None or proof is not None else []
             ),
             "erase_before":clear,
             # One event is a teacher's coherent mathematical reasoning unit;
