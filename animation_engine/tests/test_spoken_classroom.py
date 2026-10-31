@@ -66,6 +66,7 @@ def test_every_real_math_note_and_diagram_is_spoken(example):
     ("wrong_span_fields","SPOKEN_SPAN_FIELDS"),
     ("foreign_answer","SPOKEN_EXTERNAL_ANSWER_REFERENCE"),
     ("answers_reference","SPOKEN_EXTERNAL_ANSWER_REFERENCE"),
+    ("derived_from_answer","SPOKEN_EXTERNAL_ANSWER_REFERENCE"),
     ("teacher_notes_silent","SPOKEN_ACTION_COVERAGE"),
 ])
 def test_reject_missing_narration_and_answer_source_language(example,variant,error):
@@ -102,6 +103,8 @@ def test_reject_missing_narration_and_answer_source_language(example,variant,err
         math["parts"][0]["value"]="按照答案，我们可以这样列式。"
     elif variant=="answers_reference":
         math["parts"][0]["value"]="由参考答案可知，这一步的结果是这样的。"
+    elif variant=="derived_from_answer":
+        math["parts"][0]["value"]="由答案可知，这一步的结果是这样的。"
     elif variant=="teacher_notes_silent":
         first["spans"]=[x for x in first["spans"] if x["kind"]!="note"]
     put(example,data)
