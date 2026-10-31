@@ -378,7 +378,11 @@ def _proof_carry_layout(carryids, proof, sources, selected, measure,
 def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                          measure=None, computation_manifest=None,
                          matrix_manifest=None, proof_manifest=None,
-                         diagram_manifest=None) -> dict:
+                         diagram_manifest=None, layout_hint=None) -> dict:
+    if layout_hint not in (None, "diagram_left") or (
+            layout_hint == "diagram_left" and any(x is not None for x in (
+                computation_manifest, matrix_manifest, proof_manifest, diagram_manifest))):
+        raise LongboardError("CHALKBOARD_UNSUPPORTED_ADAPTIVE_COLUMN")
     if sum(x is not None for x in (
             computation_manifest,matrix_manifest,proof_manifest,
             diagram_manifest))>1:
@@ -387,6 +391,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         storyboard,execution,cues,policy,matrix_manifest=matrix_manifest,
         proof_manifest=proof_manifest,diagram_manifest=diagram_manifest
     )
+    diagram_column=(diagram is not None or layout_hint == "diagram_left")
     sources=_sources(execution_plan)
     computation=None
     if computation_manifest is not None:
@@ -438,14 +443,14 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 "COMPUTATION_KNOWLEDGE_LAYOUT_MISMATCH: "+scene.event_id
             )
         note_needed=cue["phase"] in BOARD_GUIDANCE_PHASES
-        note_width=(DIAGRAM_LEFT_WIDTH if diagram is not None else
+        note_width=(DIAGRAM_LEFT_WIDTH if diagram_column else
                     KNOWLEDGE_WIDTH if paired else BOARD_WIDTH)
         lines=_note_lines(cue["detail"],note_width) if note_needed else []
         noteheight=(NOTE_HEIGHT + len(lines)*NOTE_DETAIL_LINE_HEIGHT+5
                     if note_needed else 0)
         proof_formula_rows=[]
         def center_new_content(blocks):
-            if diagram is not None:
+            if diagram_column:
                 # The left MathTex column was measured and centered
                 # individually; never recenter notes and math together.
                 return
@@ -534,7 +539,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 additions.extend(formulae)
             else:
                 for mid in newids:
-                    if diagram is not None:
+                    if diagram_column:
                         item=_math_placement(
                             mid,sources,selected,size_of,size_cache,y,
                             x=DIAGRAM_LEFT_X,width=DIAGRAM_LEFT_WIDTH
@@ -644,7 +649,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 )
             else:
                 for mid in carryids:
-                    if diagram is not None:
+                    if diagram_column:
                         item=_math_placement(
                             mid,sources,selected,size_of,size_cache,cursor,
                             x=DIAGRAM_LEFT_X,width=DIAGRAM_LEFT_WIDTH
@@ -660,7 +665,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                         "kind":"math","block_id":mid,"carry":True,**item
                     })
                     cursor+=item["h"]+BOARD_ROW_GAP
-                if diagram is None:
+                if not diagram_column:
                     _center_new_group(carried)
             proposed,next_y=group_at(cursor)
             center_new_content(proposed)
@@ -847,7 +852,8 @@ def _note_png(block,output):
 def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                  output_mp4:Path,output_json:Path,fps:int=30,
                                  computation_manifest=None,matrix_manifest=None,
-                                 proof_manifest=None,diagram_manifest=None):
+                                 proof_manifest=None,diagram_manifest=None,
+                                 layout_hint=None):
     """Real uninterrupted-ink Manim video; erase only on board-full cut."""
     if not isinstance(fps,int) or not 8<=fps<=60:
         raise LongboardError("CHALKBOARD_INVALID_FPS")
@@ -864,7 +870,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
         board,contract,cues,selected,
         computation_manifest=computation_manifest,
         matrix_manifest=matrix_manifest,proof_manifest=proof_manifest,
-        diagram_manifest=diagram_manifest
+        diagram_manifest=diagram_manifest, layout_hint=layout_hint
     )
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
                        tempconfig,linear)
