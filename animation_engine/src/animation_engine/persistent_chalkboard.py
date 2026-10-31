@@ -854,7 +854,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                  output_mp4:Path,output_json:Path,fps:int=30,
                                  computation_manifest=None,matrix_manifest=None,
                                  proof_manifest=None,diagram_manifest=None,
-                                 layout_hint=None):
+                                 layout_hint=None,narration_events=None):
     """Real uninterrupted-ink Manim video; erase only on board-full cut."""
     if not isinstance(fps,int) or not 8<=fps<=60:
         raise LongboardError("CHALKBOARD_INVALID_FPS")
@@ -873,6 +873,35 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
         matrix_manifest=matrix_manifest,proof_manifest=proof_manifest,
         diagram_manifest=diagram_manifest, layout_hint=layout_hint
     )
+    # Source-bound, opt-in real-audio timings. Default Manim behavior remains
+    # exactly the previously accepted V2.5-V2.6.3 visual behavior.
+    if narration_events is not None:
+        if not isinstance(narration_events, dict) or set(narration_events) != {
+                e["event_id"] for e in layout["events"]}:
+            raise LongboardError("CHALKBOARD_NARRATION_COVERAGE")
+        for event in layout["events"]:
+            spans=narration_events[event["event_id"]]
+            expected=[]
+            diag=(
+                ("diagram","diagram:"+event["event_id"])
+                if event.get("diagram_reveal_ids") else None
+            )
+            if diag and event["diagram_order"]=="diagram_then_math":
+                expected.append(diag)
+            expected.extend(
+                ("note" if x["kind"]=="teacher_note" else "math",x["block_id"])
+                for x in event["added_blocks"]
+            )
+            if diag and event["diagram_order"]=="math_then_diagram":
+                expected.append(diag)
+            if (not isinstance(spans,list) or
+                    [(x.get("kind"),x.get("object_id")) for x in spans
+                     if isinstance(x,dict)] != expected or
+                    len(spans) != len(expected) or
+                    any(type(x.get("duration")) not in (int,float)
+                        or not math.isfinite(x["duration"])
+                        or not .45 <= x["duration"] <= 60 for x in spans)):
+                raise LongboardError("CHALKBOARD_NARRATION_ACTION_MISMATCH")
     from .diagram_classroom import DIAGRAM_PANEL
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
                        tempconfig,linear)
@@ -979,6 +1008,28 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                     self.timing=[]
                     for row in layout["events"]:
                         start=self.time
+                        action_timings=[]
+                        clips=(narration_events or {}).get(row["event_id"],[])
+                        clip_cursor=[0]
+                        def perform_sync(kind,ident,paint):
+                            if narration_events is None:
+                                return paint(None)
+                            if clip_cursor[0] >= len(clips):
+                                raise LongboardError("CHALKBOARD_SPEECH_ACTION_MISSING")
+                            speech=clips[clip_cursor[0]]
+                            clip_cursor[0]+=1
+                            if (speech["kind"],speech["object_id"])!=(kind,ident):
+                                raise LongboardError("CHALKBOARD_SPEECH_ACTION_ORDER")
+                            before=self.time
+                            paint(speech["duration"])
+                            after=self.time
+                            if abs(after-before-speech["duration"])>2/fps:
+                                raise LongboardError("CHALKBOARD_ACTUAL_AUDIO_DURATION_DESYNC")
+                            action_timings.append({
+                                "kind":kind,"object_id":ident,
+                                "start_preview_second":before,
+                                "end_preview_second":after,
+                            })
                         keep_graph = (
                             diagram is not None and layout_hint == "preserve_diagram"
                             and bool(diagram_active) and row["erase_before"]
@@ -1026,20 +1077,44 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                 if obj is not None:
                                     self.add(obj)
                                 diagram_active[ident]=obj
-                            def reveal_diagram():
+                            def reveal_diagram(duration=None):
                                 from manim import Create,FadeIn
-                                for ident in row["diagram_reveal_ids"]:
+                                before=self.time
+                                ids=row["diagram_reveal_ids"]
+                                visible=sum(
+                                    diagram.objects[x]["kind"]!="coordinate"
+                                    for x in ids
+                                )
+                                if duration is not None and visible:
+                                    each=min(.72,max(.10,duration*.70/visible))
+                                else:
+                                    each=None
+                                for ident in ids:
                                     if ident in diagram_active:
                                         raise LongboardError("DIAGRAM_REVEAL_LIVE")
                                     obj=build_diagram(ident)
                                     mode=diagram.objects[ident]["kind"]
                                     if mode in ("line","curve"):
-                                        self.play(Create(obj),run_time=.72)
+                                        self.play(
+                                            Create(obj),run_time=each if each
+                                            is not None else .72
+                                        )
                                     elif obj is not None:
-                                        self.play(FadeIn(obj),run_time=.36)
+                                        self.play(
+                                            FadeIn(obj),run_time=each if each
+                                            is not None else .36
+                                        )
                                     diagram_active[ident]=obj
-                            if row["diagram_order"]=="diagram_then_math":
-                                reveal_diagram()
+                                if duration is not None:
+                                    remaining=duration-(self.time-before)
+                                    if remaining>1e-5:
+                                        self.wait(remaining)
+                            if (row["diagram_order"]=="diagram_then_math"
+                                    and row["diagram_reveal_ids"]):
+                                perform_sync(
+                                    "diagram","diagram:"+row["event_id"],
+                                    reveal_diagram
+                                )
                         for block in row["added_blocks"]:
                             ident=block["block_id"]
                             if ident in active:
@@ -1048,17 +1123,47 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                 from manim import ImageMobject
                                 obj=ImageMobject(str(temp/(ident.replace(":","_")+".png")))
                                 obj.scale_to_fit_width(fw).move_to([0,0,0])
-                                self.play(FadeIn(obj),run_time=.32)
+                                def write_note(duration):
+                                    before=self.time
+                                    self.play(FadeIn(obj),run_time=.32 if duration is
+                                              None else min(.32,duration*.5))
+                                    if duration is not None:
+                                        remaining=duration-(self.time-before)
+                                        if remaining>1e-5:
+                                            self.wait(remaining)
+                                perform_sync("note",ident,write_note)
                             else:
                                 obj=build_math(block)
-                                for frag in obj:
-                                    self.play(Write(frag),run_time=row["write_seconds"])
-                                self.remove(*obj.submobjects)
-                                self.add(obj)
+                                def write_math(duration):
+                                    before=self.time
+                                    if duration is None:
+                                        for frag in obj:
+                                            self.play(Write(frag),
+                                                      run_time=row["write_seconds"])
+                                    else:
+                                        # Write while it is spoken, then keep
+                                        # the finished expression visible for
+                                        # the remainder of the explanation.
+                                        writing=min(duration*.78,2.4*len(obj))
+                                        each=writing/len(obj)
+                                        for frag in obj:
+                                            self.play(Write(frag),run_time=each)
+                                        remaining=duration-(self.time-before)
+                                        if remaining>1e-5:
+                                            self.wait(remaining)
+                                    self.remove(*obj.submobjects)
+                                    self.add(obj)
+                                perform_sync("math",ident,write_math)
                             active[ident]=obj
                         if (diagram is not None and
                                 row["diagram_order"]=="math_then_diagram"):
-                            reveal_diagram()
+                            if row["diagram_reveal_ids"]:
+                                perform_sync(
+                                    "diagram","diagram:"+row["event_id"],
+                                    reveal_diagram
+                                )
+                        if narration_events is not None and clip_cursor[0]!=len(clips):
+                            raise LongboardError("CHALKBOARD_SPEECH_ACTION_UNUSED")
                         if (diagram is not None and
                                 row["visible_diagram_ids"]!=list(diagram_active)):
                             raise LongboardError(
@@ -1069,8 +1174,10 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             raise LongboardError(
                                 f"CHALKBOARD_VISIBLE_SET_MISMATCH: {row['event_id']}"
                             )
-                        self.wait(row["pause_seconds"])
+                        if narration_events is None:
+                            self.wait(row["pause_seconds"])
                         self.timing.append({
+                            "action_timing":action_timings,
                             "event_id":row["event_id"],"page_index":row["page_index"],
                             "erase_before":row["erase_before"],
                             "math_write_count":row["math_write_count"],
