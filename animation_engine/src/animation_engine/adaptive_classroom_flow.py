@@ -167,26 +167,49 @@ def _stage_plan(stage, adaptive, *, measure=None) -> dict:
 def plan_adaptive_flow(input_file: Path | str, *, measure=None) -> dict:
     checked = checked_adaptive_flow(input_file)
     old = plan_flow(checked.flow_file, measure=measure)
+    page_offset = 0
+    new_events = []
     for index, (stage, spec) in enumerate(zip(checked.flow.stages, checked.stages)):
         native = _stage_plan(stage, spec, measure=measure)
-        old["stages"][index].update({
+        entry = old["stages"][index]
+        entry.update({
             "layout_mode": spec.layout,
             "diagram_action": spec.action,
             "diagram_source_stage": spec.source_stage_id,
             "teaching_reason": spec.reason,
             "native_math_size_preserved": True,
+            "global_first_page": page_offset + 1,
             "page_count": native["page_count"],
             "alignment": native["alignment"],
+            "transition": (
+                "initial_board" if index == 0 else
+                "erase_math_only_keep_diagram" if spec.action == "hold" else
+                "full_board_erase_then_restore_diagram" if spec.action == "restore"
+                else "full_board_erase_with_fixed_header"
+            ),
         })
+        for event in native["events"]:
+            new_events.append({
+                "global_event_id": stage.stage_id + ":" + event["event_id"],
+                "event_id": event["event_id"],
+                "stage_id": stage.stage_id,
+                "engine": stage.engine,
+                "global_page_index": page_offset + event["page_index"],
+                "math_write_count": event["math_write_count"],
+            })
+        page_offset += native["page_count"]
+    if len(new_events) != old["event_count"]:
+        raise LongboardError("ADAPTIVE_EVENT_COVERAGE_CHANGED")
     old.update({
         "mode": "adaptive_classroom_layout",
         "schema_version": "1.0",
         "source_adaptive_manifest_sha256": checked.manifest_sha256,
         "diagram_lifecycle_source_verified": True,
         "mode_change_policy": "selective_board_wipe_with_source_diagram_retention",
+        "page_count": page_offset,
+        "events": new_events,
     })
     return old
-
 
 def _extract_frame(video: Path, png: Path):
     _command([
