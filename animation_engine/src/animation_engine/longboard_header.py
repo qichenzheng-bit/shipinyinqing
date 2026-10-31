@@ -36,7 +36,7 @@ def make_question_overlay(storyboard, destination: Path, *,
     padding = 6
     opaque = Image.new("RGBA", (pixel_width, pixel_height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(opaque)
-    font = _font((20 if compact else 31) if pixel_height >= 600 else max(17, pixel_height//25))
+    font = _font((18 if compact else 31) if pixel_height >= 600 else max(17, pixel_height//25))
     math_sprite = None
     if math_part:
         try:
@@ -47,7 +47,7 @@ def make_question_overlay(storyboard, destination: Path, *,
         with tempconfig({"pixel_width": pixel_width, "pixel_height": pixel_height,
                          "frame_width": fw, "frame_height": fh,
                          "background_color": board.theme.background}):
-            glyph = MathTex(math_part, color=ink_color, font_size=(27 if compact else 34))
+            glyph = MathTex(math_part, color=ink_color, font_size=(24 if compact else 34))
             glyph.move_to([0,0,0])
             camera = Camera()
             camera.capture_mobjects([glyph])
