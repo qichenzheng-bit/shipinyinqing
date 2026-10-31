@@ -334,7 +334,8 @@ def checked_matrix_steps(payload,board,execution) -> MatrixLesson:
     s=_sympy()
     if determinant:
         expected=s.factor(m.det())
-        if any(not _equal(prev[i,j],prev[i,j]) for i in range(prev.rows) for j in range(prev.cols)):
+        if any(s.simplify(entry).has(s.zoo,s.nan,s.oo,-s.oo)
+               for entry in prev):
             raise LongboardError("MATRIX_INVALID_FINAL")
         # For the MVP determinant example, only determinant-preserving row
         # additions are permitted. No silent sign/scaling changes.
@@ -369,7 +370,8 @@ def checked_matrix_steps(payload,board,execution) -> MatrixLesson:
         if scene.diagram is not None or scene.layout in ("diagram_split","proof_scroll"):
             raise LongboardError("MATRIX_FOREIGN_SPECIAL_LAYOUT")
         if scene.layout=="matrix_compare" and scene.event_id not in {
-                initial["event_id"],*(st.event_id for st in checked)}:
+                initial["event_id"],final["event_id"],
+                *(st.event_id for st in checked)}:
             raise LongboardError("MATRIX_UNDECLARED_MATRIX_SCENE")
     return MatrixLesson(
         kind,augmented_at,determinant,initial["event_id"],
