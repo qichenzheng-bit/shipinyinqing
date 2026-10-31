@@ -56,6 +56,13 @@ PROOF_STAGE_GUTTER = 68
 PROOF_STAGE_MAX_WIDTH = 500
 PROOF_PAIRED_ROW_WIDTH = 950
 
+# Proof-only page two/three recap. Group the short givens and goal into
+# a single, centered first row and visibly separate previously established
+# results from the newly written derivation.
+PROOF_CARRY_PAIR_GUTTER = 42
+PROOF_CARRY_ROW_GAP = 26
+PROOF_CARRY_TO_DERIVATION_GAP = 32
+
 
 def _page_start_y(board) -> tuple[int, int]:
     """Keep the first board write below the APPROVED fixed-question region.
@@ -313,6 +320,50 @@ def _proof_stage_pair(first,second,sources,selected,measure,size_cache,y):
     return two,y+max(heights)+BOARD_ROW_GAP
 
 
+def _proof_carry_layout(carryids, proof, sources, selected, measure,
+                        size_cache, start_y):
+    """Carry exact reviewed facts into a new page with readable breathing room.
+
+    Conditions and the proof goal are a single 'context' row when their REAL
+    glyph widths fit. Prior proved lemmas/results appear below it, each
+    centered on its own row. The next active derivation starts after a
+    deliberate larger gap. No source content is omitted or moved after Write.
+    """
+    pairs=[
+        (mid,_math_placement(mid,sources,selected,measure,size_cache,0))
+        for mid in carryids
+    ]
+    rows=[]
+    if (len(pairs)>=2 and pairs[0][0]==proof.condition_id
+            and pairs[1][0]==proof.goal_id
+            and pairs[0][1]["w"]+pairs[1][1]["w"]
+                +PROOF_CARRY_PAIR_GUTTER<=PROOF_INLINE_ROW_WIDTH):
+        rows.append(pairs[:2])
+        pairs=pairs[2:]
+    rows.extend([item] for item in pairs)
+    carried=[]
+    row_ids=[]
+    y=start_y
+    for row_index,row in enumerate(rows):
+        if row_index:
+            y+=PROOF_CARRY_ROW_GAP
+        height=max(item["h"] for _,item in row)
+        width=sum(item["w"] for _,item in row)
+        width+=PROOF_CARRY_PAIR_GUTTER*(len(row)-1)
+        x=BOARD_CENTER_X-width/2
+        this_ids=[]
+        for mid,item in row:
+            _translate_block(item,dx=x-BOARD_X,dy=y+(height-item["h"])/2)
+            carried.append({
+                "kind":"math","block_id":mid,"carry":True,**item,
+            })
+            this_ids.append(mid)
+            x+=item["w"]+PROOF_CARRY_PAIR_GUTTER
+        row_ids.append(this_ids)
+        y+=height
+    return carried,y+PROOF_CARRY_TO_DERIVATION_GAP,row_ids
+
+
 def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                          measure=None, computation_manifest=None,
                          matrix_manifest=None, proof_manifest=None) -> dict:
@@ -521,6 +572,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                                 "group_id":proof_row_group_id,
                             }
         clear=False
+        carry_rows=[]
         if next_y>BOARD_BOTTOM_Y:
             if not active:
                 raise LongboardError(
@@ -552,15 +604,20 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 else [mid for mid in selected.result_ids if mid in written]
             )
             carried=[]
-            for mid in carryids:
-                item=_math_placement(mid,sources,selected,size_of,size_cache,cursor)
-                carried.append({"kind":"math","block_id":mid,"carry":True,**item})
-                cursor+=item["h"]+BOARD_ROW_GAP
-            if proof is not None:
-                # Carry formulas are separate already-proven source lines.
-                for item in carried:
-                    _center_new_group([item])
+            carry_rows=[]
+            if proof is not None and carryids:
+                carried,cursor,carry_rows=_proof_carry_layout(
+                    carryids,proof,sources,selected,size_of,size_cache,cursor
+                )
             else:
+                for mid in carryids:
+                    item=_math_placement(
+                        mid,sources,selected,size_of,size_cache,cursor
+                    )
+                    carried.append({
+                        "kind":"math","block_id":mid,"carry":True,**item
+                    })
+                    cursor+=item["h"]+BOARD_ROW_GAP
                 _center_new_group(carried)
             proposed,next_y=group_at(cursor)
             center_new_content(proposed)
@@ -621,6 +678,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 [a["block_id"] for a in added if a.get("carry")]
                 if computation is not None or proof is not None else []
             ),
+            **({"proof_carry_rows":carry_rows} if proof is not None else {}),
             "erase_before":clear,
             # One event is a teacher's coherent mathematical reasoning unit;
             # it may contain several MathTex Write operations. Page erasure
