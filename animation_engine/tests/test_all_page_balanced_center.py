@@ -14,6 +14,7 @@ from animation_engine.board_motion import overlaps
 from animation_engine.persistent_chalkboard import (
     make_chalkboard_plan, _ink_width, BOARD_CENTER_X, BOARD_CENTER_Y,
     BOARD_START_Y, BOARD_BOTTOM_Y, BOARD_X, BOARD_WIDTH,
+    QUESTION_TO_BOARD_MIN_GAP_PX, MAX_PAGE_TOP_OFFSET_PX,
 )
 
 
@@ -38,14 +39,18 @@ def test_each_math_teaching_unit_is_centered_not_only_final(variant):
 
 
 @pytest.mark.parametrize("variant", ["A", "B", "C"])
-def test_each_full_page_is_balanced_vertically_without_reposition(variant):
+def test_each_page_starts_near_the_question_without_reposition(variant):
     _,board,execution,cues,policy,manifest,_,_,_=build_variant(variant)
     plan = make_chalkboard_plan(board, execution, cues, policy,
                                 measure=measure, computation_manifest=manifest)
-    assert plan["alignment"]["mode"]=="each_unit_centered_with_page_vertical_balance"
+    assert plan["alignment"]["mode"]=="each_unit_centered_with_header_near_top"
     for page in plan["alignment"]["pages"]:
         assert abs(page["ink_center_x"] - BOARD_CENTER_X) < 1
-        assert abs(page["ink_center_y"] - BOARD_CENTER_Y) < 1
+        assert (plan["coordinates"]["start_y"] <= page["first_ink_y"]
+                <= plan["alignment"]["max_first_ink_y"])
+        assert page["vertical_offset_px"] <= MAX_PAGE_TOP_OFFSET_PX
+        assert (QUESTION_TO_BOARD_MIN_GAP_PX <= page["header_to_ink_gap_px"]
+                <= plan["alignment"]["max_first_ink_y"]-page["header_bottom_y"])
     live = {}
     for event in plan["events"]:
         if event["erase_before"]:
@@ -79,5 +84,42 @@ def test_general_non_integral_teaching_is_also_centered():
             left = min(b["x"] for b in fresh)
             right = max(b["x"]+_ink_width(b) for b in fresh)
         assert abs((left+right)/2-BOARD_CENTER_X) < 1
-    assert all(abs(p["ink_center_y"]-BOARD_CENTER_Y)<1
+    assert all(p["first_ink_y"]<=plan["alignment"]["max_first_ink_y"]
                for p in plan["alignment"]["pages"])
+
+
+def test_sparse_last_page_does_not_drop_the_final_answer_far_below_question():
+    # The exact regression: the final page has little ink and the old
+    # unconditional y-centering would create a wide empty band under the stem.
+    _,board,execution,cues,policy,manifest,_,_,_ = build_variant("C")
+    layout=make_chalkboard_plan(board,execution,cues,policy,
+                               measure=measure,computation_manifest=manifest)
+    last=layout["events"][-1]
+    assert last["page_index"]==layout["page_count"]
+    page=next(p for p in layout["alignment"]["pages"]
+              if p["page_index"]==last["page_index"])
+    assert page["first_ink_y"]<=layout["alignment"]["max_first_ink_y"]
+    assert page["header_to_ink_gap_px"] <= 55
+    assert abs(page["ink_center_x"]-BOARD_CENTER_X)<1
+
+
+def test_sparse_page_header_gap_has_both_minimum_and_maximum():
+    from animation_engine.persistent_chalkboard import _center_page_heights
+    blocks=[{"kind":"math","block_id":"a",
+             "x":600.0,"y":148.0,"w":80.0,"h":35.0,
+             "fragments":[{"x":600.0,"y":148.0,"w":80.0,"h":35.0}]}]
+    event={"page_index":1,"added_blocks":blocks}
+    pages=_center_page_heights([event],page_start_y=148,header_bottom_y=119)
+    assert pages[0]["first_ink_y"]==148+MAX_PAGE_TOP_OFFSET_PX
+    assert pages[0]["header_to_ink_gap_px"]==49
+    assert blocks[0]["y"]==blocks[0]["fragments"][0]["y"]
+
+
+def test_tall_question_reserves_its_full_header_before_starting_ink():
+    from animation_engine.persistent_chalkboard import _page_start_y
+    from types import SimpleNamespace
+    region=SimpleNamespace(y=0.01,h=0.28)
+    board=SimpleNamespace(scenes=[SimpleNamespace(regions={"question":region})])
+    start,bottom=_page_start_y(board)
+    assert bottom==209
+    assert start==bottom+QUESTION_TO_BOARD_MIN_GAP_PX
