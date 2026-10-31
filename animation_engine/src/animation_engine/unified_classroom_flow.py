@@ -171,9 +171,14 @@ def checked_flow(input_file: Path | str) -> Flow:
             raise LongboardError("FLOW_NOT_SAME_APPROVED_QUESTION")
         board = StoryboardPlan.model_validate(storyboard)
         plan = ExecutionPlan.model_validate(execution)
+        # Director hashes the COMPLETE sealed teacher package when
+        # creating a storyboard, including its validated_content_sha256.
+        # The flow stage's approval digest instead hashes its pre-seal
+        # contents. They are different, both valid provenance layers.
+        sealed_package_sha=canonical_sha(package)
         if (board.header.text != source["problem"]
-                or board.source_package_sha256 != content_sha
-                or plan.source_package_sha256 != content_sha):
+                or board.source_package_sha256 != sealed_package_sha
+                or plan.source_package_sha256 != sealed_package_sha):
             raise LongboardError("FLOW_QUESTION_OR_STORYBOARD_PACKAGE_MUTATION")
         if plan.source_storyboard_sha256 != row["source_storyboard_sha256"]:
             raise LongboardError("FLOW_STORYBOARD_HASH")
