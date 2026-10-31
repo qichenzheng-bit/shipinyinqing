@@ -33,16 +33,16 @@ NOTE_CHARACTERS = re.compile(r"^[\u3400-\u9fff，。、；：？！—（）《�
 # Reference-classroom typography: fixed sizes, category-specific colors.
 # Chinese labels are PIL CJK glyphs; maths remains source MathTex.
 BOARD_TEXT_STYLE = {
-    "observe": {"heading": "#475569", "font_px": 18},
-    "strategy": {"heading": "#2563EB", "font_px": 18},
-    "knowledge": {"heading": "#7C3AED", "font_px": 18},
-    "pitfall": {"heading": "#DC2626", "font_px": 18},
-    "check": {"heading": "#D97706", "font_px": 18},
-    "summary": {"heading": "#0F766E", "font_px": 18},
-    "application": {"heading": "#111111", "font_px": 18},
-    "calculate": {"heading": "#111111", "font_px": 18},
+    "observe": {"heading": "#475569", "font_px": 17},
+    "strategy": {"heading": "#2563EB", "font_px": 17},
+    "knowledge": {"heading": "#7C3AED", "font_px": 17},
+    "pitfall": {"heading": "#DC2626", "font_px": 17},
+    "check": {"heading": "#D97706", "font_px": 17},
+    "summary": {"heading": "#0F766E", "font_px": 17},
+    "application": {"heading": "#111111", "font_px": 17},
+    "calculate": {"heading": "#111111", "font_px": 17},
 }
-BOARD_DETAIL_FONT_PX = 16
+BOARD_DETAIL_FONT_PX = 15
 BOARD_DERIVATION_INK = "#111111"
 FONT_COLORS = {"ink":BOARD_DERIVATION_INK,"muted":"#64748B","blue":"#2563EB"}
 
