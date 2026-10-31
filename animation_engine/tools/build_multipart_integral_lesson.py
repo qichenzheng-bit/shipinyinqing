@@ -32,6 +32,11 @@ def unit(id: str, heading: str, detail: str, goal: str, writes: list,
 
 
 I1=[
+    math("i1_knowledge",
+         r"\int_a^b u\,\mathrm{d}v=[uv]_a^b-\int_a^b v\,\mathrm{d}u",
+         "分部积分的通用公式，先讲清变量和边界项。"),
+    math("i1_choice",r"u=x,\quad \mathrm{d}v=e^x\,\mathrm{d}x",
+         "把代数因子选为求导对象，指数因子用于积分。"),
     math("i1_definition",r"I_1=\int_0^1xe^x\,\mathrm{d}x",
          "定义第一部分，选择分部积分。"),
     math("i1_parts",r"I_1=[xe^x]_0^1-\int_0^1e^x\,\mathrm{d}x",
@@ -42,6 +47,9 @@ I1=[
          "整理并保留第一项的计算结果。"),
 ]
 I2=[
+    math("i2_knowledge",
+         r"\int f(g(x))g'(x)\,\mathrm{d}x=\int f(u)\,\mathrm{d}u",
+         "换元积分公式；定积分还必须更换上下限。"),
     math("i2_definition",r"I_2=\int_0^1\frac{x}{1+x^2}\,\mathrm{d}x",
          "定义第二项，分母的导数与分子匹配。"),
     math("i2_substitution",r"u=1+x^2,\;\mathrm{d}u=2x\,\mathrm{d}x",
@@ -52,15 +60,24 @@ I2=[
          "代入新积分限，得到第二项结果。"),
 ]
 I3=[
+    math("i3_knowledge",
+         r"\int x^n\,\mathrm{d}x=\frac{x^{n+1}}{n+1}+C,\ n\ne-1",
+         "幂函数积分，指数加一再除以新指数。"),
     math("i3_result",r"I_3=\int_0^1x^2\,\mathrm{d}x=\frac13",
          "基础幂函数积分直接连写，不强制拆成知识点。"),
 ]
 I4=[
+    math("i4_knowledge",
+         r"\int\sin x\,\mathrm{d}x=-\cos x+C",
+         "正弦积分的原函数，定积分再计算端点差。"),
     math("i4_result",
          r"I_4=\int_0^1\sin x\,\mathrm{d}x=1-\cos1",
          "已知正弦的原函数，直接计算定积分。"),
 ]
 I5=[
+    math("i5_knowledge",
+         r"\int e^x\,\mathrm{d}x=e^x+C",
+         "指数函数积分的原函数。"),
     math("i5_result",
          r"I_5=\int_0^1e^x\,\mathrm{d}x=e-1",
          "基础指数函数积分一次完成。"),
@@ -86,9 +103,19 @@ def _common(variant: str):
             r"求定积分：\int_0^1\left(x+x^2e^x+\sin x\right)\,\mathrm{d}x."
         )
         part_formulas=[
-            [math("i1_result",r"I_1=\int_0^1x\,\mathrm{d}x=\frac12",
-                  "直接计算简单的第一项，不机械多拆。")],
             [
+                math("b_i1_power",
+                     r"\int x^n\,\mathrm{d}x=\frac{x^{n+1}}{n+1}+C,\ n\ne-1",
+                     "先列出基本幂函数积分公式。"),
+                math("i1_result",r"I_1=\int_0^1x\,\mathrm{d}x=\frac12",
+                     "直接计算简单的第一项，不机械多拆。"),
+            ],
+            [
+                math("b_i2_parts",
+                     r"\int_a^b u\,\mathrm{d}v=[uv]_a^b-\int_a^b v\,\mathrm{d}u",
+                     "再次应用分部积分法，先明确它的通用公式。"),
+                math("b_i2_choice",r"u=x^2,\quad \mathrm{d}v=e^x\,\mathrm{d}x",
+                     "让二次幂求导，从而逐步降低幂次。"),
                 math("i2_definition",r"I_2=\int_0^1x^2e^x\,\mathrm{d}x",
                      "这一项需要连续两次分部积分。"),
                 math("i2_first_parts",
@@ -99,6 +126,9 @@ def _common(variant: str):
                      "经过第一次分部积分得到第二次计算所需的可靠关系。"),
             ],
             [
+                math("b_i2_j_choice",
+                     r"u=x,\quad \mathrm{d}v=e^x\,\mathrm{d}x",
+                     "计算子积分时再次应用前面讲过的分部积分公式。"),
                 math("i2_j_parts",
                      r"J=[xe^x]_0^1-\int_0^1e^x\,\mathrm{d}x",
                      "再次分部积分求出子积分 J。"),
@@ -109,9 +139,13 @@ def _common(variant: str):
                      r"I_2=e-2",
                      "代回第一步保留的关系，完成这一项。"),
             ],
-            [math("i3_result",
-                  r"I_3=\int_0^1\sin x\,\mathrm{d}x=1-\cos1",
-                  "直接求第三项的定积分。")],
+            [
+                math("b_i3_sine",r"\int\sin x\,\mathrm{d}x=-\cos x+C",
+                     "先写正弦函数积分公式，再代入端点。"),
+                math("i3_result",
+                     r"I_3=\int_0^1\sin x\,\mathrm{d}x=1-\cos1",
+                     "直接求第三项的定积分。"),
+            ],
         ]
         final=[
             math("final",
@@ -150,10 +184,11 @@ def build_variant(variant: str):
     if variant=="B":
         units.append(unit(
             "i1","先算第一项","这一项是普通的幂函数积分，直接写出结果。",
-            "完成第一项，无需冗余拆步。",segments[0]
+            "完成第一项，无需冗余拆步。",segments[0],phase="knowledge"
         ))
         groups.append({
             "id":"I1","event_ids":["e_i1"],"result_object_id":"m_i1_result",
+            "knowledge_object_id":"m_b_i1_power",
             "safe_break_after":[],"checkpoints":[]
         })
         units.append(unit(
@@ -171,32 +206,34 @@ def build_variant(variant: str):
         groups.append({
             "id":"I2","event_ids":["e_i2start","e_i2finish"],
             "result_object_id":"m_i2_result",
+            "knowledge_object_id":"m_b_i2_parts",
             "safe_break_after":["e_i2start"],
             "checkpoints":[{"event_id":"e_i2start",
                             "object_id":"m_i2_checkpoint"}]
         })
         units.append(unit(
             "i3","最后计算第三项","这一项可直接利用正弦函数的原函数。",
-            "完成第三项。",segments[3]
+            "完成第三项。",segments[3],phase="knowledge"
         ))
         groups.append({
             "id":"I3","event_ids":["e_i3"],"result_object_id":"m_i3_result",
+            "knowledge_object_id":"m_b_i3_sine",
             "safe_break_after":[],"checkpoints":[]
         })
     else:
         for i,items in enumerate(segments,1):
             part="I"+str(i)
             uid="i"+str(i)
-            phase="knowledge" if i==2 else "calculate"
+            phase="knowledge"
             heading=(
                 "第一项用分部积分" if i==1
                 else "第二项用换元积分" if i==2
                 else "计算第"+("三" if i==3 else "四" if i==4 else "五")+"项"
             )
             detail=(
-                "注意分部积分的边界项，不能直接省略。" if i==1
-                else "换元以后要同时替换积分限。" if i==2
-                else "基础运算连写，完成后保留这一项的结果。"
+                "使用分部积分公式，先选变量，再算边界项。" if i==1
+                else "使用换元积分公式，并同步更换上下限。" if i==2
+                else "先根据积分公式，再直接计算本题上下限。"
             )
             units.append(unit(
                 uid,heading,detail,"完整计算并保留第"+str(i)+"项的准确结果。",
@@ -205,6 +242,7 @@ def build_variant(variant: str):
             groups.append({
                 "id":part,"event_ids":["e_"+uid],
                 "result_object_id":"m_"+items[-1]["id"],
+                "knowledge_object_id":"m_"+items[0]["id"],
                 "safe_break_after":[],"checkpoints":[]
             })
     if variant=="C":
