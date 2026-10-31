@@ -54,7 +54,9 @@ class DiagramLine(StrictModel):
 
 class DiagramCurve(StrictModel):
     id: str = Field(min_length=1)
-    points: list[tuple[float, float]]  # explicit samples; NEVER inferred from question text
+    # Preserve strict tuple-based authoring *and* JSON list pairs upon reload.
+    # A storyboard must round-trip without dropping curve samples.
+    points: list[tuple[float,float] | list[float]]  # reviewed samples, never inferred
 
 
 class DiagramSpec(StrictModel):
