@@ -161,8 +161,41 @@ def main(argv: list[str] | None = None) -> int:
     memory_render.add_argument("--fps", type=int, default=30)
     memory_render.add_argument("--adaptive", action="store_true")
 
+    spoken_plan = subparsers.add_parser(
+        "plan-spoken", help="V2.6.4 complete approved spoken teaching coverage")
+    spoken_plan.add_argument("--spoken", type=Path, required=True)
+    spoken_plan.add_argument("--output", type=Path, required=True)
+    spoken_plan.add_argument("--adaptive", action="store_true")
+    spoken_render = subparsers.add_parser(
+        "render-spoken", help="V2.6.4 actual neural narration, MathTex and phrase captions")
+    spoken_render.add_argument("--spoken", type=Path, required=True)
+    spoken_render.add_argument("--output", type=Path, required=True)
+    spoken_render.add_argument("--manifest", type=Path, required=True)
+    spoken_render.add_argument("--srt", type=Path)
+    spoken_render.add_argument("--fps", type=int, default=30)
+    spoken_render.add_argument("--adaptive", action="store_true")
+
     args = parser.parse_args(argv)
     try:
+        if args.command == "plan-spoken":
+            if args.output.suffix.lower() != ".json":
+                raise ValueError("SPOKEN_PLAN_REQUIRES_JSON_OUTPUT")
+            from .spoken_classroom import plan_spoken
+            result = plan_spoken(args.spoken,adaptive=args.adaptive)
+            args.output.parent.mkdir(parents=True,exist_ok=True)
+            args.output.write_text(
+                json.dumps(result,ensure_ascii=False,indent=2)+"\n",
+                encoding="utf-8",
+            )
+            return 0
+        if args.command == "render-spoken":
+            from .spoken_movie import render_spoken_classroom
+            render_spoken_classroom(
+                args.spoken,output_mp4=args.output,
+                output_json=args.manifest,output_srt=args.srt,
+                fps=args.fps,adaptive=args.adaptive,
+            )
+            return 0
         if args.command == "plan-memory":
             if args.output.suffix.lower() != ".json":
                 raise ValueError("MEMORY_PLAN_REQUIRES_JSON_OUTPUT")
