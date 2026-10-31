@@ -95,8 +95,12 @@ def matrix_latex(entries, *, augmented_at=None, determinant=False) -> str:
         if not isinstance(augmented_at,int) or not 0<augmented_at<cols:
             raise LongboardError("MATRIX_BAD_AUGMENTATION")
         spec="c"*augmented_at+"|"+"c"*(cols-augmented_at)
-        pre=rf"\begin{{array}}{{{spec}}}"
-        post=r"\end{array}"
+        # The array environment draws the inner augmentation rule only.
+        # Without explicit outer delimiters the video shows bare table cells,
+        # which is not a standard augmented matrix. Size both brackets to the
+        # full matrix height and preserve the inner vertical separator.
+        pre=rf"\left[\begin{{array}}{{{spec}}}"
+        post=r"\end{array}\right]"
     else:
         env="vmatrix" if determinant else "bmatrix"
         pre=rf"\begin{{{env}}}"
