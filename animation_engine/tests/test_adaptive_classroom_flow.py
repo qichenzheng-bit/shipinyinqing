@@ -47,6 +47,13 @@ def test_reviewed_modes_keep_original_math_and_preserve_source(
     planned = plan_adaptive_flow(root/"adaptive_layout.json", measure=measure)
     assert len(checked.flow.stages) == count
     assert planned["stage_count"] == count
+    assert planned["page_count"] == sum(x["page_count"] for x in planned["stages"])
+    assert [x["global_first_page"] for x in planned["stages"]] == [
+        1 + sum(p["page_count"] for p in planned["stages"][:i])
+        for i in range(count)
+    ]
+    assert all(1 <= e["global_page_index"] <= planned["page_count"]
+               for e in planned["events"])
     assert planned["mode"] == "adaptive_classroom_layout"
     assert planned["diagram_lifecycle_source_verified"]
     assert planned["mode_change_policy"].startswith("selective_board_wipe")
