@@ -133,7 +133,7 @@ def render_spoken_classroom(
             start=cue["start_frame"]/fps
             end=cue["end_frame"]/fps
             filters.append(
-                f"{before}[{index+2}:v]overlay=0:0:"
+                f"{before}[{index+2}:v]overlay=0:628:"
                 "shortest=1:eof_action=repeat:"
                 f"enable='gte(t,{start:.5f})*lt(t,{end:.5f})'{nxt}"
             )
