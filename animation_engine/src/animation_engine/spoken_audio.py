@@ -81,6 +81,11 @@ def _decode_mp3_to_pcm(mp3: Path, wav: Path) -> bytes:
         data=stream.readframes(stream.getnframes())
     if len(data) < SAMPLE_RATE:  # at least half a second
         raise LongboardError("VOICE_AUDIO_MISSING")
+    from array import array
+    decoded=array("h")
+    decoded.frombytes(data)
+    if not any(abs(decoded[i]) > 35 for i in range(0,len(decoded),75)):
+        raise LongboardError("VOICE_WAVEFORM_IS_SILENT")
     return data
 
 
