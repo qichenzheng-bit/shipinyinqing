@@ -260,3 +260,95 @@ def test_real_model_adapter_requires_explicit_configuration_and_api_key(tmp_path
     }))
     with pytest.raises(EditEngineError,match="EDIT_AI_ENDPOINT_MUST_BE_HTTPS"):
         make_openai_compatible_agent(config)
+
+
+
+def test_agent_sees_current_video_clock_and_subtitle_context(session):
+    seen=[]
+    def inspect(text,package,history):
+        p=package.parent/"current_timeline.json"
+        assert p.is_file()
+        timeline=json.loads(p.read_text(encoding="utf-8"))
+        assert timeline["source_spoken_sha256"]==_state(session)["latest_source_spoken_sha256"]
+        assert (package.parent/"current_subtitles.srt").is_file()
+        seen.append(timeline["source_spoken_sha256"])
+        return proposal([(FIRST,"我们先把直角三角形的条件整理清楚。")])
+    first=run_edit(session,"一分钟那里讲清楚些",inspect,
+                   renderer=mock_renderer,media_check=stub_check)
+    assert first["status"]=="preview_ready" and len(seen)==1
+    def later(text,package,history):
+        p=package.parent/"current_timeline.json"
+        current=json.loads(p.read_text(encoding="utf-8"))
+        assert current["source_spoken_sha256"]==seen[-1] or (
+            current["source_spoken_sha256"]==_state(session)["latest_source_spoken_sha256"]
+        )
+        assert history[0]["status"]=="preview_ready"
+        return proposal([(SECOND,"两条直角边相互垂直，斜边位于直角对面。")])
+    second=run_edit(session,"刚才那个位置也改一下",later,
+                    renderer=mock_renderer,media_check=stub_check)
+    assert second["revision"]==2
+
+
+def test_feedback_still_targets_latest_success_after_failed_attempt(session):
+    good=run_edit(session,"第一轮修改",lambda *a:proposal([
+        (FIRST,"现在先理清题目已知条件。")]),
+        renderer=mock_renderer,media_check=stub_check)
+    assert good["revision"]==1
+    bad=run_edit(session,"第二轮修改失败",lambda *a:proposal([
+        (FIRST,"根据参考答案求解。")]),
+        renderer=mock_renderer,media_check=stub_check)
+    assert bad["status"]=="failed"
+    status=record_feedback(session,"失败的修改不要采用，上一轮我满意。",
+                           satisfied=True)
+    assert status["satisfied"] is True
+    recorded=_state(session)["history"]
+    assert recorded[0]["status"]=="accepted"
+    assert recorded[1]["status"]=="failed"
+    assert recorded[1]["original_instruction"]=="第二轮修改失败"
+
+
+def test_ai_adapter_receives_exact_latest_timestamps_and_unfiltered_input(
+        tmp_path, monkeypatch):
+    import io
+    from animation_engine import iterative_ai_adapter as adapter
+    parent=tmp_path/"scratch"
+    package=parent/"package"
+    package.mkdir(parents=True)
+    (package/"spoken_classroom.json").write_text(
+        json.dumps({"events":[{"event_id":"e1","text":"微积分"}]}),
+        encoding="utf-8"
+    )
+    (parent/"current_timeline.json").write_text(json.dumps({
+        "event_timing":[{"global_start_second":63.5,"event_id":"e1"}]
+    }),encoding="utf-8")
+    (parent/"current_subtitles.srt").write_text(
+        "00:01:03,500 --> 00:01:04,500\n极限\n",encoding="utf-8")
+    config=tmp_path/"api.json"
+    config.write_text(json.dumps({
+        "kind":"openai_compatible",
+        "model":"configured-model",
+        "endpoint":"https://example.net/v1/chat/completions",
+        "key_environment":"TEST_EDIT_PROVIDER_KEY",
+    }))
+    monkeypatch.setenv("TEST_EDIT_PROVIDER_KEY","TEST_DUMMY_SECRET")
+    sent={}
+    class Reply(io.BytesIO):
+        status=200
+    def mock_http(req,timeout):
+        sent.update(json.loads(req.data.decode("utf-8")))
+        return Reply(json.dumps({"choices":[{"message":{"content":json.dumps(
+            proposal([(FIRST,"真正的数学教师讲解。")],
+                     model="malicious-claimed-model")
+        )}}]}).encode("utf-8"))
+    monkeypatch.setattr(adapter,"urlopen",mock_http)
+    phrase="Please change the line at 1:03.5. 请完整讲解。"
+    result=make_openai_compatible_agent(config)(
+        phrase,package,[{"feedback":"上次不满意"}]
+    )
+    user=json.loads(sent["messages"][1]["content"])
+    assert user["exact_user_instruction"]==phrase
+    assert user["latest_video_event_and_caption_timeline"]["event_timing"][0]["global_start_second"]==63.5
+    assert "极限" in user["latest_audio_subtitles"]
+    assert user["prior_rounds"][0]["feedback"]=="上次不满意"
+    assert result["model"]=="configured-model"
+    assert "TEST_DUMMY_SECRET" not in str(result)
