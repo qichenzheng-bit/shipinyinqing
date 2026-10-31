@@ -785,11 +785,11 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                        "board_left":BOARD_X,"board_width":BOARD_WIDTH},
         "alignment":{"mode":(
                          "diagram_left_math_right_geometry"
-                         if diagram is not None else
+                         if diagram_column else
                          "each_unit_centered_with_header_near_top"),
                      "center_x":(
                          DIAGRAM_MATH_CENTER_X
-                         if diagram is not None else BOARD_CENTER_X),
+                         if diagram_column else BOARD_CENTER_X),
                      "proof_math_independent_centered":proof is not None,
                      "preferred_vertical_center_y":BOARD_CENTER_Y,
                      "header_bottom_y":header_bottom_y,
