@@ -84,6 +84,23 @@ jobs:
                   shown+=e['diagram_reveal_ids']
                   assert shown==e['visible_diagram_ids']
               assert len(shown)==plan['diagram_classroom']['object_count']
+              source=plan['diagram_classroom']['source_objects']
+              assert all(obj['kind']=='coordinate' for obj in source.values()
+                         if obj['kind']=='coordinate')
+              if variant=='C':
+                  assert all(source[p]['kind']=='coordinate'
+                             for p in ('U','V','W'))
+              if variant=='B':
+                  assert plan['page_count']==2
+                  final=next(e for e in plan['events'] if e['erase_before'])
+                  assert final['carry_object_ids']==[
+                      'm_area_rule','m_area_step'
+                  ]
+                  carry=[b for b in final['added_blocks'] if b.get('carry')]
+                  assert [b['block_id'] for b in carry]==final['carry_object_ids']
+                  assert all(abs(b['x']+b['w']/2-
+                                  (DIAGRAM_FORMULA_X+DIAGRAM_FORMULA_W/2))<2
+                             for b in carry)
               print('V2_5_4_REAL_MATHTEX_PLAN',variant,plan['page_count'],len(shown))
           PY
       - name: Render actual 1280x720 30fps MatTex and graph figure animations
