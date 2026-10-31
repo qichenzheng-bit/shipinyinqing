@@ -150,7 +150,7 @@ def _center_page_heights(events: list[dict], *, page_start_y: int,
     return records
 
 
-def _strict_sources(storyboard, execution, cues, policy):
+def _strict_sources(storyboard, execution, cues, policy, matrix_manifest=None):
     from visual_director.models import StoryboardPlan
     from .models import ExecutionPlan
     board=StoryboardPlan.model_validate(storyboard)
@@ -163,10 +163,15 @@ def _strict_sources(storyboard, execution, cues, policy):
     # This specialized layout never renders diagram objects, matrix columns
     # or proof-scroll regions. Reject incompatible source rather than produce
     # a plausible-looking MP4 that silently omits essential content.
+    matrix=None
+    if matrix_manifest is not None:
+        from .matrix_steps import checked_matrix_steps
+        matrix=checked_matrix_steps(matrix_manifest, board, plan)
     unsupported=[
         scene.event_id for scene in board.scenes
         if scene.diagram is not None
-        or scene.layout in ("diagram_split","matrix_compare","proof_scroll")
+        or scene.layout in ("diagram_split","proof_scroll")
+        or (scene.layout=="matrix_compare" and matrix is None)
     ]
     if unsupported:
         raise LongboardError(
@@ -179,7 +184,7 @@ def _strict_sources(storyboard, execution, cues, policy):
         raise LongboardError("CHALKBOARD_REQUIRES_SIMPLE_FULL_BOARD")
     if selected.cut_before_events or selected.pinned_ids:
         raise LongboardError("CHALKBOARD_DISALLOWS_FORCED_CUT_OR_PINNING")
-    return board,plan,teaching,selected
+    return board,plan,teaching,selected,matrix
 
 
 def _note_lines(detail: str, width: int = BOARD_WIDTH) -> list[str]:
@@ -200,9 +205,12 @@ def _math_placement(mid,sources,selected,measure,size_cache,y, *,
 
 
 def make_chalkboard_plan(storyboard,execution,cues,policy, *,
-                         measure=None, computation_manifest=None) -> dict:
-    board,execution_plan,teaching,selected=_strict_sources(
-        storyboard,execution,cues,policy
+                         measure=None, computation_manifest=None,
+                         matrix_manifest=None) -> dict:
+    if matrix_manifest is not None and computation_manifest is not None:
+        raise LongboardError("CHALKBOARD_MULTIPLE_SPECIAL_CONTRACTS")
+    board,execution_plan,teaching,selected,matrix=_strict_sources(
+        storyboard,execution,cues,policy,matrix_manifest=matrix_manifest
     )
     sources=_sources(execution_plan)
     computation=None
@@ -241,6 +249,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         # knowledge description and its *real MathTex formula*. Put the
         # complete step-by-step computation on the right. The two sections
         # write in source order and remain visible until a whole-board wipe.
+        matrix_step=(matrix.for_event(scene.event_id)
+                     if matrix is not None else None)
         knowledge_id=(computation.knowledge_for_event(scene.event_id)
                       if computation is not None else None)
         paired=(knowledge_id is not None and cue["phase"]=="knowledge"
@@ -268,6 +278,47 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                     "x":BOARD_X,"y":y,"w":note_width,"h":noteheight,
                 })
                 y+=noteheight+5
+            if matrix_step is not None:
+                # Atomic classroom unit: source before -> named row operation
+                # -> independently verified after state. Keep every old row.
+                ids=[
+                    matrix_step.before_id,matrix_step.operation_id,
+                    matrix_step.after_id
+                ]
+                if newids!=ids:
+                    raise LongboardError("MATRIX_SCENE_OBJECT_ORDER: "+scene.event_id)
+                items=[
+                    _math_placement(mid,sources,selected,size_of,size_cache,0)
+                    for mid in ids
+                ]
+                spacing=24
+                total=sum(item["w"] for item in items)+2*spacing
+                if total<=BOARD_WIDTH:
+                    x=BOARD_CENTER_X-total/2
+                    tallest=max(item["h"] for item in items)
+                    for mid,item in zip(ids,items):
+                        dy=y+(tallest-item["h"])/2
+                        _translate_block(item,dx=x-BOARD_X,dy=dy)
+                        additions.append({"kind":"math","block_id":mid,**item})
+                        x+=item["w"]+spacing
+                    return additions,y+tallest+BOARD_ROW_GAP
+                # Oversized matrices: before+op above, after below. Never
+                # shrink indefinitely or erase a required intermediate state.
+                top_width=items[0]["w"]+spacing+items[1]["w"]
+                if max(top_width,items[2]["w"])>BOARD_WIDTH:
+                    raise LongboardError("MATRIX_COMPARE_CANNOT_FIT")
+                x=BOARD_CENTER_X-top_width/2
+                h=max(items[0]["h"],items[1]["h"])
+                for mid,item in zip(ids[:2],items[:2]):
+                    _translate_block(item,dx=x-BOARD_X,
+                                     dy=y+(h-item["h"])/2)
+                    additions.append({"kind":"math","block_id":mid,**item})
+                    x+=item["w"]+spacing
+                after=items[2]
+                _translate_block(after,dx=BOARD_CENTER_X-after["w"]/2-BOARD_X,
+                                 dy=y+h+BOARD_ROW_GAP)
+                additions.append({"kind":"math","block_id":ids[2],**after})
+                return additions,y+h+BOARD_ROW_GAP+after["h"]+BOARD_ROW_GAP
             if paired:
                 item=_math_placement(knowledge_id,sources,selected,
                                      size_of,size_cache,y,
@@ -369,6 +420,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "event_id":scene.event_id,"page_index":page,
             **(computation.event_info(scene.event_id)
                if computation is not None else {}),
+            **(matrix.info(scene.event_id)
+               if matrix is not None else {}),
             "carry_object_ids":(
                 [a["block_id"] for a in added if a.get("carry")]
                 if computation is not None else []
@@ -413,6 +466,15 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         "events":events,
         **({"computation_groups":computation.as_manifest()}
            if computation is not None else {}),
+        **({"matrix_operations":{
+            "kind":matrix.kind,
+            "initial_event_id":matrix.initial_event_id,
+            "operation_count":len(matrix.steps),
+            "ordered_event_ids":[a.event_id for a in matrix.steps],
+            "source_verified":True,
+            "arithmetically_verified":True,
+            "presentation":"before_operation_after_atomic"
+        }} if matrix is not None else {}),
     }
 
 
@@ -441,7 +503,7 @@ def _note_png(block,output):
 
 def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                  output_mp4:Path,output_json:Path,fps:int=30,
-                                 computation_manifest=None):
+                                 computation_manifest=None,matrix_manifest=None):
     """Real uninterrupted-ink Manim video; erase only on board-full cut."""
     if not isinstance(fps,int) or not 8<=fps<=60:
         raise LongboardError("CHALKBOARD_INVALID_FPS")
@@ -450,10 +512,13 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
         raise LongboardError("CHALKBOARD_OUTPUT_EXTENSION")
     if not shutil.which("ffmpeg"):
         raise LongboardError("CHALKBOARD_FFMPEG_UNAVAILABLE")
-    board,contract,teaching,selected=_strict_sources(storyboard,execution,cues,policy)
+    board,contract,teaching,selected,matrix=_strict_sources(
+        storyboard,execution,cues,policy,matrix_manifest=matrix_manifest
+    )
     layout=make_chalkboard_plan(
         board,contract,cues,selected,
-        computation_manifest=computation_manifest
+        computation_manifest=computation_manifest,
+        matrix_manifest=matrix_manifest
     )
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
                        tempconfig,linear)
