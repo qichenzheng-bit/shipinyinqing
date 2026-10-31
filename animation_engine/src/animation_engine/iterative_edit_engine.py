@@ -210,10 +210,28 @@ def run_edit(
             shutil.rmtree(folder)
         try:
             _copy_current(root / state["latest_package"], folder / "package")
+            # The AI sees the real latest video clock, event/action timings,
+            # captions and spoken words: "minute six" or "that equation"
+            # must resolve against the CURRENT movie, not the baseline.
+            shutil.copyfile(
+                root / "latest_manifest.json",
+                folder / "current_timeline.json",
+            )
+            if (root / "latest.srt").is_file():
+                shutil.copyfile(
+                    root / "latest.srt",
+                    folder / "current_subtitles.srt",
+                )
             plan = agent(instruction, folder / "package", state["history"])
             if not isinstance(plan, dict):
                 raise EditEngineError("EDIT_AGENT_DID_NOT_RETURN_PLAN")
             attempt["model"] = plan.get("model")
+            if isinstance(plan.get("requirements"), list):
+                attempt["requirements"] = [
+                    {**req, "status": "planned"}
+                    for req in plan["requirements"]
+                    if isinstance(req, dict)
+                ]
             operations = apply_json_operations(folder / "package", plan)
             attempt["operations"] = operations
             attempt["requirements"] = [
@@ -299,10 +317,17 @@ def record_feedback(root: Path, feedback: str, *, satisfied: bool = False) -> di
         raise EditEngineError("EDIT_FEEDBACK_EMPTY")
     with session_lock(root):
         state = _state(root)
-        if not state["history"] or state["history"][-1]["status"] not in (
-                "preview_ready", "accepted", "needs_revision"):
+        # A failed request never replaces the current movie. Feedback must
+        # still be possible on the most recent successfully rendered preview.
+        last = next((
+            row for row in reversed(state["history"])
+            if row.get("result_revision") == state["revision"]
+            and row.get("status") in (
+                "preview_ready", "accepted", "needs_revision"
+            )
+        ), None)
+        if last is None:
             raise EditEngineError("EDIT_FEEDBACK_NO_CURRENT_PREVIEW")
-        last = state["history"][-1]
         last["feedback"] = feedback
         last["satisfied"] = bool(satisfied)
         last["status"] = "accepted" if satisfied else "needs_revision"
