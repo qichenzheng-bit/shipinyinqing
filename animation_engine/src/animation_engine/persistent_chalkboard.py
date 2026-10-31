@@ -63,6 +63,13 @@ PROOF_CARRY_PAIR_GUTTER = 42
 PROOF_CARRY_ROW_GAP = 26
 PROOF_CARRY_TO_DERIVATION_GAP = 32
 
+# V2.5.4 diagram lessons intentionally use two distinct mathematical areas.
+# MathTex sits in the LEFT teaching area, the verified Manim diagram on the
+# RIGHT; never center formulas over the diagram's actual strokes or labels.
+DIAGRAM_LEFT_X = 110
+DIAGRAM_LEFT_WIDTH = 485
+DIAGRAM_MATH_CENTER_X = DIAGRAM_LEFT_X + DIAGRAM_LEFT_WIDTH/2
+
 
 def _page_start_y(board) -> tuple[int, int]:
     """Keep the first board write below the APPROVED fixed-question region.
@@ -176,7 +183,7 @@ def _center_page_heights(events: list[dict], *, page_start_y: int,
 
 
 def _strict_sources(storyboard, execution, cues, policy, matrix_manifest=None,
-                    proof_manifest=None):
+                    proof_manifest=None, diagram_manifest=None):
     from visual_director.models import StoryboardPlan
     from .models import ExecutionPlan
     board=StoryboardPlan.model_validate(storyboard)
@@ -191,16 +198,20 @@ def _strict_sources(storyboard, execution, cues, policy, matrix_manifest=None,
     # a plausible-looking MP4 that silently omits essential content.
     matrix=None
     proof=None
+    diagram=None
     if matrix_manifest is not None:
         from .matrix_steps import checked_matrix_steps
         matrix=checked_matrix_steps(matrix_manifest, board, plan)
     if proof_manifest is not None:
         from .proof_chain import checked_proof_chain
         proof=checked_proof_chain(proof_manifest, board, plan)
+    if diagram_manifest is not None:
+        from .diagram_classroom import checked_diagram_classroom
+        diagram=checked_diagram_classroom(diagram_manifest, board, plan)
     unsupported=[
         scene.event_id for scene in board.scenes
-        if scene.diagram is not None
-        or scene.layout=="diagram_split"
+        if (scene.diagram is not None and diagram is None)
+        or (scene.layout=="diagram_split" and diagram is None)
         or (scene.layout=="proof_scroll" and proof is None)
         or (scene.layout=="matrix_compare" and matrix is None)
     ]
@@ -215,7 +226,7 @@ def _strict_sources(storyboard, execution, cues, policy, matrix_manifest=None,
         raise LongboardError("CHALKBOARD_REQUIRES_SIMPLE_FULL_BOARD")
     if selected.cut_before_events or selected.pinned_ids:
         raise LongboardError("CHALKBOARD_DISALLOWS_FORCED_CUT_OR_PINNING")
-    return board,plan,teaching,selected,matrix,proof
+    return board,plan,teaching,selected,matrix,proof,diagram
 
 
 def _note_lines(detail: str, width: int = BOARD_WIDTH) -> list[str]:
@@ -366,13 +377,15 @@ def _proof_carry_layout(carryids, proof, sources, selected, measure,
 
 def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                          measure=None, computation_manifest=None,
-                         matrix_manifest=None, proof_manifest=None) -> dict:
+                         matrix_manifest=None, proof_manifest=None,
+                         diagram_manifest=None) -> dict:
     if sum(x is not None for x in (
-            computation_manifest,matrix_manifest,proof_manifest))>1:
+            computation_manifest,matrix_manifest,proof_manifest,
+            diagram_manifest))>1:
         raise LongboardError("CHALKBOARD_MULTIPLE_SPECIAL_CONTRACTS")
-    board,execution_plan,teaching,selected,matrix,proof=_strict_sources(
+    board,execution_plan,teaching,selected,matrix,proof,diagram=_strict_sources(
         storyboard,execution,cues,policy,matrix_manifest=matrix_manifest,
-        proof_manifest=proof_manifest
+        proof_manifest=proof_manifest,diagram_manifest=diagram_manifest
     )
     sources=_sources(execution_plan)
     computation=None
@@ -398,6 +411,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
     all_math=set()
     last_event_id=None
     pending_proof_row=None
+    shown_diagram=[]
     sequence=list(zip(board.scenes,execution_plan.scenes,teaching))
     for index,(scene,action_scene,cue) in enumerate(sequence):
         newids=list(dict.fromkeys(
@@ -424,12 +438,17 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 "COMPUTATION_KNOWLEDGE_LAYOUT_MISMATCH: "+scene.event_id
             )
         note_needed=cue["phase"] in BOARD_GUIDANCE_PHASES
-        note_width=KNOWLEDGE_WIDTH if paired else BOARD_WIDTH
+        note_width=(DIAGRAM_LEFT_WIDTH if diagram is not None else
+                    KNOWLEDGE_WIDTH if paired else BOARD_WIDTH)
         lines=_note_lines(cue["detail"],note_width) if note_needed else []
         noteheight=(NOTE_HEIGHT + len(lines)*NOTE_DETAIL_LINE_HEIGHT+5
                     if note_needed else 0)
         proof_formula_rows=[]
         def center_new_content(blocks):
+            if diagram is not None:
+                # The left MathTex column was measured and centered
+                # individually; never recenter notes and math together.
+                return
             if proof is not None and note_needed:
                 # MathTex rows are individually centered by _proof_math_rows.
                 # Centering the note AND formulas together previously shifted
@@ -515,7 +534,20 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 additions.extend(formulae)
             else:
                 for mid in newids:
-                    item=_math_placement(mid,sources,selected,size_of,size_cache,y)
+                    if diagram is not None:
+                        item=_math_placement(
+                            mid,sources,selected,size_of,size_cache,y,
+                            x=DIAGRAM_LEFT_X,width=DIAGRAM_LEFT_WIDTH
+                        )
+                        # Explicit left math column; the source formula
+                        # remains unmodified and retains its true glyph size.
+                        _translate_block(
+                            item,dx=(DIAGRAM_LEFT_WIDTH-item["w"])/2
+                        )
+                    else:
+                        item=_math_placement(
+                            mid,sources,selected,size_of,size_cache,y
+                        )
                     additions.append({"kind":"math","block_id":mid,**item})
                     y+=item["h"]+BOARD_ROW_GAP
             if note_needed and not newids:
@@ -573,6 +605,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                             }
         clear=False
         carry_rows=[]
+        diagram_carry_ids=[]
         if next_y>BOARD_BOTTOM_Y:
             if not active:
                 raise LongboardError(
@@ -638,6 +671,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                     f"CHALKBOARD_EVENT_TOO_TALL: {scene.event_id}"
                 )
             active=[]
+            if diagram is not None:
+                diagram_carry_ids=list(shown_diagram)
             proposed=carried+proposed
         added=[]
         for item in proposed:
@@ -662,6 +697,11 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             active.append(item)
             added.append(item)
         cursor=next_y
+        if diagram is not None:
+            for ident in diagram.for_event(scene.event_id)["reveal_ids"]:
+                if ident in shown_diagram:
+                    raise LongboardError("DIAGRAM_REVEAL_TWICE")
+                shown_diagram.append(ident)
         if planned_pair is not None:
             if clear:
                 raise LongboardError("PROOF_PAIR_MUST_NOT_CLEAR")
@@ -680,6 +720,12 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             ),
             **({"proof_carry_rows":carry_rows} if proof is not None else {}),
             "erase_before":clear,
+            **({"diagram_reveal_ids":list(diagram.for_event(
+                scene.event_id)["reveal_ids"]),
+                "diagram_carry_ids":diagram_carry_ids,
+                "diagram_order":diagram.for_event(scene.event_id)["order"],
+                "visible_diagram_ids":list(shown_diagram)}
+               if diagram is not None else {}),
             # One event is a teacher's coherent mathematical reasoning unit;
             # it may contain several MathTex Write operations. Page erasure
             # can occur before the entire unit but NEVER between its steps.
@@ -702,6 +748,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         last_event_id=scene.event_id
     if pending_proof_row is not None:
         raise LongboardError("PROOF_UNFINISHED_HORIZONTAL_ROW")
+    if diagram is not None and set(shown_diagram)!=set(diagram.objects):
+        raise LongboardError("DIAGRAM_INCOMPLETE_DRAWING")
     # Every requested write event must have survived the planning pass.
     expected={a.object_id for sc in execution_plan.scenes for a in sc.actions
               if a.kind in ("progressive_write","restore")
@@ -719,8 +767,13 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         "math_written_ids":sorted(all_math),
         "coordinates":{"start_y":page_start_y,"bottom_y":BOARD_BOTTOM_Y,
                        "board_left":BOARD_X,"board_width":BOARD_WIDTH},
-        "alignment":{"mode":"each_unit_centered_with_header_near_top",
-                     "center_x":BOARD_CENTER_X,
+        "alignment":{"mode":(
+                         "diagram_left_math_right_geometry"
+                         if diagram is not None else
+                         "each_unit_centered_with_header_near_top"),
+                     "center_x":(
+                         DIAGRAM_MATH_CENTER_X
+                         if diagram is not None else BOARD_CENTER_X),
                      "proof_math_independent_centered":proof is not None,
                      "preferred_vertical_center_y":BOARD_CENTER_Y,
                      "header_bottom_y":header_bottom_y,
@@ -738,6 +791,11 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "arithmetically_verified":True,
             "presentation":"before_operation_after_atomic"
         }} if matrix is not None else {}),
+        **({"diagram_classroom":{
+            **diagram.public_manifest(),
+            "all_revealed":True,
+            "source_objects":diagram.objects
+        }} if diagram is not None else {}),
         **({"proof_chain":{
             **proof.as_manifest(),
             "layout_strategy":"adaptive_short_math_rows_and_paired_proof_stages",
@@ -778,7 +836,7 @@ def _note_png(block,output):
 def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                  output_mp4:Path,output_json:Path,fps:int=30,
                                  computation_manifest=None,matrix_manifest=None,
-                                 proof_manifest=None):
+                                 proof_manifest=None,diagram_manifest=None):
     """Real uninterrupted-ink Manim video; erase only on board-full cut."""
     if not isinstance(fps,int) or not 8<=fps<=60:
         raise LongboardError("CHALKBOARD_INVALID_FPS")
@@ -787,14 +845,15 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
         raise LongboardError("CHALKBOARD_OUTPUT_EXTENSION")
     if not shutil.which("ffmpeg"):
         raise LongboardError("CHALKBOARD_FFMPEG_UNAVAILABLE")
-    board,contract,teaching,selected,matrix,proof=_strict_sources(
+    board,contract,teaching,selected,matrix,proof,diagram=_strict_sources(
         storyboard,execution,cues,policy,matrix_manifest=matrix_manifest,
-        proof_manifest=proof_manifest
+        proof_manifest=proof_manifest,diagram_manifest=diagram_manifest
     )
     layout=make_chalkboard_plan(
         board,contract,cues,selected,
         computation_manifest=computation_manifest,
-        matrix_manifest=matrix_manifest,proof_manifest=proof_manifest
+        matrix_manifest=matrix_manifest,proof_manifest=proof_manifest,
+        diagram_manifest=diagram_manifest
     )
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
                        tempconfig,linear)
