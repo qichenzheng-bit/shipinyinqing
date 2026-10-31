@@ -27,13 +27,13 @@ def export_memory_parameter_cases(destination: Path) -> dict:
              "只承接已完成的分类结论，不重新展开前面证明。",
              [math("final_recall", r"-1\leq a\leq1",
                    "直接使用已审核的最终参数范围。")],
-             phase="application"),
+             phase="application",event_type="calculation"),
         unit("interval", "改写为区间记法",
              "把两端点均包含的不等式改写成闭区间表示。",
              "检查两个端点没有遗漏。",
              [math("closed_interval", r"a\in[-1,1]",
                    "与前面得到的不等式完全等价。")],
-             phase="summary"),
+             phase="summary",event_type="calculation"),
     ]
     reference="\n".join(
         [problem]+[m["latex"] for units in (proof_units, summary_units)
