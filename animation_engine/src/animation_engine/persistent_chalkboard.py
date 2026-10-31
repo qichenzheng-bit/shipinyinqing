@@ -42,6 +42,20 @@ NOTE_HEIGHT = 29
 NOTE_DETAIL_LINE_HEIGHT = 23
 BOARD_CENTER_X = BOARD_X + BOARD_WIDTH / 2
 BOARD_CENTER_Y = (BOARD_START_Y + BOARD_BOTTOM_Y) / 2
+QUESTION_TO_BOARD_MIN_GAP_PX = 22
+MAX_PAGE_TOP_OFFSET_PX = 20
+
+
+def _page_start_y(board) -> tuple[int, int]:
+    """Keep the first board write below the APPROVED fixed-question region.
+
+    Header geometry is the conservative source of truth. The generic
+    148px baseline is retained for ordinary one-line exam questions.
+    """
+    zone = board.scenes[0].regions["question"]
+    header_bottom = math.ceil((zone.y + zone.h) * 720)
+    return max(BOARD_START_Y, header_bottom + QUESTION_TO_BOARD_MIN_GAP_PX), header_bottom
+
 
 
 def _ink_width(block: dict) -> float:
@@ -88,11 +102,14 @@ def _center_new_group(blocks: list[dict]) -> float:
     return dx
 
 
-def _center_page_heights(events: list[dict]) -> list[dict]:
-    """Balance each completed page vertically before any frame is rendered.
+def _center_page_heights(events: list[dict], *, page_start_y: int,
+                         header_bottom_y: int) -> list[dict]:
+    """Keep every page close to the question, with modest vertical balancing.
 
-    The complete layout is planned first; each page receives a single fixed
-    vertical translation, so already-written content never visibly moves.
+    Formerly, short pages were unconditionally centered at y=384; their
+    first formula could start far below the question. Cap the page's single
+    pre-render translation so its first ink starts near the header instead.
+    Horizontal centering and persistent ink remain unchanged.
     """
     pages: dict[int, list[dict]] = {}
     for event in events:
@@ -103,10 +120,12 @@ def _center_page_heights(events: list[dict]) -> list[dict]:
             continue
         top = min(block["y"] for block in blocks)
         bottom = max(block["y"] + block["h"] for block in blocks)
-        dy = round(BOARD_CENTER_Y - (top + bottom) / 2, 3)
+        ideal_shift = BOARD_CENTER_Y - (top + bottom) / 2
+        max_down_shift = page_start_y + MAX_PAGE_TOP_OFFSET_PX - top
+        dy = round(max(0.0, min(ideal_shift, max_down_shift)), 3)
         for block in blocks:
             _translate_block(block, dy=dy)
-            if (block["y"] < BOARD_START_Y-0.01 or
+            if (block["y"] < page_start_y-0.01 or
                     block["y"] + block["h"] > BOARD_BOTTOM_Y+0.01 or
                     block["x"] < BOARD_X-0.01 or
                     block["x"] + _ink_width(block) > BOARD_X+BOARD_WIDTH+0.01):
@@ -115,10 +134,17 @@ def _center_page_heights(events: list[dict]) -> list[dict]:
         right = max(block["x"] + _ink_width(block) for block in blocks)
         new_top = min(block["y"] for block in blocks)
         new_bottom = max(block["y"] + block["h"] for block in blocks)
+        if new_top > page_start_y + MAX_PAGE_TOP_OFFSET_PX + 0.01:
+            raise LongboardError("CHALKBOARD_HEADER_GAP_TOO_LARGE")
+        if new_top < header_bottom_y + QUESTION_TO_BOARD_MIN_GAP_PX - 0.01:
+            raise LongboardError("CHALKBOARD_HEADER_GAP_TOO_SMALL")
         records.append({
             "page_index": page_index,
             "ink_center_x": round((left+right)/2, 3),
             "ink_center_y": round((new_top+new_bottom)/2, 3),
+            "first_ink_y": round(new_top, 3),
+            "header_bottom_y": header_bottom_y,
+            "header_to_ink_gap_px": round(new_top - header_bottom_y, 3),
             "vertical_offset_px": dy,
         })
     return records
@@ -193,7 +219,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             measurements[key]=original_measure(latex,height)
         return measurements[key]
     size_cache={}
-    cursor=BOARD_START_Y
+    page_start_y, header_bottom_y = _page_start_y(board)
+    cursor=page_start_y
     page=1
     active=[]
     written=set()
@@ -281,7 +308,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 )
             clear=True
             page+=1
-            cursor=BOARD_START_Y
+            cursor=page_start_y
             # Carry only explicit, already-computed mathematical results.
             # Copying results follows a real classroom's new page and never
             # implies calculating them before the original teacher event.
@@ -306,7 +333,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                     )
                 # Legacy classroom mode: optional carry may be skipped.
                 carried=[]
-                cursor=BOARD_START_Y
+                cursor=page_start_y
                 proposed,next_y=group_at(cursor)
                 _center_new_group(proposed)
             if next_y>BOARD_BOTTOM_Y:
@@ -328,7 +355,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 raise LongboardError(
                     f"CHALKBOARD_HORIZONTAL_OVERFLOW: {scene.event_id}"
                 )
-            if item["y"]<BOARD_START_Y or item["y"]+item["h"]>BOARD_BOTTOM_Y:
+            if item["y"]<page_start_y or item["y"]+item["h"]>BOARD_BOTTOM_Y:
                 raise LongboardError(
                     f"CHALKBOARD_VERTICAL_OVERFLOW: {scene.event_id}"
                 )
@@ -367,16 +394,21 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
               and a.object_id in sources and a.to_region!="question"}
     if all_math != expected:
         raise LongboardError("CHALKBOARD_MATH_EVENT_LOST")
-    centering=_center_page_heights(events)
+    centering=_center_page_heights(
+        events, page_start_y=page_start_y, header_bottom_y=header_bottom_y
+    )
     return {
         "schema_version":"1.0","mode":"persistent_chalkboard",
         "source_storyboard_sha256":execution_plan.source_storyboard_sha256,
         "page_count":page,"event_count":len(events),
         "math_written_ids":sorted(all_math),
-        "coordinates":{"start_y":BOARD_START_Y,"bottom_y":BOARD_BOTTOM_Y,
+        "coordinates":{"start_y":page_start_y,"bottom_y":BOARD_BOTTOM_Y,
                        "board_left":BOARD_X,"board_width":BOARD_WIDTH},
-        "alignment":{"mode":"each_unit_centered_with_page_vertical_balance",
-                     "center_x":BOARD_CENTER_X,"center_y":BOARD_CENTER_Y,
+        "alignment":{"mode":"each_unit_centered_with_header_near_top",
+                     "center_x":BOARD_CENTER_X,
+                     "preferred_vertical_center_y":BOARD_CENTER_Y,
+                     "header_bottom_y":header_bottom_y,
+                     "max_first_ink_y":page_start_y+MAX_PAGE_TOP_OFFSET_PX,
                      "pages":centering},
         "events":events,
         **({"computation_groups":computation.as_manifest()}
