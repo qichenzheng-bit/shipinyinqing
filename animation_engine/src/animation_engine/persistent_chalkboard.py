@@ -900,7 +900,13 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                     len(spans) != len(expected) or
                     any(type(x.get("duration")) not in (int,float)
                         or not math.isfinite(x["duration"])
-                        or not .45 <= x["duration"] <= 60 for x in spans)):
+                        or not .45 <= x["duration"] <= 60
+                        or (x.get("kind")=="math" and (
+                            type(x.get("math_start_delay")) not in (int,float)
+                            or not math.isfinite(x["math_start_delay"])
+                            or x["math_start_delay"] < 0
+                            or x["math_start_delay"] >= x["duration"]
+                        )) for x in spans)):
                 raise LongboardError("CHALKBOARD_NARRATION_ACTION_MISMATCH")
     from .diagram_classroom import DIAGRAM_PANEL
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
@@ -1021,7 +1027,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             if (speech["kind"],speech["object_id"])!=(kind,ident):
                                 raise LongboardError("CHALKBOARD_SPEECH_ACTION_ORDER")
                             before=self.time
-                            paint(speech["duration"])
+                            paint(speech)
                             after=self.time
                             if abs(after-before-speech["duration"])>2/fps:
                                 raise LongboardError("CHALKBOARD_ACTUAL_AUDIO_DURATION_DESYNC")
@@ -1077,8 +1083,9 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                 if obj is not None:
                                     self.add(obj)
                                 diagram_active[ident]=obj
-                            def reveal_diagram(duration=None):
+                            def reveal_diagram(speech=None):
                                 from manim import Create,FadeIn
+                                duration=speech["duration"] if speech else None
                                 before=self.time
                                 ids=row["diagram_reveal_ids"]
                                 visible=sum(
@@ -1123,7 +1130,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                 from manim import ImageMobject
                                 obj=ImageMobject(str(temp/(ident.replace(":","_")+".png")))
                                 obj.scale_to_fit_width(fw).move_to([0,0,0])
-                                def write_note(duration):
+                                def write_note(speech):
+                                    duration=speech["duration"] if speech else None
                                     before=self.time
                                     self.play(FadeIn(obj),run_time=.32 if duration is
                                               None else min(.32,duration*.5))
@@ -1134,7 +1142,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                 perform_sync("note",ident,write_note)
                             else:
                                 obj=build_math(block)
-                                def write_math(duration):
+                                def write_math(speech):
+                                    duration=speech["duration"] if speech else None
                                     before=self.time
                                     if duration is None:
                                         for frag in obj:
@@ -1144,7 +1153,16 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                         # Write while it is spoken, then keep
                                         # the finished expression visible for
                                         # the remainder of the explanation.
-                                        writing=min(duration*.78,2.4*len(obj))
+                                        # A teacher may explain the reason
+                                        # before reading the displayed formula.
+                                        # Begin the MathTex Write at the
+                                        # actual *math* audio chunk, not at
+                                        # the start of the spoken preamble.
+                                        intro=speech["math_start_delay"]
+                                        if intro>1e-5:
+                                            self.wait(intro)
+                                        speaking=duration-intro
+                                        writing=min(speaking*.78,2.4*len(obj))
                                         each=writing/len(obj)
                                         for frag in obj:
                                             self.play(Write(frag),run_time=each)
