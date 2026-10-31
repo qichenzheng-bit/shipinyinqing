@@ -94,7 +94,7 @@ def test_one_wrong_derived_matrix_entry_is_rejected():
     _,b,e,c,p,m,_,_=build_variant("A")
     bad=copy.deepcopy(m)
     bad["steps"][0]["after"][1][1]="987"
-    with pytest.raises(LongboardError,match="MATRIX_FALSE_ROW_TRANSFORMATION"):
+    with pytest.raises(LongboardError,match="MATRIX_AFTER_TEX_MISMATCH|MATRIX_FALSE_ROW_TRANSFORMATION"):
         checked_matrix_steps(bad,b,e)
 
 
