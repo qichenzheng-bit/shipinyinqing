@@ -79,6 +79,16 @@ def make_openai_compatible_agent(config: Path):
             context[file.relative_to(package).as_posix()] = json.loads(
                 file.read_text(encoding="utf-8")
             )
+        timing_file=Path(package).parent/"current_timeline.json"
+        subtitle_file=Path(package).parent/"current_subtitles.srt"
+        current_timeline=(
+            json.loads(timing_file.read_text(encoding="utf-8"))
+            if timing_file.is_file() else None
+        )
+        current_subtitles=(
+            subtitle_file.read_text(encoding="utf-8")
+            if subtitle_file.is_file() else None
+        )
         payload={
             "model": spec["model"],
             "messages": [
@@ -87,6 +97,8 @@ def make_openai_compatible_agent(config: Path):
                     "exact_user_instruction": instruction,
                     "prior_rounds": history,
                     "current_package_json_files": context,
+                    "latest_video_event_and_caption_timeline": current_timeline,
+                    "latest_audio_subtitles": current_subtitles,
                 },ensure_ascii=False)},
             ],
             "response_format": {"type": "json_object"},
