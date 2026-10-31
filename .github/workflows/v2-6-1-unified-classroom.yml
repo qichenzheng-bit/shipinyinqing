@@ -1,0 +1,143 @@
+name: V2.6.1 unified source-verified mixed classroom and real MP4
+on:
+  push:
+    branches: [feature/v2-6-1-unified-classroom-flow]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unified-contract-and-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install reviewed teacher, director and engine
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Verify V2.6.1 exact-math handoffs and negative tests
+        run: cd animation_engine && python -m pytest tests/test_unified_classroom_flow.py -q
+      - name: Preserve teacher and knowledge standards
+        run: cd teacher_module && python -m pytest -q
+      - name: Preserve visual director, diagrams and mathematical layout
+        run: cd visual_director && python -m pytest -q
+      - name: Preserve full animation engine V2.5.1 through V2.5.4
+        run: cd animation_engine && python -m pytest -q -m 'not render'
+      - name: Compile entire repo source
+        run: python -m compileall -q animation_engine/src animation_engine/tools teacher_module/src visual_director/src
+  real-unified-movie:
+    needs: unified-contract-and-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install true MathTex Manim FFmpeg and CJK environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+      - name: Install actual rendering engine
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test]'
+      - name: Create one original comprehensive problem with two reviewed engines
+        run: python animation_engine/tools/build_unified_area_lesson.py --output unified-evidence
+      - name: Measure genuine MathTex and check graph to calculation handoff
+        run: |
+          math-animation plan-flow --flow unified-evidence/unified_flow.json --output unified-evidence/unified_board_plan.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('unified-evidence')
+          layout=json.loads((root/'unified_board_plan.json').read_text())
+          assert layout['stage_count']==2 and layout['event_count']==9
+          assert layout['fixed_header']
+          assert layout['source_verified']
+          assert [s['engine'] for s in layout['stages']]==['diagram','standard']
+          assert [s['layout_mode'] for s in layout['stages']]==[
+              'diagram_left_math_right_geometry',
+              'each_unit_centered_with_header_near_top',
+          ]
+          assert layout['stages'][1]['handoff']==[{
+              'from_stage':'graph_analysis',
+              'from_object_id':'m_area_step',
+              'to_object_id':'m_area_handoff'
+          }]
+          first=json.loads((root/'graph'/'teaching_package.json').read_text())
+          second=json.loads((root/'calculation'/'teaching_package.json').read_text())
+          a={x['math_object_id']:x['latex'] for x in first['lesson']['math_objects']}
+          b={x['math_object_id']:x['latex'] for x in second['lesson']['math_objects']}
+          assert a['m_area_step']==b['m_area_handoff']
+          assert b['m_area_evaluated']==r'S=\frac12-\frac13=\frac16'
+          print('V2_6_1_REAL_MATHTEX_UNIFIED_PLAN',layout['page_count'],'pages',layout['event_count'],'events')
+          PY
+      - name: Render one full 1280x720 30fps MP4 across both engines
+        run: |
+          math-animation render-flow --flow unified-evidence/unified_flow.json --output unified-evidence/area_combined.mp4 --manifest unified-evidence/area_combined_manifest.json --fps 30
+          ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=width,height,r_frame_rate,nb_read_frames -of json unified-evidence/area_combined.mp4 > unified-evidence/ffprobe.json
+      - name: Audit MP4 sequencing transitions no fabricated speech and real key frames
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from PIL import Image,ImageDraw,ImageChops
+          root=Path('unified-evidence')
+          m=json.loads((root/'area_combined_manifest.json').read_text())
+          video=root/'area_combined.mp4'
+          s=json.loads((root/'ffprobe.json').read_text())['streams'][0]
+          assert (s['width'],s['height'],s['r_frame_rate'])==(1280,720,'30/1')
+          assert int(s['nb_read_frames'])>400
+          assert m['stage_count']==2 and len(m['stage_render_reports'])==2
+          assert m['erase_count_at_engine_changes']==1
+          assert m['in_page_reposition_count']==0
+          assert m['fabricated_voice_or_subtitle_count']==0
+          assert len(m['event_timing'])==9
+          assert [e['global_event_id'] for e in m['event_timing']]==[
+              item['global_event_id'] for item in m['events']
+          ]
+          first,last=m['stage_render_reports']
+          assert first['engine']=='diagram' and last['engine']=='standard'
+          assert first['start_frame']==0
+          assert last['start_frame']>first['video_frames']
+          assert m['actual_video_frames']==int(s['nb_read_frames'])
+          def shot(frame,name):
+              file=root/(name+'.png')
+              subprocess.run([
+                  'ffmpeg','-hide_banner','-loglevel','error','-y',
+                  '-ss',str(frame/30),'-i',str(video),'-frames:v','1',
+                  str(file)
+              ],check=True)
+              image=Image.open(file).convert('RGB')
+              assert image.size==(1280,720)
+              return image
+          preview=[
+              ('graph_shading',int(first['video_frames']*.84)),
+              ('before_wipe',first['video_frames']-4),
+              ('board_wipe',first['video_frames']+9),
+              ('calculation_start',last['start_frame']+50),
+              ('final_result',int(s['nb_read_frames'])-5),
+          ]
+          captures=[(name,shot(frame,name)) for name,frame in preview]
+          # Title is fixed and identical at the top during both stage clips
+          # and throughout the animated full-board white eraser.
+          top=captures[1][1].crop((0,0,1280,106))
+          for name,frame in captures[2:]:
+              diff=ImageChops.difference(top,frame.crop((0,0,1280,106)))
+              assert not diff.getbbox(),('FLOW_HEADER_CHANGED',name)
+          collage=Image.new('RGB',(1280,1170),'#F1F4F8')
+          draw=ImageDraw.Draw(collage)
+          for i,(name,img) in enumerate(captures):
+              x=i%2*640
+              y=i//2*390+24
+              collage.paste(img.resize((640,360)),(x,y))
+              draw.text((x+10,y-20),name,fill='#111827')
+          collage.save(root/'unified_classroom_key_frames.png')
+          print('V2_6_1_TRUE_MIXED_CLASSROOM_MP4_PASS',
+                s['nb_read_frames'],'frames',first['video_frames'],
+                last['video_frames'],'stage frames')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-6-1-unified-integrated-classroom-mp4-and-math-sources
+          path: unified-evidence/
+          if-no-files-found: warn
