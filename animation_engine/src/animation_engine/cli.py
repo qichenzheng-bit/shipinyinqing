@@ -196,6 +196,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Structured multi-request edit plan from an external AI model")
     providers.add_argument("--ai-config", type=Path,
         help="Opt-in OpenAI-compatible AI provider JSON configuration")
+    editing_apply.add_argument("--math-reviewer", type=str,
+        help="Explicit trusted Python module:function for mathematical source review")
 
     editing_feedback = subparsers.add_parser(
         "edit-feedback", help="Keep editing the latest movie until the user is satisfied")
@@ -230,7 +232,18 @@ def main(argv: list[str] | None = None) -> int:
                 agent=make_openai_compatible_agent(args.ai_config)
             raw=(args.instruction if args.instruction is not None else
                  args.instruction_file.read_text(encoding="utf-8"))
-            result=run_edit(args.session, raw, agent)
+            reviewer=None
+            if args.math_reviewer is not None:
+                import importlib
+                module,sep,member=args.math_reviewer.partition(":")
+                if not sep or not module or not member:
+                    raise ValueError("EDIT_MATH_REVIEWER_MODULE_FUNCTION")
+                reviewer=getattr(importlib.import_module(module),member)
+                if not callable(reviewer):
+                    raise ValueError("EDIT_MATH_REVIEWER_NOT_CALLABLE")
+            result=run_edit(
+                args.session, raw, agent, math_reviewer=reviewer,
+            )
             print(json.dumps(result, ensure_ascii=False))
             return 0 if result["status"]=="preview_ready" else 2
         if args.command == "edit-feedback":
