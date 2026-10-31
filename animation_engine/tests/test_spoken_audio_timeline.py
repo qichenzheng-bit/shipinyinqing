@@ -95,3 +95,46 @@ def test_audio_timeline_rejects_duplicate_same_math_action(tmp_path):
         assemble_source_pcm(
             sample_fixture(),source,tmp_path/"duplicated.wav",fps=30
         )
+
+
+def test_true_caption_band_codec_preserves_silence_and_segment_count(tmp_path):
+    import shutil
+    import subprocess
+    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+        pytest.skip("FFmpeg CLI required")
+    from PIL import Image, ImageDraw
+    from animation_engine.spoken_movie import _encode_caption_band
+    png=tmp_path/"math.png"
+    img=Image.new("RGBA",(1280,88),(0,0,0,0))
+    ImageDraw.Draw(img).rectangle((100,20,300,65),fill=(8,20,40,255))
+    img.save(png)
+    payload=[{
+        "kind":"math","display":r"BC=10",
+        "start_frame":10,"end_frame":30,
+    }]
+    result=tmp_path/"caption_band.mkv"
+    _encode_caption_band(
+        payload,{("math",r"BC=10"):png},
+        result,fps=30,frames=45,
+    )
+    frames=subprocess.check_output([
+        "ffprobe","-v","error","-select_streams","v:0",
+        "-count_frames","-show_entries","stream=nb_read_frames",
+        "-of","default=noprint_wrappers=1:nokey=1",str(result)
+    ]).decode().strip()
+    assert int(frames)==45
+    middle=tmp_path/"middle.png"
+    subprocess.run([
+        "ffmpeg","-hide_banner","-loglevel","error","-y",
+        "-ss","0.5","-i",str(result),"-frames:v","1",
+        "-pix_fmt","rgba",str(middle)
+    ],check=True)
+    observed=Image.open(middle).convert("RGBA")
+    assert observed.size==(1280,88)
+    assert observed.getpixel((110,35))[3]>=200
+    with pytest.raises(LongboardError,match="SPOKEN_CAPTION_FRAME_OVERLAP"):
+        _encode_caption_band(
+            [*payload,{**payload,"start_frame":29,"end_frame":40}],
+            {("math",r"BC=10"):png},
+            tmp_path/"overlap.mkv",fps=30,frames=45
+        )
