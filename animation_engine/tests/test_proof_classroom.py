@@ -14,7 +14,7 @@ from animation_engine.board_motion import overlaps
 from animation_engine.longboard_plan import LongboardError
 from animation_engine.proof_chain import checked_proof_chain
 from animation_engine.persistent_chalkboard import (
-    make_chalkboard_plan, BOARD_CENTER_X, BOARD_BOTTOM_Y, _ink_width
+    make_chalkboard_plan, BOARD_CENTER_X, BOARD_BOTTOM_Y, BOARD_X, _ink_width
 )
 
 
@@ -61,9 +61,11 @@ def test_proof_stages_source_integrity_and_safe_pagination(variant,stages,groups
             assert prior["safe_break_after"]
         blocks=[b for b in ev["added_blocks"] if not b.get("carry")]
         assert blocks
+        mathematical=[b for b in blocks if b["kind"]=="math"]
         if ev["proof_layout"]["mode"] not in ("paired_left","paired_right"):
-            assert abs((min(b["x"] for b in blocks)+
-                        max(b["x"]+_ink_width(b) for b in blocks))/2
+            assert mathematical
+            assert abs((min(b["x"] for b in mathematical)+
+                        max(b["x"]+_ink_width(b) for b in mathematical))/2
                        -BOARD_CENTER_X)<1
         # A paired event occupies just one side of an already reserved row,
         # so only the pair's COMBINED geometry should be center-aligned.
@@ -82,6 +84,62 @@ def test_proof_stages_source_integrity_and_safe_pagination(variant,stages,groups
         obj["math_object_id"] for obj in package["lesson"]["math_objects"]
     }
 
+
+
+
+@pytest.mark.parametrize("variant",["A","B","C"])
+def test_each_proof_formula_row_stays_centered_when_guidance_is_left(variant):
+    _,board,execution,cues,policy,manifest,units=build_variant(variant)
+    plan=make_chalkboard_plan(
+        board,execution,cues,policy,measure=measure,proof_manifest=manifest
+    )
+    assert plan["alignment"]["proof_math_independent_centered"] is True
+    assert all(abs(page["ink_center_x"]-BOARD_CENTER_X)<1.01
+               for page in plan["alignment"]["pages"])
+    guided=[]
+    for event in plan["events"]:
+        blocks={b["block_id"]:b for b in event["added_blocks"]}
+        note=[b for b in event["added_blocks"] if b["kind"]=="teacher_note"]
+        if note:
+            guided.append(event["event_id"])
+            assert len(note)==1
+            assert note[0]["x"]==BOARD_X
+        for row in event["proof_layout"]["formula_rows"]:
+            if event["proof_layout"]["mode"].startswith("paired_"):
+                continue
+            formulas=[blocks[mid] for mid in row]
+            left=min(b["x"] for b in formulas)
+            right=max(b["x"]+_ink_width(b) for b in formulas)
+            assert abs((left+right)/2-BOARD_CENTER_X)<1.01, (
+                variant,event["event_id"],row,left,right
+            )
+        if note:
+            formula_blocks=[b for b in event["added_blocks"]
+                            if b["kind"]=="math" and not b.get("carry")]
+            assert formula_blocks
+            assert max(note[0]["y"]+note[0]["h"] for _ in [0]) <= min(
+                b["y"] for b in formula_blocks
+            ), (variant,event["event_id"])
+    assert "e_setup" in guided
+    assert any("knowledge" in eid for eid in guided)
+    if variant=="C":
+        assert all(f"e_case_{kind}" in guided
+                   for kind in ("less","equal","greater"))
+
+
+def test_carry_math_is_centered_individually_after_full_board_erase():
+    _,board,execution,cues,policy,manifest,units=build_variant("C")
+    taller=lambda tex,height:GlyphSize(210,75)
+    plan=make_chalkboard_plan(
+        board,execution,cues,policy,measure=taller,proof_manifest=manifest
+    )
+    assert plan["page_count"]>1
+    for event in plan["events"]:
+        if event["erase_before"]:
+            carry=[b for b in event["added_blocks"] if b.get("carry")]
+            assert carry
+            for block in carry:
+                assert abs(block["x"]+block["w"]/2-BOARD_CENTER_X)<1.01
 
 
 @pytest.mark.parametrize("variant",["A","B","C"])
