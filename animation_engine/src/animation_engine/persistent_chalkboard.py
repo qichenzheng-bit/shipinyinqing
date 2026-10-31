@@ -150,7 +150,8 @@ def _center_page_heights(events: list[dict], *, page_start_y: int,
     return records
 
 
-def _strict_sources(storyboard, execution, cues, policy, matrix_manifest=None):
+def _strict_sources(storyboard, execution, cues, policy, matrix_manifest=None,
+                    proof_manifest=None):
     from visual_director.models import StoryboardPlan
     from .models import ExecutionPlan
     board=StoryboardPlan.model_validate(storyboard)
@@ -164,13 +165,18 @@ def _strict_sources(storyboard, execution, cues, policy, matrix_manifest=None):
     # or proof-scroll regions. Reject incompatible source rather than produce
     # a plausible-looking MP4 that silently omits essential content.
     matrix=None
+    proof=None
     if matrix_manifest is not None:
         from .matrix_steps import checked_matrix_steps
         matrix=checked_matrix_steps(matrix_manifest, board, plan)
+    if proof_manifest is not None:
+        from .proof_chain import checked_proof_chain
+        proof=checked_proof_chain(proof_manifest, board, plan)
     unsupported=[
         scene.event_id for scene in board.scenes
         if scene.diagram is not None
-        or scene.layout in ("diagram_split","proof_scroll")
+        or scene.layout=="diagram_split"
+        or (scene.layout=="proof_scroll" and proof is None)
         or (scene.layout=="matrix_compare" and matrix is None)
     ]
     if unsupported:
@@ -184,7 +190,7 @@ def _strict_sources(storyboard, execution, cues, policy, matrix_manifest=None):
         raise LongboardError("CHALKBOARD_REQUIRES_SIMPLE_FULL_BOARD")
     if selected.cut_before_events or selected.pinned_ids:
         raise LongboardError("CHALKBOARD_DISALLOWS_FORCED_CUT_OR_PINNING")
-    return board,plan,teaching,selected,matrix
+    return board,plan,teaching,selected,matrix,proof
 
 
 def _note_lines(detail: str, width: int = BOARD_WIDTH) -> list[str]:
@@ -206,11 +212,13 @@ def _math_placement(mid,sources,selected,measure,size_cache,y, *,
 
 def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                          measure=None, computation_manifest=None,
-                         matrix_manifest=None) -> dict:
-    if matrix_manifest is not None and computation_manifest is not None:
+                         matrix_manifest=None, proof_manifest=None) -> dict:
+    if sum(x is not None for x in (
+            computation_manifest,matrix_manifest,proof_manifest))>1:
         raise LongboardError("CHALKBOARD_MULTIPLE_SPECIAL_CONTRACTS")
-    board,execution_plan,teaching,selected,matrix=_strict_sources(
-        storyboard,execution,cues,policy,matrix_manifest=matrix_manifest
+    board,execution_plan,teaching,selected,matrix,proof=_strict_sources(
+        storyboard,execution,cues,policy,matrix_manifest=matrix_manifest,
+        proof_manifest=proof_manifest
     )
     sources=_sources(execution_plan)
     computation=None
@@ -357,6 +365,11 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                     "COMPUTATION_NO_SAFE_BREAK: "+
                     last_event_id+" -> "+scene.event_id
                 )
+            if (proof is not None and last_event_id is not None
+                    and not proof.is_safe_page_boundary(last_event_id)):
+                raise LongboardError(
+                    "PROOF_NO_SAFE_BREAK: "+last_event_id+" -> "+scene.event_id
+                )
             clear=True
             page+=1
             cursor=page_start_y
@@ -364,7 +377,9 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             # Copying results follows a real classroom's new page and never
             # implies calculating them before the original teacher event.
             carryids=(
-                computation.carry_at(scene.event_id,written)
+                proof.carry_at(scene.event_id,written)
+                if proof is not None
+                else computation.carry_at(scene.event_id,written)
                 if computation is not None
                 else [mid for mid in selected.result_ids if mid in written]
             )
@@ -377,9 +392,10 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             proposed,next_y=group_at(cursor)
             _center_new_group(proposed)
             if next_y>BOARD_BOTTOM_Y:
-                if computation is not None:
+                if computation is not None or proof is not None:
                     raise LongboardError(
-                        "COMPUTATION_MANDATORY_CARRY_OVERFLOW: "+
+                        ("PROOF_MANDATORY_CONTEXT_OVERFLOW: " if proof is not None
+                         else "COMPUTATION_MANDATORY_CARRY_OVERFLOW: ")+
                         scene.event_id
                     )
                 # Legacy classroom mode: optional carry may be skipped.
@@ -422,6 +438,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                if computation is not None else {}),
             **(matrix.info(scene.event_id)
                if matrix is not None else {}),
+            **(proof.event_info(scene.event_id)
+               if proof is not None else {}),
             "carry_object_ids":(
                 [a["block_id"] for a in added if a.get("carry")]
                 if computation is not None else []
@@ -475,6 +493,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "arithmetically_verified":True,
             "presentation":"before_operation_after_atomic"
         }} if matrix is not None else {}),
+        **({"proof_chain":proof.as_manifest()} if proof is not None else {}),
     }
 
 
@@ -503,7 +522,8 @@ def _note_png(block,output):
 
 def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                  output_mp4:Path,output_json:Path,fps:int=30,
-                                 computation_manifest=None,matrix_manifest=None):
+                                 computation_manifest=None,matrix_manifest=None,
+                                 proof_manifest=None):
     """Real uninterrupted-ink Manim video; erase only on board-full cut."""
     if not isinstance(fps,int) or not 8<=fps<=60:
         raise LongboardError("CHALKBOARD_INVALID_FPS")
@@ -512,13 +532,14 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
         raise LongboardError("CHALKBOARD_OUTPUT_EXTENSION")
     if not shutil.which("ffmpeg"):
         raise LongboardError("CHALKBOARD_FFMPEG_UNAVAILABLE")
-    board,contract,teaching,selected,matrix=_strict_sources(
-        storyboard,execution,cues,policy,matrix_manifest=matrix_manifest
+    board,contract,teaching,selected,matrix,proof=_strict_sources(
+        storyboard,execution,cues,policy,matrix_manifest=matrix_manifest,
+        proof_manifest=proof_manifest
     )
     layout=make_chalkboard_plan(
         board,contract,cues,selected,
         computation_manifest=computation_manifest,
-        matrix_manifest=matrix_manifest
+        matrix_manifest=matrix_manifest,proof_manifest=proof_manifest
     )
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
                        tempconfig,linear)
