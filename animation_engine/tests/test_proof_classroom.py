@@ -61,9 +61,12 @@ def test_proof_stages_source_integrity_and_safe_pagination(variant,stages,groups
             assert prior["safe_break_after"]
         blocks=[b for b in ev["added_blocks"] if not b.get("carry")]
         assert blocks
-        assert abs((min(b["x"] for b in blocks)+
-                    max(b["x"]+_ink_width(b) for b in blocks))/2
-                   -BOARD_CENTER_X)<1
+        if ev["proof_layout"]["mode"] not in ("paired_left","paired_right"):
+            assert abs((min(b["x"] for b in blocks)+
+                        max(b["x"]+_ink_width(b) for b in blocks))/2
+                       -BOARD_CENTER_X)<1
+        # A paired event occupies just one side of an already reserved row,
+        # so only the pair's COMBINED geometry should be center-aligned.
         for block in ev["added_blocks"]:
             assert block["block_id"] not in live
             assert all(not overlaps(block,b,margin=0) for b in live.values())
@@ -78,6 +81,117 @@ def test_proof_stages_source_integrity_and_safe_pagination(variant,stages,groups
     assert set(plan["math_written_ids"])=={
         obj["math_object_id"] for obj in package["lesson"]["math_objects"]
     }
+
+
+
+@pytest.mark.parametrize("variant",["A","B","C"])
+def test_proof_short_formulas_form_multi_item_rows(variant):
+    _,board,exe,cues,policy,manifest,units=build_variant(variant)
+    layout=make_chalkboard_plan(
+        board,exe,cues,policy,measure=measure,proof_manifest=manifest
+    )
+    assert layout["proof_chain"]["layout_strategy"]==(
+        "adaptive_short_math_rows_and_paired_proof_stages"
+    )
+    compact=[
+        event for event in layout["events"]
+        if event["proof_layout"]["mode"]=="compact_within_stage"
+    ]
+    assert compact, "Short mathematical facts must not all be one-per-line"
+    for event in compact:
+        rows=event["proof_layout"]["formula_rows"]
+        assert any(len(row)>1 for row in rows)
+        assert all(1<=len(row)<=3 for row in rows)
+        assert [mid for row in rows for mid in row]==[
+            b["block_id"] for b in event["added_blocks"] if b["kind"]=="math"
+            and not b.get("carry")
+        ]
+        blocks={b["block_id"]:b for b in event["added_blocks"]}
+        for row in rows:
+            ys=[blocks[mid]["y"] for mid in row]
+            heights=[blocks[mid]["h"] for mid in row]
+            centers=[a+h/2 for a,h in zip(ys,heights)]
+            assert max(centers)-min(centers)<1.01
+            for m,n in zip(row,row[1:]):
+                assert blocks[m]["x"]+blocks[m]["w"]<blocks[n]["x"]
+    assert layout["proof_chain"]["compact_stage_count"]==len(compact)
+
+
+@pytest.mark.parametrize("variant",["A","B","C"])
+def test_adjacent_short_proof_stages_share_horizontal_band_without_reposition(
+        variant):
+    _,board,exe,cues,policy,manifest,units=build_variant(variant)
+    layout=make_chalkboard_plan(
+        board,exe,cues,policy,measure=measure,proof_manifest=manifest
+    )
+    events=layout["events"]
+    groups={}
+    for i,event in enumerate(events):
+        meta=event["proof_layout"]
+        if meta["mode"].startswith("paired_"):
+            groups.setdefault(meta["row_group_id"],[]).append((i,event))
+    if variant in ("A","B"):
+        assert groups, "Consecutive short proof steps should use left/right"
+    for group,items in groups.items():
+        assert len(items)==2
+        (li,left),(ri,right)=items
+        assert ri==li+1, "Paired proof steps are consecutive in source order"
+        assert left["page_index"]==right["page_index"]
+        assert not right["erase_before"]
+        assert left["proof_layout"]["mode"]=="paired_left"
+        assert right["proof_layout"]["mode"]=="paired_right"
+        assert left["proof_layout"]["source_order_preserved"]
+        assert right["proof_layout"]["source_order_preserved"]
+        la=[block for block in left["added_blocks"] if block["kind"]=="math"
+            and not block.get("carry")]
+        ra=[block for block in right["added_blocks"] if block["kind"]=="math"
+            and not block.get("carry")]
+        assert la and ra
+        assert max(b["x"]+b["w"] for b in la)<min(b["x"] for b in ra)
+        left_x=min(b["x"] for b in la)
+        right_x=max(b["x"]+_ink_width(b) for b in ra)
+        assert abs((left_x+right_x)/2-BOARD_CENTER_X)<1
+        assert min(b["y"] for b in la)==min(b["y"] for b in ra)
+    assert len(groups)==layout["proof_chain"]["paired_stage_groups"]
+
+
+def test_long_math_goes_to_own_line_even_if_next_item_is_short():
+    from animation_engine.persistent_chalkboard import _proof_math_rows
+    from animation_engine.classroom_policy import simple_classroom_policy
+    from animation_engine.longboard_plan import LongboardPolicy
+    from animation_engine.adaptive_layout import GlyphSize
+    import animation_engine.persistent_chalkboard as boardmod
+    selected=LongboardPolicy.parse(simple_classroom_policy())
+    sources={
+        "a":{"latex":r"\frac{n(n+1)}2"},
+        "b":{"latex":r"n=1"},
+        "c":{"latex":r"S_n=n^2"},
+    }
+    def selective(tex,height):
+        return GlyphSize(1030 if "frac" in tex else 130,42)
+    size_cache={}
+    placed,stop,rows=_proof_math_rows(
+        ["a","b","c"],sources,selected,selective,size_cache,148
+    )
+    assert rows==[["a"],["b","c"]]
+    assert stop>148
+    assert all(block["scale"]>=selected.math_min_scale for block in placed)
+
+
+def test_teacher_knowledge_and_distinct_cases_not_mixed_into_proof_stage_pairs():
+    _,board,exe,cues,policy,manifest,units=build_variant("C")
+    layout=make_chalkboard_plan(
+        board,exe,cues,policy,measure=measure,proof_manifest=manifest
+    )
+    ids=["e_case_less","e_case_equal","e_case_greater",
+         "e_knowledge_quadratic","e_final"]
+    for event in layout["events"]:
+        if event["event_id"] in ids:
+            assert event["proof_layout"]["mode"] not in (
+                "paired_left","paired_right"
+            )
+    assert all(event["proof_layout"]["source_order_preserved"]
+               for event in layout["events"])
 
 
 def test_long_induction_has_full_explicit_derivation_without_false_shortcuts():
