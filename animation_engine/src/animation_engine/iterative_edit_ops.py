@@ -1,0 +1,225 @@
+"""V2.6.5 editable classroom package: unrestricted language, verified operations.
+
+The editor does not interpret human speech through keyword matching.
+An AI adapter may return any number of requirements and source-JSON changes.
+The existing V2.6.4 source/MathTex/speech contracts remain authoritative.
+
+The adapter is trusted application code; model responses are untrusted data.
+No shell commands or Python programs from a model are ever executed here.
+"""
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+
+class EditEngineError(ValueError):
+    """Invalid edit plan, unsafe path, missing evidence or invalid source."""
+
+
+def canonical_digest(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True,
+                   separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def file_digest(path: Path) -> str:
+    dig = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
+            dig.update(block)
+    return dig.hexdigest()
+
+
+def atomic_json(path: Path, obj: Any) -> None:
+    """Atomic replacement prevents a failed edit from corrupting the journal."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    staged = path.with_name(path.name + ".tmp-" + str(os.getpid()))
+    try:
+        with open(staged, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(staged, path)
+    finally:
+        staged.unlink(missing_ok=True)
+
+
+def safe_json_file(root: Path, relative: str) -> Path:
+    """Reject escaping or executable edits, including symlink traversal."""
+    if (not isinstance(relative, str) or not relative or
+            relative.startswith(("/", "\\")) or "\\" in relative):
+        raise EditEngineError("EDIT_UNSAFE_TARGET_PATH")
+    components = Path(relative).parts
+    if (not components or any(x in (".", "..") for x in components)
+            or Path(relative).suffix.lower() != ".json"):
+        raise EditEngineError("EDIT_UNSAFE_TARGET_PATH")
+    root = Path(root).resolve()
+    target = root.joinpath(*components)
+    for parent in (root, *[root.joinpath(*components[:i])
+                           for i in range(1, len(components) + 1)]):
+        if parent.is_symlink():
+            raise EditEngineError("EDIT_UNSAFE_TARGET_SYMLINK")
+    if not target.is_file() or not target.resolve().is_relative_to(root):
+        raise EditEngineError("EDIT_SOURCE_FILE_NOT_FOUND")
+    return target
+
+
+def _pointer_tokens(pointer: str) -> list[str]:
+    if not isinstance(pointer, str) or not pointer.startswith("/"):
+        raise EditEngineError("EDIT_INVALID_JSON_POINTER")
+    result = []
+    for token in pointer[1:].split("/"):
+        if "~" in token and __import__("re").search(r"~(?![01])", token):
+            raise EditEngineError("EDIT_INVALID_JSON_POINTER")
+        result.append(token.replace("~1", "/").replace("~0", "~"))
+    return result
+
+
+def _child(node: Any, token: str, *, allow_append=False) -> Any:
+    if isinstance(node, dict):
+        if token not in node:
+            raise EditEngineError("EDIT_POINTER_NOT_FOUND: " + token)
+        return node[token]
+    if isinstance(node, list):
+        if not token.isdigit() or (token.startswith("0") and token != "0"):
+            raise EditEngineError("EDIT_POINTER_ARRAY_INDEX")
+        index = int(token)
+        if index >= len(node):
+            raise EditEngineError("EDIT_POINTER_NOT_FOUND: " + token)
+        return node[index]
+    raise EditEngineError("EDIT_POINTER_TARGET_NOT_CONTAINER")
+
+
+def apply_json_operations(package: Path, proposal: dict) -> list[dict]:
+    """Apply arbitrary source JSON edits with per-operation before/after audit.
+
+    Each operation has an ID, file, RFC6901 pointer, action and optional value.
+    No predeclared list of teaching topics, video targets or natural languages.
+    """
+    if not isinstance(proposal, dict) or set(proposal) != {
+            "schema_version", "requirements", "operations", "model"}:
+        raise EditEngineError("EDIT_PLAN_FIELDS")
+    if proposal["schema_version"] != "1.0":
+        raise EditEngineError("EDIT_PLAN_SCHEMA")
+    reqs, ops = proposal["requirements"], proposal["operations"]
+    if (not isinstance(reqs, list) or not reqs or
+            not isinstance(ops, list) or not ops):
+        raise EditEngineError("EDIT_EMPTY_REQUIREMENTS_OR_CHANGES")
+    seen_req, seen_ops = set(), set()
+    for req in reqs:
+        if (not isinstance(req, dict) or set(req) !=
+                {"id", "instruction", "target", "operation_ids"} or
+                not isinstance(req["id"], str) or not req["id"].strip() or
+                not isinstance(req["instruction"], str) or
+                not req["instruction"].strip() or
+                not isinstance(req["target"], str) or
+                not req["target"].strip() or
+                not isinstance(req["operation_ids"], list) or
+                not req["operation_ids"]):
+            raise EditEngineError("EDIT_REQUIREMENT_INVALID")
+        if req["id"] in seen_req:
+            raise EditEngineError("EDIT_DUPLICATE_REQUIREMENT")
+        seen_req.add(req["id"])
+    if (not isinstance(proposal["model"], str) or
+            not proposal["model"].strip()):
+        raise EditEngineError("EDIT_MODEL_UNDECLARED")
+    for op in ops:
+        if (not isinstance(op, dict) or
+                set(op) not in (
+                    {"id", "file", "pointer", "action", "value"},
+                    {"id", "file", "pointer", "action"},
+                ) or not isinstance(op["id"], str) or
+                not op["id"].strip() or
+                op["action"] not in ("set", "insert", "remove") or
+                (op["action"] == "remove") != ("value" not in op)):
+            raise EditEngineError("EDIT_OPERATION_INVALID")
+        if op["id"] in seen_ops:
+            raise EditEngineError("EDIT_DUPLICATE_OPERATION")
+        seen_ops.add(op["id"])
+    used = [oid for req in reqs for oid in req["operation_ids"]]
+    if (any(not isinstance(x, str) or x not in seen_ops for x in used) or
+            set(used) != seen_ops):
+        raise EditEngineError("EDIT_REQUIREMENT_OPERATION_COVERAGE")
+    # The plan must be wholly valid before changing the package.
+    files = [safe_json_file(package, op["file"]) for op in ops]
+    result = []
+    for op, path in zip(ops, files):
+        document = json.loads(path.read_text(encoding="utf-8"))
+        tokens = _pointer_tokens(op["pointer"])
+        parent = document
+        for token in tokens[:-1]:
+            parent = _child(parent, token)
+        if not tokens:
+            raise EditEngineError("EDIT_ROOT_REPLACEMENT_USE_FILE")
+        last = tokens[-1]
+        old = None
+        if op["action"] == "set":
+            old = copy.deepcopy(_child(parent, last))
+            if old == op["value"]:
+                raise EditEngineError("EDIT_NO_ACTUAL_CHANGE")
+            if isinstance(parent, list):
+                parent[int(last)] = copy.deepcopy(op["value"])
+            else:
+                parent[last] = copy.deepcopy(op["value"])
+        elif op["action"] == "insert":
+            if isinstance(parent, list):
+                if (last != "-" and (not last.isdigit() or
+                    (last.startswith("0") and last != "0") or
+                    int(last) > len(parent))):
+                    raise EditEngineError("EDIT_INSERT_ARRAY_INDEX")
+                index = len(parent) if last == "-" else int(last)
+                parent.insert(index, copy.deepcopy(op["value"]))
+            elif isinstance(parent, dict):
+                if last in parent:
+                    raise EditEngineError("EDIT_INSERT_ALREADY_EXISTS")
+                parent[last] = copy.deepcopy(op["value"])
+            else:
+                raise EditEngineError("EDIT_INSERT_NOT_CONTAINER")
+        else:
+            old = copy.deepcopy(_child(parent, last))
+            if isinstance(parent, list):
+                parent.pop(int(last))
+            else:
+                parent.pop(last)
+        atomic_json(path, document)
+        result.append({
+            "operation_id": op["id"], "file": op["file"],
+            "pointer": op["pointer"], "action": op["action"],
+            "before": old,
+            "after": copy.deepcopy(op.get("value")),
+            "result_file_sha256": file_digest(path),
+        })
+    return result
+
+
+def validate_teaching_package(package: Path, *, adaptive: bool) -> dict:
+    """Always re-run source, layout, recall and speech gate before any render."""
+    from .spoken_classroom import checked_spoken
+    from .adaptive_classroom_flow import checked_adaptive_flow
+    from .classroom_math_memory import checked_memory
+    from .unified_classroom_flow import checked_flow
+    package = Path(package)
+    flow = checked_flow(package / "unified_flow.json")
+    if adaptive:
+        checked_adaptive_flow(package / "adaptive_layout.json")
+    if (package / "math_memory.json").exists():
+        checked_memory(package / "math_memory.json")
+    spoken = checked_spoken(package / "spoken_classroom.json",
+                            adaptive=adaptive)
+    if spoken.flow.source_sha256 != flow.source_sha256:
+        raise EditEngineError("EDIT_MATHEMATICAL_SOURCE_MISMATCH")
+    return {
+        "source_flow_sha256": flow.source_sha256,
+        "source_spoken_sha256": spoken.source_sha256,
+        "reviewed_event_count": len(spoken.events),
+        "spoken_actions": sum(len(x.spans) for x in spoken.events),
+        "teacher_reviewed": True,
+    }
