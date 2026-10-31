@@ -148,8 +148,38 @@ def main(argv: list[str] | None = None) -> int:
     adaptive_render.add_argument("--manifest", type=Path, required=True)
     adaptive_render.add_argument("--fps", type=int, default=30)
 
+    memory_plan = subparsers.add_parser(
+        "plan-memory", help="V2.6.3 reviewed mathematical facts and scoped non-adjacent recalls")
+    memory_plan.add_argument("--memory", type=Path, required=True)
+    memory_plan.add_argument("--output", type=Path, required=True)
+    memory_plan.add_argument("--adaptive", action="store_true")
+    memory_render = subparsers.add_parser(
+        "render-memory", help="V2.6.3 real verified memory-aware Manim classroom movie")
+    memory_render.add_argument("--memory", type=Path, required=True)
+    memory_render.add_argument("--output", type=Path, required=True)
+    memory_render.add_argument("--manifest", type=Path, required=True)
+    memory_render.add_argument("--fps", type=int, default=30)
+    memory_render.add_argument("--adaptive", action="store_true")
+
     args = parser.parse_args(argv)
     try:
+        if args.command == "plan-memory":
+            if args.output.suffix.lower() != ".json":
+                raise ValueError("MEMORY_PLAN_REQUIRES_JSON_OUTPUT")
+            from .classroom_math_memory import plan_memory
+            result = plan_memory(args.memory, adaptive=args.adaptive)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(result, ensure_ascii=False, indent=2)+"\n",
+                encoding="utf-8",
+            )
+            return 0
+        if args.command == "render-memory":
+            from .classroom_math_memory import render_memory
+            render_memory(args.memory, output_mp4=args.output,
+                          output_json=args.manifest, fps=args.fps,
+                          adaptive=args.adaptive)
+            return 0
         if args.command == "plan-adaptive-flow":
             if args.output.suffix.lower() != ".json":
                 raise ValueError("ADAPTIVE_PLAN_REQUIRES_JSON_OUTPUT")
