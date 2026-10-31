@@ -317,7 +317,7 @@ def _command(args: list[str], name: str):
         raise LongboardError(name + ": " + (p.stderr or p.stdout)[-700:])
 
 
-def _video_frames(path: Path, fps: int) -> int:
+def _video_frames(path: Path, fps: int, *, min_frames: int = 20) -> int:
     p = subprocess.run([
         "ffprobe", "-v", "error", "-select_streams", "v:0",
         "-count_frames", "-show_entries",
@@ -333,7 +333,7 @@ def _video_frames(path: Path, fps: int) -> int:
     if int(rate[0]) / int(rate[1]) != fps:
         raise LongboardError("FLOW_VIDEO_FPS")
     frames = int(stream["nb_read_frames"])
-    if frames < 20:
+    if frames < min_frames:
         raise LongboardError("FLOW_VIDEO_TOO_SHORT")
     return frames
 
@@ -362,7 +362,9 @@ def _render_board_wipe(prior_mp4: Path, dest: Path, scratch: Path,
               "-framerate", str(fps), "-i", str(pattern / "frame_%03d.png"),
               "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(fps),
               str(dest)], "FLOW_WIPE_ENCODE")
-    return _video_frames(dest, fps)
+    # Transitions are intentionally 18 frames (0.6s), unlike complete
+    # instructional scene clips which must contain at least 20 frames.
+    return _video_frames(dest, fps, min_frames=TRANSITION_FRAMES)
 
 
 def render_flow(input_file: Path | str, *, output_mp4: Path,
