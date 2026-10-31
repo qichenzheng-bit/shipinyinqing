@@ -24,7 +24,7 @@ def simple_classroom_policy(*, result_ids: tuple[str,...]=()) -> dict:
         "content_top_offset_px":0,
         "board_column_width_px":1060,
         "math_base_scale":0.50,
-        "math_min_scale":0.47,
+        "math_min_scale":0.48,
         "row_gap_px":11,
     }
 
