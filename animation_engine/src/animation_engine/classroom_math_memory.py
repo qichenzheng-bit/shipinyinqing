@@ -248,9 +248,13 @@ def checked_memory(input_file: Path | str) -> MemoryContract:
         coverage = {
             fact.scope["case_id"] for fact in candidates
         }
-        expected = set(declared[0]["case_ids"])
+        expected = set(declared[0]["cases"])
         if coverage != expected:
             raise LongboardError("MEMORY_INCOMPLETE_CASE_COVERAGE")
+        if dest["proof"] is not None and (
+                dest["proof_event"].role != "merge"
+                or dest["proof_event"].event_id != declared[0]["merge_event_id"]):
+            raise LongboardError("MEMORY_MERGE_NOT_A_PROOF_MERGE")
         verified_merges.append({
             **row, "covered_cases": sorted(coverage),
             "case_coverage_verified": True,
