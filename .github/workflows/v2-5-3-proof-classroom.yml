@@ -76,6 +76,8 @@ jobs:
                          for e in layout['events'])
               proof=layout['proof_chain']
               assert proof['stage_count']==stages
+              assert proof['layout_strategy']=='adaptive_short_math_rows_and_paired_proof_stages'
+              assert proof['compact_stage_count']>0
               assert proof['reference_order_verified']
               assert proof['case_coverage_verified']
               assert len(proof['branch_groups'])==branches
@@ -85,7 +87,17 @@ jobs:
                          for page in layout['alignment']['pages'])
               live={}
               prior=None
+              bands={}
               for ev in layout['events']:
+                  meta=ev['proof_layout']
+                  if meta['mode'] in ('paired_left','paired_right'):
+                      bands.setdefault(meta['row_group_id'],[]).append(ev)
+                  if ev['event_id'].startswith('e_case_'):
+                      assert meta['mode'] not in ('paired_left','paired_right')
+                  rows=meta['formula_rows']
+                  writes=[x['block_id'] for x in ev['added_blocks']
+                          if x['kind']=='math' and not x.get('carry')]
+                  assert [m for row in rows for m in row]==writes
                   if ev['erase_before']:
                       assert prior and prior['safe_break_after']
                       assert {'m_condition','m_goal'}<=set(ev['carry_object_ids'])
@@ -98,6 +110,17 @@ jobs:
                       live[b['block_id']]=b
                   assert ev['visible_block_ids']==list(live)
                   prior=ev
+              assert len(bands)==proof['paired_stage_groups']
+              for key,group in bands.items():
+                  assert len(group)==2
+                  left,right=group
+                  assert left['page_index']==right['page_index']
+                  assert not right['erase_before']
+                  assert left['proof_layout']['mode']=='paired_left'
+                  assert right['proof_layout']['mode']=='paired_right'
+                  a=[x for x in left['added_blocks'] if x['kind']=='math' and not x.get('carry')]
+                  b=[x for x in right['added_blocks'] if x['kind']=='math' and not x.get('carry')]
+                  assert max(x['x']+x['w'] for x in a)<min(x['x'] for x in b)
               if v=='C':
                   assert proof['branch_groups'][0]['cases']==['less','equal','greater']
                   assert next(e for e in layout['events'] if e['event_id']=='e_merge')['proof_stage']=='merge'
@@ -128,7 +151,7 @@ jobs:
               assert m['in_page_reposition_count']==m['in_page_fadeout_count']==0
               assert m['voice_status']=='not_recorded'
               ids=['e_setup']
-              if v=='A': ids+=['e_knowledge_induction','e_successor','e_lemma','e_final']
+              if v=='A': ids+=['e_knowledge_induction','e_base','e_hypothesis','e_successor','e_lemma','e_final']
               if v=='B': ids+=['e_squares','e_knowledge_square','e_equality','e_final']
               if v=='C': ids+=['e_knowledge_quadratic','e_case_less','e_case_equal','e_case_greater','e_merge','e_final']
               shots=[]
