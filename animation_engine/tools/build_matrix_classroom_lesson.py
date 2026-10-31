@@ -56,6 +56,7 @@ CASES={
              {"kind":"add_scaled_row","target":1,"source":2,"factor":"-1"}),
         ],
         "intro":r"R_i\leftarrow R_i+cR_j",
+        "intro_heading":"初等行变换基本性质",
         "intro_detail":"行消元每次说明操作，再并排呈现操作前后的增广矩阵。",
         "final_heading":"读出唯一解",
         "final_detail":"增广矩阵左侧已经化为单位阵，右侧就是对应的未知数。",
@@ -72,6 +73,7 @@ CASES={
              {"kind":"add_scaled_row","target":2,"source":1,"factor":"-1"}),
         ],
         "intro":r"[A\mid I]\longrightarrow[I\mid A^{-1}]",
+        "intro_heading":"增广矩阵求逆原理",
         "intro_detail":"给原矩阵添单位阵，通过初等行变换把左侧化为单位阵。",
         "final_heading":"读取右侧逆矩阵",
         "final_detail":"左侧为单位阵时，右侧是原矩阵的逆矩阵。",
@@ -86,6 +88,7 @@ CASES={
              {"kind":"add_scaled_row","target":2,"source":1,"factor":"-1"}),
         ],
         "intro":r"\det(A)=\det(EA)",
+        "intro_heading":"行列式行加不变性",
         "intro_detail":"某一行加上另一行的倍数，不改变行列式的值。",
         "final_heading":"得到含参结论并分类",
         "final_detail":"行列式等于对角线元素之积，再讨论何时为零。",
@@ -103,7 +106,7 @@ def build_variant(name: str):
     previous=_matrix(spec["initial"])
     initial_tex=matrix_latex(spec["initial"],augmented_at=augment,determinant=determinant)
     units=[
-        unit("intro","初等行变换的依据",spec["intro_detail"],
+        unit("intro",spec["intro_heading"],spec["intro_detail"],
              "先说明本题可用的行变换和矩阵初始状态。",
              [math("intro_rule",spec["intro"],"初等变换规则的来源公式。"),
               math("initial",initial_tex,"完整记录初始矩阵，不遗漏任一元素。")],
@@ -167,9 +170,18 @@ def build_variant(name: str):
                       phase="summary",kind="conclusion"))
     reference="\n".join([spec["problem"]]+[o["latex"] for u in units
                                                    for o in u["math"]])
+    knowledge_catalog={
+        "schema_version":"1.0","teacher_reviewed":True,
+        "points":[{
+            "event_id":"e_intro","topic_id":"matrix_"+kind,
+            "title":spec["intro_heading"],"kind":"property",
+            "formulae":[{"object_id":"m_intro_rule","latex":spec["intro"]}],
+            "used_in":["e_intro","e_step1"],
+        }],
+    }
     package,board,execution,cues=compile_teaching_units(
         problem=spec["problem"],reference_solution=reference,
-        units=units,teacher_reviewed=True
+        units=units,teacher_reviewed=True,knowledge_catalog=knowledge_catalog
     )
     manifest={
         "schema_version":"1.0",
@@ -204,6 +216,16 @@ def export_variant(name:str,output:Path):
         "teacher_approved_cues.json":cues,
         "page_policy.json":policy,
         "matrix_steps.json":manifest,
+        "core_knowledge.json":{
+            "schema_version":"1.0","teacher_reviewed":True,
+            "points":[{
+                "event_id":"e_intro","topic_id":"matrix_"+manifest["kind"],
+                "title":units[0]["heading"],"kind":"property",
+                "formulae":[{"object_id":"m_intro_rule",
+                             "latex":units[0]["math"][0]["latex"]}],
+                "used_in":["e_intro","e_step1"],
+            }],
+        },
     }
     for filename,value in files.items():
         (output/filename).write_text(
