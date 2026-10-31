@@ -186,7 +186,7 @@ def build_variant(variant: str):
     groups=[]
     if variant=="B":
         units.append(unit(
-            "i1","幂函数积分公式","这一项是普通的幂函数积分，直接写出结果。",
+            "i1","幂函数积分公式","幂函数积分公式适用于指数不等于负一的幂函数。",
             "完成第一项，无需冗余拆步。",segments[0],phase="knowledge"
         ))
         groups.append({
@@ -196,13 +196,13 @@ def build_variant(variant: str):
         })
         units.append(unit(
             "i2start","分部积分基本公式",
-            "先把二次幂降低为一次幂，保留需要继续计算的中间积分。",
+            "分部积分公式把乘积积分转化为边界项与另一个积分。",
             "第一段求出第二次分部积分所依赖的准确中间关系。",
             segments[1],phase="knowledge"
         ))
         units.append(unit(
             "i2finish","分部积分公式的再次应用",
-            "再次使用分部积分公式求子积分，算完后代回原式。",
+            "同一分部积分公式也可用于继续出现的乘积型子积分。",
             "沿用前面已经得到的中间关系，完成第二项。",
             segments[2],phase="knowledge"
         ))
@@ -215,7 +215,7 @@ def build_variant(variant: str):
                             "object_id":"m_i2_checkpoint"}]
         })
         units.append(unit(
-            "i3","正弦函数积分公式","这一项可直接利用正弦函数的原函数。",
+            "i3","正弦函数积分公式","正弦函数的原函数是负余弦。",
             "完成第三项。",segments[3],phase="knowledge"
         ))
         groups.append({
@@ -235,9 +235,9 @@ def build_variant(variant: str):
                 else "正弦函数积分" if i==4 else "指数函数积分"
             )
             detail=(
-                "使用分部积分公式，先选变量，再算边界项。" if i==1
-                else "使用换元积分公式，并同步更换上下限。" if i==2
-                else "先根据积分公式，再直接计算本题上下限。"
+                "分部积分是乘积型积分的基本方法，必须满足求微分的对应关系。" if i==1
+                else "换元积分依据变量替换关系，定积分上下限必须随变量变化。" if i==2
+                else "本项使用标准基本积分公式及其适用条件。"
             )
             units.append(unit(
                 uid,heading,detail,"完整计算并保留第"+str(i)+"项的准确结果。",
