@@ -23,6 +23,7 @@ class Part:
     result_id: str
     safe_break_after: tuple[str, ...]
     checkpoints: tuple[tuple[str, str], ...]
+    knowledge_object_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,12 @@ class ComputationGroups:
     source_storyboard_sha256: str
     recap_event_id: str | None = None
     recap_object_id: str | None = None
+
+    def knowledge_for_event(self, event_id: str) -> str | None:
+        for part in self.parts:
+            if part.event_ids[0] == event_id:
+                return part.knowledge_object_id
+        return None
 
     @property
     def owner_by_event(self) -> dict[str, str]:
@@ -93,6 +100,7 @@ class ComputationGroups:
                 "part_id":p.id,
                 "event_ids":list(p.event_ids),
                 "result_object_id":p.result_id,
+                "knowledge_object_id":p.knowledge_object_id,
                 "safe_break_after":list(p.safe_break_after),
                 "checkpoints":[{"event_id":eid,"object_id":mid}
                                for eid,mid in p.checkpoints],
@@ -167,10 +175,13 @@ def checked_computation_groups(
     part_ids=set()
     output_ids=set()
     for raw in raw_parts:
-        if not isinstance(raw,dict) or set(raw)!={
+        if not isinstance(raw,dict) or set(raw) not in ({
             "id","event_ids","result_object_id",
             "safe_break_after","checkpoints"
-        }:
+        },{
+            "id","event_ids","result_object_id",
+            "knowledge_object_id","safe_break_after","checkpoints"
+        }):
             raise LongboardError("COMPUTATION_PART_FIELDS")
         ident=raw["id"]
         if (not isinstance(ident,str) or not ident.isidentifier()
@@ -186,6 +197,13 @@ def checked_computation_groups(
         if ([positions[e] for e in group_events]!=list(range(
                 positions[group_events[0]],positions[group_events[-1]]+1))):
             raise LongboardError("COMPUTATION_SPLIT_PART_OUT_OF_ORDER")
+        knowledge=raw.get("knowledge_object_id")
+        if knowledge is not None:
+            if type(knowledge) is not str or not knowledge:
+                raise LongboardError("COMPUTATION_KNOWLEDGE_ID")
+            check_write(group_events[0],knowledge)
+            if written_by_event[group_events[0]][0]!=knowledge:
+                raise LongboardError("COMPUTATION_KNOWLEDGE_MUST_BE_FIRST")
         output=raw["result_object_id"]
         if output in output_ids:
             raise LongboardError("COMPUTATION_RESULT_REUSED")
@@ -216,7 +234,8 @@ def checked_computation_groups(
             raise LongboardError("COMPUTATION_CHECKPOINT_COVERAGE")
         parts.append(Part(
             id=ident,event_ids=tuple(group_events),result_id=output,
-            safe_break_after=tuple(safe),checkpoints=tuple(checked)
+            safe_break_after=tuple(safe),checkpoints=tuple(checked),
+            knowledge_object_id=knowledge
         ))
         assigned.extend(group_events)
     expected=evorder[1:-2] if recap is not None else evorder[1:-1]
@@ -224,6 +243,11 @@ def checked_computation_groups(
         raise LongboardError(
             "COMPUTATION_EVENTS_MISSING_OR_UNORDERED: expected "+repr(expected)
         )
+    knowledge_ids=[p.knowledge_object_id for p in parts if p.knowledge_object_id]
+    if len(knowledge_ids)!=len(set(knowledge_ids)) or any(
+            mid in output_ids or mid in (decomp["object_id"],final["object_id"])
+            for mid in knowledge_ids):
+        raise LongboardError("COMPUTATION_KNOWLEDGE_ROLE_REUSED")
     if (decomp["object_id"] in output_ids or final["object_id"] in output_ids
             or final["object_id"]==decomp["object_id"]
             or (recap is not None and
