@@ -173,3 +173,28 @@ def test_plan_source_digest_and_source_file_roundtrip(project):
     for stage in a["stages"]:
         assert stage["page_count"]>=1
     assert not any("audio" in e for e in a["events"])
+
+
+def test_18_frame_board_wipe_is_valid_but_full_stage_cannot_be_short(monkeypatch):
+    import subprocess
+    from animation_engine.unified_classroom_flow import (
+        _video_frames, TRANSITION_FRAMES
+    )
+
+    def fake_ffprobe(command, **kwargs):
+        return subprocess.CompletedProcess(
+            command, 0,
+            json.dumps({"streams":[{
+                "width":1280,"height":720,
+                "r_frame_rate":"30/1",
+                "nb_read_frames":str(TRANSITION_FRAMES)
+            }]}),
+            ""
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_ffprobe)
+    assert TRANSITION_FRAMES == 18
+    assert _video_frames(Path("board_wipe.mp4"),30,
+                         min_frames=TRANSITION_FRAMES)==18
+    with pytest.raises(LongboardError,match="FLOW_VIDEO_TOO_SHORT"):
+        _video_frames(Path("instruction_stage.mp4"),30)
