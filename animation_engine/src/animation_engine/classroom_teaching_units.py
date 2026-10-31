@@ -13,6 +13,7 @@ import json
 from typing import Any
 
 from visual_director.director import build_storyboard
+from visual_director.models import DiagramSpec, DirectorOptions
 from .planner import build_execution_plan
 from .classroom_cues import PHASES
 from .longboard_plan import LongboardError
@@ -29,7 +30,8 @@ def _hash(value: dict) -> str:
 def compile_teaching_units(*, problem: str, reference_solution: str,
                            units: list[dict[str,Any]],
                            teacher_reviewed: bool = False,
-                           knowledge_catalog: dict | None = None) -> tuple:
+                           knowledge_catalog: dict | None = None,
+                           diagram_specs: list[dict] | None = None) -> tuple:
     """Preserve authored math/wording and bind every source object to a unit.
 
     Units:
@@ -180,7 +182,11 @@ def compile_teaching_units(*, problem: str, reference_solution: str,
                       "math_checks":[]}
     }
     package["validated_content_sha256"]=_hash(package)
-    storyboard=build_storyboard(package)
+    options=(DirectorOptions(
+        diagrams=[DiagramSpec.model_validate(value) for value in diagram_specs],
+        max_visible_formulas=100,
+    ) if diagram_specs is not None else None)
+    storyboard=build_storyboard(package, options=options)
     execution=build_execution_plan(storyboard)
     approved={
         "schema_version":"1.0",
