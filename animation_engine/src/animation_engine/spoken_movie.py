@@ -53,6 +53,65 @@ def _audio_video_verified(video: Path, *, fps: int, expected_frames: int):
     }
 
 
+def _encode_caption_band(cues: list[dict], mapped: dict,
+                         output: Path, *, fps: int, frames: int):
+    """One frame-exact transparent subtitle stream; no 50-way FFmpeg overlay.
+
+    The original CJK/MathTex glyph PNGs are source-authentic. A 1280x88
+    transparent band is enough; only the bottom safe region ever changes.
+    """
+    from PIL import Image
+    w,h=1280,88
+    blanks=bytes(w*h*4)
+    pairs=[]
+    cache={}
+    for cue in cues:
+        key=(cue["kind"],cue["display"])
+        if key not in cache:
+            pic=Image.open(mapped[key]).convert("RGBA")
+            if pic.size!=(w,h):
+                raise LongboardError("SPOKEN_BAD_CAPTION_SAFE_REGION")
+            if pic.getchannel("A").getextrema()[0]!=0:
+                raise LongboardError("SPOKEN_CAPTION_BAND_NOT_TRANSPARENT")
+            cache[key]=pic.tobytes()
+        pairs.append((cue["start_frame"],cue["end_frame"],cache[key]))
+    pairs.sort(key=lambda x:x[0])
+    command=[
+        "ffmpeg","-hide_banner","-loglevel","error","-y",
+        "-f","rawvideo","-pixel_format","rgba",
+        "-video_size",f"{w}x{h}",
+        "-framerate",str(fps),"-i","pipe:0",
+        "-c:v","ffv1","-pix_fmt","bgra",str(output),
+    ]
+    proc=subprocess.Popen(command,stdin=subprocess.PIPE,stderr=subprocess.PIPE)
+    try:
+        cursor=0
+        for start,end,raw in pairs:
+            if start<cursor or end<=start or end>frames:
+                raise LongboardError("SPOKEN_CAPTION_FRAME_OVERLAP")
+            for _ in range(start-cursor):
+                proc.stdin.write(blanks)
+            for _ in range(end-start):
+                proc.stdin.write(raw)
+            cursor=end
+        for _ in range(frames-cursor):
+            proc.stdin.write(blanks)
+        proc.stdin.close()
+        err=proc.stderr.read()
+        status=proc.wait()
+        if status:
+            raise LongboardError(
+                "SPOKEN_CAPTION_BAND_ENCODE_FAILED: "
+                +err.decode("utf-8","replace")[-500:]
+            )
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+    if not output.is_file() or output.stat().st_size<1000:
+        raise LongboardError("SPOKEN_CAPTION_BAND_MISSING")
+
+
 def render_spoken_classroom(
     input_file: Path | str, *,
     output_mp4: Path, output_json: Path,
@@ -119,38 +178,26 @@ def render_spoken_classroom(
                 image=caption_dir/f"mathtex_caption_{digest}.png"
                 render_caption_png(cue["kind"],cue["display"],image)
                 mapped[key]=image
+        subtitle_video=root/"mathtex_subtitle_band.mkv"
+        _encode_caption_band(
+            cues,mapped,subtitle_video,fps=fps,
+            frames=rendered["actual_video_frames"],
+        )
         final=root/"full_voiced_classroom.mp4"
-        images=[]
-        filters=[]
-        before="[0:v]"
-        # A caption segment exists iff the actual TTS clip is audible.
-        # There is no subtitle between clips, and nothing is inferred
-        # from unspoken MathTex objects, headings or geometric labels.
-        for index,cue in enumerate(cues):
-            png=mapped[(cue["kind"],cue["display"])]
-            images.extend(["-loop","1","-framerate",str(fps),"-i",str(png)])
-            nxt=f"[v{index}]"
-            start=cue["start_frame"]/fps
-            end=cue["end_frame"]/fps
-            filters.append(
-                f"{before}[{index+2}:v]overlay=0:628:"
-                "shortest=1:eof_action=repeat:"
-                f"enable='gte(t,{start:.5f})*lt(t,{end:.5f})'{nxt}"
-            )
-            before=nxt
         duration=rendered["actual_video_frames"]/fps
-        args=[
+        _run([
             "ffmpeg","-hide_banner","-loglevel","error","-y",
             "-i",str(silent),"-i",str(audio_wav),
-            *images,"-filter_complex",";".join(filters),
-            "-map",before,"-map","1:a",
+            "-i",str(subtitle_video),
+            "-filter_complex",
+            "[0:v][2:v]overlay=0:628:shortest=1:eof_action=pass[v]",
+            "-map","[v]","-map","1:a",
             "-c:v","libx264","-preset","veryfast","-crf","20",
             "-pix_fmt","yuv420p","-r",str(fps),
             "-c:a","aac","-b:a","128k",
             "-t",f"{duration:.5f}",
             "-movflags","+faststart",str(final),
-        ]
-        _run(args,"SPOKEN_VOICED_CAPTION_MUX_FAILED")
+        ],"SPOKEN_VOICED_CAPTION_MUX_FAILED")
         verified=_audio_video_verified(
             final,fps=fps,expected_frames=rendered["actual_video_frames"],
         )
