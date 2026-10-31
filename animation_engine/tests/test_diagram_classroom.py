@@ -155,6 +155,7 @@ def test_filled_region_cannot_appear_before_its_boundary_curves():
         checked_diagram_classroom(bad,b,e)
     bad=copy.deepcopy(m)
     bad["filled_regions"][0]["upper_curve_id"]="lower_parabola"
+    bad["filled_regions"][0]["lower_curve_id"]="upper_line"
     with pytest.raises(LongboardError,match="DIAGRAM_REGION_UPPER_BELOW_LOWER"):
         checked_diagram_classroom(bad,b,e)
 
