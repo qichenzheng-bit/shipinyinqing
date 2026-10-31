@@ -726,7 +726,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                if proof is not None else {}),
             "carry_object_ids":(
                 [a["block_id"] for a in added if a.get("carry")]
-                if computation is not None or proof is not None else []
+                if (computation is not None or proof is not None
+                    or diagram is not None) else []
             ),
             **({"proof_carry_rows":carry_rows} if proof is not None else {}),
             "erase_before":clear,
