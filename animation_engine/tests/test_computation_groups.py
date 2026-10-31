@@ -92,7 +92,8 @@ def test_long_second_integral_uses_only_approved_intermediate_checkpoint():
     assert not any(b["kind"]=="math" and
                    b["block_id"]=="m_i2_result" and b.get("carry")
                    for b in phase2["added_blocks"])
-    assert phase2["math_write_count"]==3
+    assert phase2["math_write_count"]==5
+    assert "m_b_i2_j_rule" in plan["math_written_ids"]
 
 
 def test_mid_part_page_break_without_teacher_approved_checkpoint_rejected():
