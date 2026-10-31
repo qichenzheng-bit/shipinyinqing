@@ -127,7 +127,7 @@ def test_each_proof_formula_row_stays_centered_when_guidance_is_left(variant):
                    for kind in ("less","equal","greater"))
 
 
-def test_carry_math_is_centered_individually_after_full_board_erase():
+def test_carry_math_rows_centered_after_full_board_erase():
     _,board,execution,cues,policy,manifest,units=build_variant("C")
     taller=lambda tex,height:GlyphSize(210,75)
     plan=make_chalkboard_plan(
@@ -136,10 +136,46 @@ def test_carry_math_is_centered_individually_after_full_board_erase():
     assert plan["page_count"]>1
     for event in plan["events"]:
         if event["erase_before"]:
-            carry=[b for b in event["added_blocks"] if b.get("carry")]
+            carry={b["block_id"]:b for b in event["added_blocks"]
+                   if b.get("carry")}
             assert carry
-            for block in carry:
-                assert abs(block["x"]+block["w"]/2-BOARD_CENTER_X)<1.01
+            rows=event["proof_carry_rows"]
+            assert [mid for row in rows for mid in row]==list(carry)
+            for row in rows:
+                left=min(carry[mid]["x"] for mid in row)
+                right=max(carry[mid]["x"]+carry[mid]["w"] for mid in row)
+                assert abs((left+right)/2-BOARD_CENTER_X)<1.01
+
+
+
+def test_A_second_page_recap_grouping_and_breathing_space():
+    """Regression for cramped upper part of A's second classroom board."""
+    _,board,execution,cues,policy,manifest,units=build_variant("A")
+    plan=make_chalkboard_plan(
+        board,execution,cues,policy,measure=measure,proof_manifest=manifest
+    )
+    assert plan["page_count"]==2
+    first=next(e for e in plan["events"] if e["page_index"]==2)
+    assert first["erase_before"]
+    assert first["event_id"]=="e_lemma"
+    assert first["proof_carry_rows"]==[
+        ["m_condition","m_goal"],["m_factor_result"]
+    ]
+    by_id={b["block_id"]:b for b in first["added_blocks"]}
+    condition,goal,factor,lemma=(
+        by_id[mid] for mid in (
+            "m_condition","m_goal","m_factor_result","m_lemma_result"
+        )
+    )
+    assert condition["x"]+condition["w"]+35<=goal["x"]
+    assert abs((condition["x"]+goal["x"]+goal["w"])/2
+               -BOARD_CENTER_X)<1.01
+    assert abs((factor["x"]+factor["w"]/2)-BOARD_CENTER_X)<1.01
+    # Gap between proof recap rows, then between recap and a NEW step.
+    assert factor["y"]-(goal["y"]+goal["h"])>=25
+    assert lemma["y"]-(factor["y"]+factor["h"])>=30
+    assert all(b["y"]+b["h"]<=BOARD_BOTTOM_Y for e in plan["events"]
+               for b in e["added_blocks"])
 
 
 @pytest.mark.parametrize("variant",["A","B","C"])
