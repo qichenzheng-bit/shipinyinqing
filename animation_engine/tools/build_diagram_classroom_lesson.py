@@ -246,7 +246,10 @@ def build_variant(which):
         "source_event_id":"e_intro",
         "filled_regions":regions,"stages":stages,
     }
-    return pkg,board,execution,cues,simple_classroom_policy(),manifest,units,catalog
+    policy=simple_classroom_policy(
+        result_ids=("m_area_rule","m_area_step") if which=="B" else ()
+    )
+    return pkg,board,execution,cues,policy,manifest,units,catalog
 
 
 def export_variant(path,which):
