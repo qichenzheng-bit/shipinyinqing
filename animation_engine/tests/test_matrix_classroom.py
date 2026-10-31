@@ -152,6 +152,68 @@ def test_matrix_operation_tex_is_canonical_and_mathtex_safe():
     )
 
 
+
+@pytest.mark.parametrize("entries,augmented_at,column_spec", [
+    ([["1","2","3"],["4","5","6"]],2,"cc|c"),
+    ([["2","1","1","6"],["1","1","0","4"],["0","0","1","3"]],3,"ccc|c"),
+    ([["1","0","0","1"],["0","1","1","0"]],2,"cc|cc"),
+])
+def test_augmented_matrix_has_height_matched_outer_brackets_and_divider(
+        entries, augmented_at, column_spec):
+    tex=matrix_latex(entries,augmented_at=augmented_at)
+    assert tex.startswith(r"\left[\begin{array}{"+column_spec+"}")
+    assert tex.endswith(r"\end{array}\right]")
+    assert tex.count(r"\left[")==tex.count(r"\right]")==1
+    assert tex.count("|")==1
+    from animation_engine.mathtex_renderer import validate_math_latex
+    validate_math_latex(tex)
+
+
+@pytest.mark.parametrize("variant,opening,closing", [
+    ("A",r"\left[\begin{array}{ccc|c}",r"\end{array}\right]"),
+    ("B",r"\left[\begin{array}{cc|cc}",r"\end{array}\right]"),
+])
+def test_every_video_augmented_state_contains_both_outer_brackets(
+        variant, opening, closing):
+    package,board,execution,cues,policy,manifest,units,_=build_variant(variant)
+    sources={o["math_object_id"]:o["latex"]
+             for o in package["lesson"]["math_objects"]}
+    ids=[manifest["initial"]["matrix_id"]]
+    for step in manifest["steps"]:
+        ids.extend((step["before_id"],step["after_id"]))
+    assert len(ids)==1+2*len(manifest["steps"])
+    for mid in ids:
+        tex=sources[mid]
+        assert tex.startswith(opening), mid
+        assert tex.endswith(closing), mid
+        assert tex.count(r"\left[")==tex.count(r"\right]")==1
+        assert tex.count("|")==1
+    # All originally reviewed matrix operations must remain semantically
+    # valid after adding visual delimiters, not only visually plausible.
+    assert len(checked_matrix_steps(manifest,board,execution).steps)==len(manifest["steps"])
+
+
+def test_nonaugmented_brackets_determinant_bars_and_equation_brace_remain():
+    a, *_=build_variant("A")
+    b, *_=build_variant("B")
+    c, *_=build_variant("C")
+    assert r"\begin{cases}" in a["source"]["problem"]
+    assert r"\end{cases}" in a["source"]["problem"]
+    assert r"\begin{bmatrix}" in b["source"]["problem"]
+    assert r"\end{bmatrix}" in b["source"]["problem"]
+    assert r"\begin{vmatrix}" in c["source"]["problem"]
+    assert r"\end{vmatrix}" in c["source"]["problem"]
+    assert matrix_latex([["1","2"],["3","4"]])==(
+        r"\begin{bmatrix}1&2\\3&4\end{bmatrix}"
+    )
+    assert matrix_latex([["1","2"],["3","4"]],determinant=True)==(
+        r"\begin{vmatrix}1&2\\3&4\end{vmatrix}"
+    )
+    assert matrix_latex([["2","1"],["1","1"]],augmented_at=1)!=(
+        r"\begin{array}{c|c}2&1\\1&1\end{array}"
+    )
+
+
 def test_invalid_carry_modes_are_rejected_instead_of_losing_steps():
     _,b,e,c,p,m,_,_=build_variant("A")
     other={
