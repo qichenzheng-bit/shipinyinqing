@@ -138,7 +138,7 @@ def test_invalid_source_and_semantics_fail_closed(mutation,expected):
     elif mutation=="duplicate_part":
         changed["parts"][2]["id"]="I2"
     elif mutation=="missing_event":
-        changed["parts"][1]["event_ids"]=["e_i2start"]
+        changed["parts"]=changed["parts"][:2]
     elif mutation=="wrong_checkpoint":
         changed["parts"][1]["checkpoints"][0]["object_id"]="m_i2_first_parts"
     with pytest.raises(LongboardError,match=expected):
