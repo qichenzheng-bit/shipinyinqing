@@ -54,6 +54,8 @@ def test_every_real_math_note_and_diagram_is_spoken(example):
     ("missing_event","SPOKEN_EVENT_COVERAGE"),
     ("wrong_event_order","SPOKEN_EVENT_ORDER"),
     ("no_cue_coverage","SPOKEN_TEACHING_CUE_UNCOVERED"),
+    ("question_silent","SPOKEN_QUESTION_NOT_READ"),
+    ("question_wrong_source","SPOKEN_QUESTION_SOURCE_MUTATED"),
     ("missing_span","SPOKEN_ACTION_COVERAGE"),
     ("swapped_math_object","SPOKEN_ACTION_ORDER"),
     ("silenced_math","SPOKEN_SILENT_ACTION"),
@@ -81,6 +83,8 @@ def test_reject_missing_narration_and_answer_source_language(example,variant,err
     elif variant=="missing_event": ev.pop()
     elif variant=="wrong_event_order": first["event_id"]="e_wrong"
     elif variant=="no_cue_coverage": first["pedagogical_cue_covered"]=False
+    elif variant=="question_silent": first["question_read_aloud"]=False
+    elif variant=="question_wrong_source": first["question_source_sha256"]="0"*64
     elif variant=="missing_span": first["spans"].pop()
     elif variant=="swapped_math_object": math["object_id"]="m_unknown"
     elif variant=="silenced_math": math["parts"]=[]
