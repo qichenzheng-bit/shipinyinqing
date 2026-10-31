@@ -186,7 +186,7 @@ def build_variant(variant: str):
     groups=[]
     if variant=="B":
         units.append(unit(
-            "i1","先算第一项","这一项是普通的幂函数积分，直接写出结果。",
+            "i1","幂函数积分公式","这一项是普通的幂函数积分，直接写出结果。",
             "完成第一项，无需冗余拆步。",segments[0],phase="knowledge"
         ))
         groups.append({
@@ -195,13 +195,13 @@ def build_variant(variant: str):
             "safe_break_after":[],"checkpoints":[]
         })
         units.append(unit(
-            "i2start","第二项先做一次分部积分",
+            "i2start","分部积分公式与本题取值",
             "先把二次幂降低为一次幂，保留需要继续计算的中间积分。",
             "第一段求出第二次分部积分所依赖的准确中间关系。",
             segments[1],phase="knowledge"
         ))
         units.append(unit(
-            "i2finish","继续计算第二项",
+            "i2finish","分部积分法求子积分",
             "再次使用分部积分公式求子积分，算完后代回原式。",
             "沿用前面已经得到的中间关系，完成第二项。",
             segments[2],phase="knowledge"
@@ -215,7 +215,7 @@ def build_variant(variant: str):
                             "object_id":"m_i2_checkpoint"}]
         })
         units.append(unit(
-            "i3","最后计算第三项","这一项可直接利用正弦函数的原函数。",
+            "i3","正弦函数积分公式","这一项可直接利用正弦函数的原函数。",
             "完成第三项。",segments[3],phase="knowledge"
         ))
         groups.append({
@@ -229,9 +229,10 @@ def build_variant(variant: str):
             uid="i"+str(i)
             phase="knowledge"
             heading=(
-                "第一项用分部积分" if i==1
-                else "第二项用换元积分" if i==2
-                else "计算第"+("三" if i==3 else "四" if i==4 else "五")+"项"
+                "分部积分法" if i==1
+                else "换元积分法" if i==2
+                else "幂函数积分" if i==3
+                else "正弦函数积分" if i==4 else "指数函数积分"
             )
             detail=(
                 "使用分部积分公式，先选变量，再算边界项。" if i==1
