@@ -20,6 +20,13 @@ from animation_engine.longboard_plan import LongboardError
 from animation_engine.mathtex_renderer import validate_math_latex
 from build_proof_classroom_lesson import build_variant as proof
 from build_proof_classroom_lesson import export_variant as export_proof
+from build_proof_classroom_lesson import _knowledge_catalog as proof_catalog
+from animation_engine.proof_chain import checked_proof_chain
+from build_fresh_taylor_classroom import (
+    build_new as build_taylor,
+    UNITS as TAYLOR_UNITS,
+    _knowledge_catalog as taylor_catalog,
+)
 from build_multipart_integral_lesson import build_variant as integrals
 from build_multipart_integral_lesson import export_variant as export_integrals
 from build_matrix_classroom_lesson import build_variant as matrix
@@ -34,6 +41,14 @@ from build_complete_ode_lesson import UNITS as ODE_UNITS
 ])
 def test_real_proof_knowledge_not_local_arithmetic(variant,rule,event):
     pkg,board,execution,cues,policy,manifest,units=proof(variant)
+    audited=proof_catalog(variant,units)
+    proof_contract=checked_proof_chain(manifest,board,execution)
+    for point in audited["points"]:
+        mathids={f["object_id"] for f in point["formulae"]}
+        for event_id in point["used_in"]:
+            assert mathids.intersection(
+                proof_contract.for_event(event_id).cites
+            ), (variant,event_id)
     catalog=[u for u in units if u["phase"]=="knowledge"]
     assert len(catalog)==1, "No procedural proof stage should be colored knowledge"
     knowledge=catalog[0]
@@ -99,6 +114,18 @@ def test_matrix_knowledge_is_a_principle_not_one_row_operation(tmp_path,variant)
     assert point["used_in"]==["e_intro","e_step1"]
     assert point["formulae"][0]["object_id"]=="m_intro_rule"
     assert point["kind"]=="property"
+
+
+def test_taylor_knowledge_is_genuine_maclaurin_formulas_not_truncation_instruction():
+    pkg,board,execution,cues,policy=build_taylor()
+    catalog=taylor_catalog()
+    checked_core_knowledge(TAYLOR_UNITS,catalog)
+    point=catalog["points"][0]
+    assert point["title"]=="常用麦克劳林展开公式"
+    assert {f["object_id"] for f in point["formulae"]}=={
+        "m_sin","m_cosdiff","m_invcos"
+    }
+    assert point["used_in"]==["e_product","e_quotient"]
 
 
 def test_old_ode_derivation_no_longer_mislabeled_core_knowledge():
