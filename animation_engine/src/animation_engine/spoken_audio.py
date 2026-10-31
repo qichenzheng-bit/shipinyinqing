@@ -103,9 +103,12 @@ async def _edge_clip(index: int, text: str, voice: str,
         last=None
         for attempt in range(2):
             try:
-                await edge_tts.Communicate(
-                    text, voice=voice, rate="-4%",
-                ).save(str(mp3))
+                await asyncio.wait_for(
+                    edge_tts.Communicate(
+                        text, voice=voice, rate="-4%",
+                    ).save(str(mp3)),
+                    timeout=35,
+                )
                 if not mp3.is_file() or mp3.stat().st_size < 200:
                     raise LongboardError("VOICE_PROVIDER_RETURNED_NO_AUDIO")
                 return _decode_mp3_to_pcm(mp3,wav)
