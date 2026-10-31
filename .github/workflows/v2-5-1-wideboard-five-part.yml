@@ -1,0 +1,94 @@
+name: V2.5.1 wideboard five-term full classroom
+on:
+  push:
+    branches: [fix/v2-5-1-knowledge-wideboard]
+    paths:
+      - '.github/workflows/v2-5-1-wideboard-five-part.yml'
+      - 'animation_engine/src/animation_engine/computation_groups.py'
+      - 'animation_engine/src/animation_engine/persistent_chalkboard.py'
+      - 'animation_engine/tools/build_multipart_integral_lesson.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  five-term-full-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Genuine MathTex and CJK dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+      - run: python -m pip install -e './visual_director[test]' -e './animation_engine[render,test]' sympy
+      - name: Independent exact verification of five-term integral
+        run: |
+          python - <<'PY'
+          import sympy as s
+          x=s.symbols('x',real=True)
+          value=s.integrate(x*s.exp(x)+x/(1+x*x)+x*x+s.sin(x)+s.exp(x),(x,0,1))
+          assert s.simplify(value-(s.E+s.Rational(4,3)+s.log(2)/2-s.cos(1)))==0
+          print('FIVE_PART_MATH_VERIFIED',value)
+          PY
+      - name: Build teacher-reviewed 5-term case with consolidation recap
+        run: |
+          mkdir -p five-term-evidence
+          python animation_engine/tools/build_multipart_integral_lesson.py --variant C --output five-term-evidence
+      - name: Produce real metric-based safe-page plan
+        run: |
+          P=five-term-evidence
+          math-animation plan-longboard --storyboard "$P/storyboard.json" --execution "$P/execution.json" --classroom-cues "$P/teacher_approved_cues.json" --policy "$P/page_policy.json" --computation-groups "$P/computation_groups.json" --output "$P/board_pages.json"
+      - name: True 30 fps Manim movie for five-term recap and final simplification
+        run: |
+          P=five-term-evidence
+          math-animation render-longboard --storyboard "$P/storyboard.json" --execution "$P/execution.json" --classroom-cues "$P/teacher_approved_cues.json" --policy "$P/page_policy.json" --computation-groups "$P/computation_groups.json" --output "$P/five_term_classroom.mp4" --manifest "$P/video_manifest.json" --fps 30
+          ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=width,height,nb_read_frames,r_frame_rate -of json "$P/five_term_classroom.mp4" > "$P/ffprobe.json"
+      - name: Extract all five mathematical result states plus recap and final
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from PIL import Image,ImageDraw
+          p=Path('five-term-evidence')
+          m=json.loads((p/'video_manifest.json').read_text())
+          q=json.loads((p/'ffprobe.json').read_text())['streams'][0]
+          assert (q['width'],q['height'],q['r_frame_rate'])==(1280,720,'30/1')
+          assert int(q['nb_read_frames'])>800
+          assert m['computation_groups']['part_count']==5
+          assert m['event_count']==8 and m['page_count']>=2
+          assert m['erase_count']==m['page_count']-1
+          assert m['in_page_fadeout_count']==0==m['in_page_reposition_count']
+          assert m['voice_status']=='not_recorded'
+          plan=json.loads((p/'board_pages.json').read_text())
+          recap=next(e for e in plan['events'] if e['event_id']=='e_recap')
+          final=next(e for e in plan['events'] if e['event_id']=='e_final')
+          assert recap['computation_role']=='recap'
+          if final['erase_before']:
+              assert final['carry_object_ids']==['m_recap']
+          assert plan['math_written_ids'][-1]  # exact set already contract-checked
+          events=['e_i1','e_i2','e_i3','e_i4','e_i5','e_recap','e_final']
+          grid=Image.new('RGB',(1280,4*390),'#F0F2F5')
+          draw=ImageDraw.Draw(grid)
+          for i,eid in enumerate(events):
+              row=next(e for e in m['event_timing'] if e['event_id']==eid)
+              target=p/(eid+'.png')
+              subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y',
+                  '-ss',str(max(0,row['end_preview_second']-.2)),
+                  '-i',str(p/'five_term_classroom.mp4'),
+                  '-frames:v','1',str(target)],check=True)
+              shot=Image.open(target).convert('RGB')
+              assert shot.size==(1280,720)
+              x=(i%2)*640;y=(i//2)*390+24
+              grid.paste(shot.resize((640,360)),(x,y))
+              draw.text((x+10,y-19),eid,fill='#111111')
+          grid.save(p/'five_term_full_video_stages.png')
+          print('FIVE_PART_REAL_MP4_PASS',q['nb_read_frames'],'frames')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-5-1-wideboard-five-part-real-mp4
+          path: five-term-evidence/
+          if-no-files-found: warn
