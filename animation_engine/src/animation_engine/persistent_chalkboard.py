@@ -30,13 +30,16 @@ from .board_motion import overlaps
 
 BOARD_START_Y = 148
 BOARD_BOTTOM_Y = 620
-BOARD_X = 320
-BOARD_WIDTH = 655
-BOARD_ROW_GAP = 13
-NOTE_MAX_CHARS_PER_LINE = 32
-# A real 16px CJK glyph is narrower than 32*~20px, so these fit in 655px.
+# Wide board: left margin and right side are both usable, without touching
+# the fixed question or the separate lower subtitle safety area.
+BOARD_X = 110
+BOARD_WIDTH = 1060
+BOARD_ROW_GAP = 11
+KNOWLEDGE_WIDTH = 430
+KNOWLEDGE_GUTTER = 24
+NOTE_MAX_CHARS_PER_LINE = 48
 NOTE_HEIGHT = 29
-NOTE_DETAIL_LINE_HEIGHT = 24
+NOTE_DETAIL_LINE_HEIGHT = 23
 
 
 def _strict_sources(storyboard, execution, cues, policy):
@@ -71,16 +74,19 @@ def _strict_sources(storyboard, execution, cues, policy):
     return board,plan,teaching,selected
 
 
-def _note_lines(detail: str) -> list[str]:
-    return [detail[i:i+NOTE_MAX_CHARS_PER_LINE]
-            for i in range(0,len(detail),NOTE_MAX_CHARS_PER_LINE)]
+def _note_lines(detail: str, width: int = BOARD_WIDTH) -> list[str]:
+    # Conservative Chinese line length. The final PIL glyph bounds are
+    # checked again before rendering; never let a note spill into math.
+    chars=min(NOTE_MAX_CHARS_PER_LINE,max(10,int(width/18)))
+    return [detail[i:i+chars] for i in range(0,len(detail),chars)]
 
 
-def _math_placement(mid,sources,selected,measure,size_cache,y):
+def _math_placement(mid,sources,selected,measure,size_cache,y, *,
+                    x=BOARD_X,width=BOARD_WIDTH):
     source=sources[mid]
-    parts=_size_parts(mid,source,selected,measure,720,size_cache,BOARD_WIDTH)
+    parts=_size_parts(mid,source,selected,measure,720,size_cache,width)
     return _make_placement(
-        mid,source,parts,BOARD_X,y,BOARD_WIDTH,(1280,720),"working",
+        mid,source,parts,x,y,width,(1280,720),"working",
         selected.math_base_scale,selected.math_min_scale
     )
 
@@ -122,8 +128,21 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             raise LongboardError(
                 f"CHALKBOARD_DUPLICATE_MATH_WRITE: {scene.event_id}"
             )
+        # For a reviewed integral, dedicate the left portion to the
+        # knowledge description and its *real MathTex formula*. Put the
+        # complete step-by-step computation on the right. The two sections
+        # write in source order and remain visible until a whole-board wipe.
+        knowledge_id=(computation.knowledge_for_event(scene.event_id)
+                      if computation is not None else None)
+        paired=(knowledge_id is not None and cue["phase"]=="knowledge"
+                and newids and newids[0]==knowledge_id)
+        if knowledge_id is not None and not paired:
+            raise LongboardError(
+                "COMPUTATION_KNOWLEDGE_LAYOUT_MISMATCH: "+scene.event_id
+            )
         note_needed=cue["phase"] in BOARD_GUIDANCE_PHASES
-        lines=_note_lines(cue["detail"]) if note_needed else []
+        note_width=KNOWLEDGE_WIDTH if paired else BOARD_WIDTH
+        lines=_note_lines(cue["detail"],note_width) if note_needed else []
         noteheight=(NOTE_HEIGHT + len(lines)*NOTE_DETAIL_LINE_HEIGHT+5
                     if note_needed else 0)
         def group_at(start_y):
@@ -137,9 +156,25 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                     "heading":PHASE_NAMES[cue["phase"]]+"："+cue["heading"],
                     "detail":cue["detail"],"lines":lines,
                     "source_step_ids":list(cue["source_step_ids"]),
-                    "x":BOARD_X,"y":y,"w":BOARD_WIDTH,"h":noteheight,
+                    "x":BOARD_X,"y":y,"w":note_width,"h":noteheight,
                 })
                 y+=noteheight+5
+            if paired:
+                item=_math_placement(knowledge_id,sources,selected,
+                                     size_of,size_cache,y,
+                                     x=BOARD_X,width=KNOWLEDGE_WIDTH)
+                additions.append({"kind":"math","block_id":knowledge_id,**item})
+                left_bottom=y+item["h"]+BOARD_ROW_GAP
+                work_x=BOARD_X+KNOWLEDGE_WIDTH+KNOWLEDGE_GUTTER
+                work_width=BOARD_WIDTH-KNOWLEDGE_WIDTH-KNOWLEDGE_GUTTER
+                work_y=start_y
+                for mid in newids[1:]:
+                    item=_math_placement(mid,sources,selected,
+                                         size_of,size_cache,work_y,
+                                         x=work_x,width=work_width)
+                    additions.append({"kind":"math","block_id":mid,**item})
+                    work_y+=item["h"]+BOARD_ROW_GAP
+                return additions,max(left_bottom,work_y)
             for mid in newids:
                 item=_math_placement(mid,sources,selected,size_of,size_cache,y)
                 additions.append({"kind":"math","block_id":mid,**item})
@@ -270,13 +305,13 @@ def _note_png(block,output):
     header_font=_font(style["font_px"])
     detail_font=_font(BOARD_DETAIL_FONT_PX)
     hbox=draw.textbbox((x,y),heading,font=header_font)
-    if hbox[2]>x+BOARD_WIDTH or hbox[3]>y+NOTE_HEIGHT:
+    if hbox[2]>x+block["w"] or hbox[3]>y+NOTE_HEIGHT:
         raise LongboardError("CHALKBOARD_NOTE_HEADER_OVERFLOW")
     draw.text((x,y),heading,font=header_font,fill=style["heading"])
     for idx,line in enumerate(block["lines"]):
         line_y=y+NOTE_HEIGHT+idx*NOTE_DETAIL_LINE_HEIGHT
         box=draw.textbbox((x,line_y),line,font=detail_font)
-        if box[2]>x+BOARD_WIDTH or box[3]>y+block["h"]:
+        if box[2]>x+block["w"] or box[3]>y+block["h"]:
             raise LongboardError("CHALKBOARD_NOTE_BODY_OVERFLOW")
         draw.text((x,line_y),line,font=detail_font,fill=BOARD_DERIVATION_INK)
     canvas.save(output)
