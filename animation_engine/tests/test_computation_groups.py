@@ -18,7 +18,7 @@ def measure(latex,pixel_height):
 
 
 @pytest.mark.parametrize("variant,parts,groups",[
-    ("A",3,5),("B",3,6),("C",5,7),
+    ("A",3,5),("B",3,6),("C",5,8),
 ])
 def test_source_contract_and_exactly_covered_subproblems(variant,parts,groups):
     pkg,board,execution,cues,policy,manifest,units,problem,result=build_variant(variant)
@@ -160,3 +160,30 @@ def test_existing_ordinary_classroom_without_groups_unchanged():
     assert "computation_groups" not in plain
     assert len(grouped["math_written_ids"])==len(plain["math_written_ids"])
     assert grouped["events"][-1]["computation_role"]=="final"
+
+
+def test_five_part_recap_rewrites_only_reviewed_source_math():
+    _,board,execution,cues,policy,manifest,_,_,_=build_variant("C")
+    layout=make_chalkboard_plan(
+        board,execution,cues,policy,measure=measure,
+        computation_manifest=manifest
+    )
+    assert layout["computation_groups"]["recap_object_id"]=="m_recap"
+    recap=next(e for e in layout["events"] if e["event_id"]=="e_recap")
+    assert recap["computation_role"]=="recap"
+    assert recap["math_write_count"]==1
+    assert recap["subproblem_id"] is None
+    final=next(e for e in layout["events"] if e["event_id"]=="e_final")
+    if final["erase_before"]:
+        assert final["carry_object_ids"]==["m_recap"]
+    # The recap itself is a real teacher-reviewed mathematical object;
+    # no invented compact approximation can appear in the new page.
+    assert "m_recap" in layout["math_written_ids"]
+
+
+def test_recap_must_be_after_every_subproblem_not_early():
+    _,board,execution,cues,policy,manifest,_,_,_=build_variant("C")
+    bad=copy.deepcopy(manifest)
+    bad["recap"]["event_id"]="e_i4"
+    with pytest.raises(LongboardError,match="COMPUTATION_RECAP_BOUNDARY"):
+        checked_computation_groups(bad,board,execution)
