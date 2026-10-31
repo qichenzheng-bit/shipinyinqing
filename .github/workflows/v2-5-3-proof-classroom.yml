@@ -110,9 +110,23 @@ jobs:
                                   max(b['x']+_ink_width(b) for b in parts))/2
                           assert abs(center-BOARD_CENTER_X)<2, (v,ev['event_id'],center)
                   if ev['erase_before']:
-                      for b in ev['added_blocks']:
-                          if b.get('carry'):
-                              assert abs(b['x']+b['w']/2-BOARD_CENTER_X)<2
+                      carry={b['block_id']:b for b in ev['added_blocks']
+                             if b.get('carry')}
+                      carry_rows=ev['proof_carry_rows']
+                      assert [mid for row in carry_rows for mid in row]==list(carry)
+                      for row in carry_rows:
+                          bounds=[carry[mid] for mid in row]
+                          center=(min(b['x'] for b in bounds)+
+                                  max(b['x']+b['w'] for b in bounds))/2
+                          assert abs(center-BOARD_CENTER_X)<2
+                      if v=='A':
+                          assert ev['event_id']=='e_lemma'
+                          assert carry_rows==[
+                              ['m_condition','m_goal'],['m_factor_result']
+                          ]
+                          fact=carry['m_factor_result']
+                          new=lookup['m_lemma_result']
+                          assert new['y']-(fact['y']+fact['h'])>=30
                   if ev['erase_before']:
                       assert prior and prior['safe_break_after']
                       assert {'m_condition','m_goal'}<=set(ev['carry_object_ids'])
