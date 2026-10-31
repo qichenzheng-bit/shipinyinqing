@@ -1,0 +1,146 @@
+name: V2.5.3 complete proof chains and real Manim classroom
+on:
+  push:
+    branches: [feature/v2-5-3-proof-classroom]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  proof-and-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install all reviewed math modules
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Verify long induction, inequality, all parameter cases and negative guards
+        run: cd animation_engine && python -m pytest tests/test_proof_classroom.py -q
+      - name: Preserve previous teacher contract
+        run: cd teacher_module && python -m pytest -q
+      - name: Preserve visual director contract
+        run: cd visual_director && python -m pytest -q
+      - name: Preserve all previous animation stages including matrix brackets
+        run: cd animation_engine && python -m pytest -q -m 'not render'
+      - name: Verify source syntax
+        run: python -m compileall -q animation_engine/src animation_engine/tools teacher_module/src visual_director/src
+  real-proof-videos:
+    needs: proof-and-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install genuine MathTex, FFmpeg and CJK rendering dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+      - name: Install actual Manim and source-verified math engine
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test]'
+      - name: Generate three independently authored proof content packages
+        run: |
+          for V in A B C; do
+            mkdir -p "proof-evidence/$V"
+            python animation_engine/tools/build_proof_classroom_lesson.py --variant "$V" --output "proof-evidence/$V"
+          done
+      - name: True MathTex measurement and verify all proof dependencies and context carry
+        run: |
+          for V in A B C; do
+            P="proof-evidence/$V"
+            math-animation plan-longboard --storyboard "$P/storyboard.json" --execution "$P/execution.json" --classroom-cues "$P/teacher_approved_cues.json" --policy "$P/page_policy.json" --proof-chain "$P/proof_chain.json" --output "$P/board_pages.json"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from animation_engine.board_motion import overlaps
+          from animation_engine.persistent_chalkboard import BOARD_CENTER_X,_ink_width
+          root=Path('proof-evidence')
+          for v,stages,branches in [('A',8,0),('B',7,0),('C',8,1)]:
+              p=root/v
+              layout=json.loads((p/'board_pages.json').read_text())
+              proof=layout['proof_chain']
+              assert proof['stage_count']==stages
+              assert proof['reference_order_verified']
+              assert proof['case_coverage_verified']
+              assert len(proof['branch_groups'])==branches
+              assert layout['alignment']['mode']=='each_unit_centered_with_header_near_top'
+              assert all(abs(page['ink_center_x']-BOARD_CENTER_X)<2
+                         and page['first_ink_y']<=layout['alignment']['max_first_ink_y']
+                         for page in layout['alignment']['pages'])
+              live={}
+              prior=None
+              for ev in layout['events']:
+                  if ev['erase_before']:
+                      assert prior and prior['safe_break_after']
+                      assert {'m_condition','m_goal'}<=set(ev['carry_object_ids'])
+                      assert set(ev['proof_cites'])<=set(ev['carry_object_ids'])
+                      live={}
+                  for b in ev['added_blocks']:
+                      assert b['block_id'] not in live
+                      assert b['y']+b['h']<=620
+                      assert all(not overlaps(b,other,margin=0) for other in live.values())
+                      live[b['block_id']]=b
+                  assert ev['visible_block_ids']==list(live)
+                  prior=ev
+              if v=='C':
+                  assert proof['branch_groups'][0]['cases']==['less','equal','greater']
+                  assert next(e for e in layout['events'] if e['event_id']=='e_merge')['proof_stage']=='merge'
+              print('V2_5_3_GENUINE_PROOF_LAYOUT',v,layout['page_count'],stages,branches)
+          PY
+      - name: Render full A B C 1280x720 30 FPS MathTex classroom proofs
+        run: |
+          for V in A B C; do
+            P="proof-evidence/$V"
+            math-animation render-longboard --storyboard "$P/storyboard.json" --execution "$P/execution.json" --classroom-cues "$P/teacher_approved_cues.json" --policy "$P/page_policy.json" --proof-chain "$P/proof_chain.json" --output "$P/proof_classroom.mp4" --manifest "$P/video_manifest.json" --fps 30
+            ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=width,height,nb_read_frames,r_frame_rate -of json "$P/proof_classroom.mp4" > "$P/ffprobe.json"
+          done
+      - name: Audit native video frames and preserve proof logic
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from PIL import Image,ImageDraw
+          root=Path('proof-evidence')
+          for v,count in [('A',8),('B',7),('C',8)]:
+              p=root/v
+              m=json.loads((p/'video_manifest.json').read_text())
+              q=json.loads((p/'ffprobe.json').read_text())['streams'][0]
+              assert (q['width'],q['height'],q['r_frame_rate'])==(1280,720,'30/1')
+              assert int(q['nb_read_frames'])>350
+              assert m['proof_chain']['stage_count']==count
+              assert m['erase_count']==m['page_count']-1
+              assert m['in_page_reposition_count']==m['in_page_fadeout_count']==0
+              assert m['voice_status']=='not_recorded'
+              ids=['e_setup']
+              if v=='A': ids+=['e_successor','e_lemma','e_final']
+              if v=='B': ids+=['e_squares','e_equality','e_final']
+              if v=='C': ids+=['e_case_less','e_case_equal','e_case_greater','e_merge','e_final']
+              shots=[]
+              for eid in ids:
+                  row=next(e for e in m['event_timing'] if e['event_id']==eid)
+                  target=p/(eid+'.png')
+                  subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y',
+                      '-ss',str(max(0,row['end_preview_second']-.2)),
+                      '-i',str(p/'proof_classroom.mp4'),'-frames:v','1',str(target)],check=True)
+                  frame=Image.open(target).convert('RGB')
+                  assert frame.size==(1280,720)
+                  shots.append((eid,frame))
+              grid=Image.new('RGB',(1280,390*((len(shots)+1)//2)),'#F0F2F5')
+              draw=ImageDraw.Draw(grid)
+              for idx,(eid,frame) in enumerate(shots):
+                  x=(idx%2)*640
+                  y=(idx//2)*390+25
+                  grid.paste(frame.resize((640,360)),(x,y))
+                  draw.text((x+8,y-19),eid,fill='#111111')
+              grid.save(p/'proof_key_frames.png')
+              print('V2_5_3_FULL_PROOF_MOVIE_PASS',v,q['nb_read_frames'],
+                    'frames',m['page_count'],'pages')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-5-3-real-proofs-mp4-frames-and-source
+          path: proof-evidence/
+          if-no-files-found: warn
