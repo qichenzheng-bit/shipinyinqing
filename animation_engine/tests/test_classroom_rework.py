@@ -96,8 +96,8 @@ def test_reference_classroom_four_categories_have_stable_distinct_colors():
     colors = [BOARD_TEXT_STYLE[name]["heading"] for name in phases]
     assert len(set(colors)) == len(phases)
     assert set(phases).issubset(BOARD_GUIDANCE_PHASES)
-    assert [BOARD_TEXT_STYLE[name]["font_px"] for name in phases] == [18]*4
-    assert BOARD_DETAIL_FONT_PX == 16
+    assert [BOARD_TEXT_STYLE[name]["font_px"] for name in phases] == [17]*4
+    assert BOARD_DETAIL_FONT_PX == 15
     assert BOARD_DERIVATION_INK == "#111111"
     board, plan, cues, policy = sample()
     assert any(c["phase"]=="pitfall" for c in cues["events"])
