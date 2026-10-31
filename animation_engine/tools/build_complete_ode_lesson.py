@@ -41,9 +41,9 @@ UNITS=[
     ],
   },
   {
-    "id":"derive","event_type":"derivation","phase":"knowledge",
-    "heading":"为什么左边能合并",
-    "detail":"乘上积分因子后，对照乘积求导公式，再对两边积分。",
+    "id":"derive","event_type":"derivation","phase":"calculate",
+    "heading":"用乘积求导完成推导",
+    "detail":"本段是在本题中使用求导法则进行变形与积分，不是独立知识点公式。",
     "goal":"完整展示乘积分解与积分过程，不能跳过等式变形。",
     "pause_seconds":3.0,"write_seconds":1.0,
     "math":[
