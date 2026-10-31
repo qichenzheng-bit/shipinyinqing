@@ -279,7 +279,7 @@ def _wipe_preserving_diagram(prior_mp4: Path, dest: Path,
 
 def render_adaptive_flow(input_file: Path | str, *,
                          output_mp4: Path, output_json: Path,
-                         fps: int = 30) -> dict:
+                         fps: int = 30, narration_schedules=None) -> dict:
     if (type(fps) is not int or not 8 <= fps <= 60
             or Path(output_mp4).suffix.lower() != ".mp4"
             or Path(output_json).suffix.lower() != ".json"):
@@ -302,6 +302,10 @@ def render_adaptive_flow(input_file: Path | str, *,
             rendered = render_persistent_chalkboard(
                 stage.storyboard, stage.execution, stage.cues, stage.policy,
                 output_mp4=raw, output_json=raw_manifest, fps=fps,
+                narration_events=(
+                    narration_schedules[stage.stage_id]
+                    if narration_schedules is not None else None
+                ),
                 layout_hint=(
                     "diagram_left" if spec.layout == "math_left_diagram_right"
                     else "preserve_diagram" if spec.layout == "diagram_native"
