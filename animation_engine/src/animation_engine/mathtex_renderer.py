@@ -44,6 +44,7 @@ _ALLOWED_MACROS = frozenset({
     "vec", "overrightarrow", "underbrace", "overbrace",
     "left", "right", "bigl", "bigr", "Bigl", "Bigr",
     "begin", "end", "dots", "cdots", "ldots",
+    "det", "leftrightarrow", "longrightarrow", "mid",
 })
 _ALLOWED_ENVIRONMENTS = frozenset({
     "matrix", "pmatrix", "bmatrix", "vmatrix", "Vmatrix", "array",
