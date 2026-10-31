@@ -33,6 +33,8 @@ class ComputationGroups:
     final_event_id: str
     final_object_id: str
     source_storyboard_sha256: str
+    recap_event_id: str | None = None
+    recap_object_id: str | None = None
 
     @property
     def owner_by_event(self) -> dict[str, str]:
@@ -40,6 +42,14 @@ class ComputationGroups:
 
     def carry_at(self, event_id: str, written: set[str]) -> list[str]:
         """Only verified *already written* source mathematics may be carried."""
+        # For five or more results, a teacher may write ONE independently
+        # reviewed recap containing the completed values before final
+        # simplification. Carry the recap, never a guessed shorthand.
+        if self.recap_object_id is not None:
+            if event_id==self.recap_event_id:
+                return []  # the recap itself restates every completed part
+            if self.recap_object_id in written:
+                return [self.recap_object_id]
         keep = []
         if self.decomposition_object_id in written:
             keep.append(self.decomposition_object_id)
@@ -67,6 +77,7 @@ class ComputationGroups:
     def event_info(self, event_id: str) -> dict:
         owner=self.owner_by_event.get(event_id)
         kind=("decomposition" if event_id==self.decomposition_event_id
+              else "recap" if event_id==self.recap_event_id
               else "final" if event_id==self.final_event_id
               else "subproblem")
         return {"computation_role":kind,"subproblem_id":owner,
@@ -87,6 +98,7 @@ class ComputationGroups:
                                for eid,mid in p.checkpoints],
             } for p in self.parts],
             "final_object_id":self.final_object_id,
+            "recap_object_id":self.recap_object_id,
         }
 
 
@@ -96,10 +108,14 @@ def checked_computation_groups(
     """Strict source-ordered contract, not a permissive decoration layer."""
     board=StoryboardPlan.model_validate(storyboard)
     plan=ExecutionPlan.model_validate(execution)
-    if not isinstance(payload,dict) or set(payload)!={
+    required={
         "schema_version","mode","source_storyboard_sha256",
         "teacher_reviewed","decomposition","parts","final"
-    } or payload["schema_version"]!="1.0" or payload["mode"]!="multi_part_computation":
+    }
+    if (not isinstance(payload,dict)
+            or set(payload) not in (required,required|{"recap"})
+            or payload.get("schema_version")!="1.0"
+            or payload.get("mode")!="multi_part_computation"):
         raise LongboardError("COMPUTATION_GROUPS_INVALID_SCHEMA")
     if payload["teacher_reviewed"] is not True:
         raise LongboardError("COMPUTATION_GROUPS_NEED_TEACHER_REVIEW")
@@ -137,6 +153,12 @@ def checked_computation_groups(
             raise LongboardError("COMPUTATION_UNKNOWN_SOURCE_OBJECT: "+str(object_id))
     check_write(decomp["event_id"],decomp["object_id"])
     check_write(final["event_id"],final["object_id"])
+    recap=payload.get("recap")
+    if recap is not None:
+        if (not isinstance(recap,dict) or set(recap)!={"event_id","object_id"}
+                or len(evorder)<4 or recap["event_id"]!=evorder[-2]):
+            raise LongboardError("COMPUTATION_RECAP_BOUNDARY")
+        check_write(recap["event_id"],recap["object_id"])
     raw_parts=payload["parts"]
     if not isinstance(raw_parts,list) or not 2<=len(raw_parts)<=20:
         raise LongboardError("COMPUTATION_PART_COUNT")
@@ -197,13 +219,17 @@ def checked_computation_groups(
             safe_break_after=tuple(safe),checkpoints=tuple(checked)
         ))
         assigned.extend(group_events)
-    expected=evorder[1:-1]
+    expected=evorder[1:-2] if recap is not None else evorder[1:-1]
     if assigned!=expected:
         raise LongboardError(
             "COMPUTATION_EVENTS_MISSING_OR_UNORDERED: expected "+repr(expected)
         )
     if (decomp["object_id"] in output_ids or final["object_id"] in output_ids
-            or final["object_id"]==decomp["object_id"]):
+            or final["object_id"]==decomp["object_id"]
+            or (recap is not None and
+                (recap["object_id"] in output_ids
+                 or recap["object_id"] in
+                    (final["object_id"],decomp["object_id"])))):
         raise LongboardError("COMPUTATION_ROLE_MATH_REUSED")
     return ComputationGroups(
         decomposition_event_id=decomp["event_id"],
@@ -212,4 +238,6 @@ def checked_computation_groups(
         final_event_id=final["event_id"],
         final_object_id=final["object_id"],
         source_storyboard_sha256=plan.source_storyboard_sha256,
+        recap_event_id=recap["event_id"] if recap is not None else None,
+        recap_object_id=recap["object_id"] if recap is not None else None,
     )
