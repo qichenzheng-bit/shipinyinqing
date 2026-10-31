@@ -196,11 +196,20 @@ def parameter_cases():
               math("goal",r"\forall x\in\mathbb{R},\quad x^2-2ax+1\geq0",
                    "这里的全称量词不能丢掉。")],
              phase="strategy",event_type="orient"),
+        unit("knowledge_quadratic","二次函数顶点式与最小值",
+             "开口向上的二次函数在顶点取得最小值，可用于判断恒非负。",
+             "掌握二次函数顶点式及最小值性质，再用于参数讨论。",
+             [math("quadratic_form",r"A>0,\quad f(x)=A(x-h)^2+k",
+                   "开口向上二次函数的一般顶点式及适用条件。"),
+              math("quadratic_minimum",
+                   r"f(h)=k\leq f(x),\quad\forall x\in\mathbb{R}",
+                   "最小值等于顶点处的函数值。")],
+             phase="knowledge",event_type="orient"),
         unit("square","先对二次式配方","直接配成一个平方加常数，便于讨论参数。",
              "建立不漏掉任意实数的推导基础。",
              [math("square",r"x^2-2ax+1=(x-a)^2+1-a^2",
                    "等式对所有实数参数和变量均成立。")],
-             phase="knowledge"),
+             phase="calculate"),
         unit("necessary","检查最关键的取值","令变量等于参数，立刻得到非负性的必要条件。",
              "先给出参数范围的必要性，而非先猜答案。",
              [math("critical",r"x=a,\quad x^2-2ax+1=1-a^2",
@@ -239,8 +248,12 @@ def parameter_cases():
     ]
     stages=[
         stage("setup","setup",["condition","goal"],[]),
-        stage("square","derivation",["square"],["condition","goal"]),
-        stage("necessary","lemma",["critical"],["square","goal"]),
+        stage("knowledge_quadratic","lemma",
+              ["quadratic_form","quadratic_minimum"],["condition","goal"]),
+        stage("square","derivation",["square"],
+              ["condition","goal","quadratic_form"]),
+        stage("necessary","lemma",["critical"],
+              ["square","goal","quadratic_minimum"]),
         stage("case_less","case",["less_assume","less_result"],
               ["condition","square"],case_group="parameter_sign",case_id="less"),
         stage("case_equal","case",["equal_assume","equal_result"],
@@ -269,9 +282,29 @@ def build_variant(variant: str):
     reference="\n".join(
         [problem]+[step["latex"] for u in units for step in u["math"]]
     )
+    knowledge_spec={
+        "A":("knowledge_induction","induction_principle","principle",
+             ["e_base","e_hypothesis","e_successor_done"]),
+        "B":("knowledge_square","sum_of_squares_nonnegative","property",
+             ["e_nonnegative","e_equality"]),
+        "C":("knowledge_quadratic","quadratic_vertex_minimum","property",
+             ["e_square","e_necessary","e_case_less"]),
+    }
+    uid,topic,kind,used_in=knowledge_spec[variant]
+    source_unit=next(u for u in units if u["id"]==uid)
+    knowledge_catalog={
+        "schema_version":"1.0","teacher_reviewed":True,
+        "points":[{
+            "event_id":"e_"+uid,"topic_id":topic,"title":source_unit["heading"],
+            "kind":kind,
+            "formulae":[{"object_id":"m_"+m["id"],"latex":m["latex"]}
+                        for m in source_unit["math"]],
+            "used_in":used_in,
+        }],
+    }
     package,board,execution,cues=compile_teaching_units(
         problem=problem,reference_solution=reference,
-        units=units,teacher_reviewed=True
+        units=units,teacher_reviewed=True,knowledge_catalog=knowledge_catalog
     )
     manifest={
         "schema_version":"1.0",
@@ -302,6 +335,7 @@ def export_variant(output: Path,variant: str):
         "teacher_approved_cues.json":cues,
         "page_policy.json":policy,
         "proof_chain.json":manifest,
+        "core_knowledge.json":knowledge_catalog,
     }
     for filename,data in files.items():
         (output/filename).write_text(
