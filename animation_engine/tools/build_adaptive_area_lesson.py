@@ -31,6 +31,12 @@ def export_adaptive_lesson(destination: Path, mode: str = "hold") -> dict:
             "结合此前的函数图像，核对得到的非负面积。",
             [formula("area_review", r"S=\frac12-\frac13=\frac16",
                      "已计算出的面积与图像中的有界区域一致。")],
+            phase="application",
+        ), unit(
+            "compare", "回看原图确认积分区域",
+            "回到原始曲线图，对照面积公式与此前的计算结果。",
+            [formula("area_graph_check", r"S=\int_0^1(x-x^2)\,dx",
+                     "重新展示原图中已建立的面积积分表达式。")],
             phase="summary",
         )]
         package, board, execution, cues = compile_teaching_units(
