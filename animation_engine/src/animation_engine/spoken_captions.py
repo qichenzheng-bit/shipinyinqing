@@ -65,7 +65,14 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
             matches=list(root.rglob("source_math_subtitle.png"))
             if len(matches)!=1 or matches[0].stat().st_size<100:
                 raise LongboardError("CAPTION_REAL_MATHTEX_PNG_MISSING")
-            shutil.copyfile(matches[0],output)
+            from PIL import Image
+            source=Image.open(matches[0]).convert("RGBA")
+            if source.size != (1280,720):
+                raise LongboardError("CAPTION_RENDERED_FRAME_SIZE")
+            # Source MathTex was rendered on the real classroom canvas,
+            # but only the 88px safe subtitle band should be streamed
+            # into FFmpeg.  Avoid compositing a 720p overlay per phrase.
+            source.crop((0,628,1280,716)).save(output)
 
 
 def captions_srt(cues: list[dict], *, fps: int) -> str:
