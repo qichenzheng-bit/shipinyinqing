@@ -40,6 +40,88 @@ KNOWLEDGE_GUTTER = 24
 NOTE_MAX_CHARS_PER_LINE = 48
 NOTE_HEIGHT = 29
 NOTE_DETAIL_LINE_HEIGHT = 23
+BOARD_CENTER_X = BOARD_X + BOARD_WIDTH / 2
+BOARD_CENTER_Y = (BOARD_START_Y + BOARD_BOTTOM_Y) / 2
+
+
+def _ink_width(block: dict) -> float:
+    """Estimate the visible CJK glyph span, not the empty note reservation.
+
+    Mathematical bounds are real MathTex measurements. For Chinese notes the
+    deterministic estimate only selects horizontal placement; the renderer
+    still verifies actual font glyph bounds before creating the video.
+    """
+    if block["kind"] == "math":
+        return block["w"]
+    from .classroom_cues import BOARD_TEXT_STYLE
+    title_px = BOARD_TEXT_STYLE[block["phase"]]["font_px"]
+    return min(block["w"], max(
+        len(block["heading"]) * title_px,
+        *(len(line) * BOARD_DETAIL_FONT_PX for line in block["lines"]),
+        1,
+    ) + 2)
+
+
+def _translate_block(block: dict, *, dx: float = 0, dy: float = 0):
+    """Move only an unrendered layout plan; never animate existing ink."""
+    block["x"] = round(block["x"] + dx, 3)
+    block["y"] = round(block["y"] + dy, 3)
+    for fragment in block.get("fragments", []):
+        fragment["x"] = round(fragment["x"] + dx, 3)
+        fragment["y"] = round(fragment["y"] + dy, 3)
+
+
+def _center_new_group(blocks: list[dict]) -> float:
+    """Place each incoming teacher unit around the same board center line.
+
+    A two-column knowledge/calculation unit is centered as ONE group,
+    preserving its internal columns. Single-column calculation units, recap
+    and summary are centered as well. Existing ink is never reflowed.
+    """
+    if not blocks:
+        return 0.0
+    left = min(block["x"] for block in blocks)
+    right = max(block["x"] + _ink_width(block) for block in blocks)
+    dx = round(BOARD_CENTER_X - (left + right) / 2, 3)
+    for block in blocks:
+        _translate_block(block, dx=dx)
+    return dx
+
+
+def _center_page_heights(events: list[dict]) -> list[dict]:
+    """Balance each completed page vertically before any frame is rendered.
+
+    The complete layout is planned first; each page receives a single fixed
+    vertical translation, so already-written content never visibly moves.
+    """
+    pages: dict[int, list[dict]] = {}
+    for event in events:
+        pages.setdefault(event["page_index"], []).extend(event["added_blocks"])
+    records = []
+    for page_index, blocks in pages.items():
+        if not blocks:
+            continue
+        top = min(block["y"] for block in blocks)
+        bottom = max(block["y"] + block["h"] for block in blocks)
+        dy = round(BOARD_CENTER_Y - (top + bottom) / 2, 3)
+        for block in blocks:
+            _translate_block(block, dy=dy)
+            if (block["y"] < BOARD_START_Y-0.01 or
+                    block["y"] + block["h"] > BOARD_BOTTOM_Y+0.01 or
+                    block["x"] < BOARD_X-0.01 or
+                    block["x"] + _ink_width(block) > BOARD_X+BOARD_WIDTH+0.01):
+                raise LongboardError("CHALKBOARD_CENTERING_OUT_OF_BOUNDS")
+        left = min(block["x"] for block in blocks)
+        right = max(block["x"] + _ink_width(block) for block in blocks)
+        new_top = min(block["y"] for block in blocks)
+        new_bottom = max(block["y"] + block["h"] for block in blocks)
+        records.append({
+            "page_index": page_index,
+            "ink_center_x": round((left+right)/2, 3),
+            "ink_center_y": round((new_top+new_bottom)/2, 3),
+            "vertical_offset_px": dy,
+        })
+    return records
 
 
 def _strict_sources(storyboard, execution, cues, policy):
@@ -183,6 +265,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 y+=BOARD_ROW_GAP
             return additions,y
         proposed,next_y=group_at(cursor)
+        _center_new_group(proposed)
         clear=False
         if next_y>BOARD_BOTTOM_Y:
             if not active:
@@ -212,7 +295,9 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 item=_math_placement(mid,sources,selected,size_of,size_cache,cursor)
                 carried.append({"kind":"math","block_id":mid,"carry":True,**item})
                 cursor+=item["h"]+BOARD_ROW_GAP
+            _center_new_group(carried)
             proposed,next_y=group_at(cursor)
+            _center_new_group(proposed)
             if next_y>BOARD_BOTTOM_Y:
                 if computation is not None:
                     raise LongboardError(
@@ -223,6 +308,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 carried=[]
                 cursor=BOARD_START_Y
                 proposed,next_y=group_at(cursor)
+                _center_new_group(proposed)
             if next_y>BOARD_BOTTOM_Y:
                 raise LongboardError(
                     f"CHALKBOARD_EVENT_TOO_TALL: {scene.event_id}"
@@ -238,7 +324,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                         f"CHALKBOARD_INK_COLLISION: {scene.event_id}/"
                         f"{item['block_id']}/{old['block_id']}"
                     )
-            if item["x"]<BOARD_X or item["x"]+item["w"]>BOARD_X+BOARD_WIDTH+1:
+            if item["x"] < BOARD_X-0.01 or item["x"]+_ink_width(item)>BOARD_X+BOARD_WIDTH+1:
                 raise LongboardError(
                     f"CHALKBOARD_HORIZONTAL_OVERFLOW: {scene.event_id}"
                 )
@@ -281,6 +367,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
               and a.object_id in sources and a.to_region!="question"}
     if all_math != expected:
         raise LongboardError("CHALKBOARD_MATH_EVENT_LOST")
+    centering=_center_page_heights(events)
     return {
         "schema_version":"1.0","mode":"persistent_chalkboard",
         "source_storyboard_sha256":execution_plan.source_storyboard_sha256,
@@ -288,6 +375,9 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         "math_written_ids":sorted(all_math),
         "coordinates":{"start_y":BOARD_START_Y,"bottom_y":BOARD_BOTTOM_Y,
                        "board_left":BOARD_X,"board_width":BOARD_WIDTH},
+        "alignment":{"mode":"each_unit_centered_with_page_vertical_balance",
+                     "center_x":BOARD_CENTER_X,"center_y":BOARD_CENTER_Y,
+                     "pages":centering},
         "events":events,
         **({"computation_groups":computation.as_manifest()}
            if computation is not None else {}),
