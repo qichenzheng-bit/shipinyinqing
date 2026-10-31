@@ -22,8 +22,7 @@ def export_memory_triangle(destination: Path) -> dict:
     root.mkdir(parents=True, exist_ok=True)
     _, kind, geom, _, source_stages, _ = geometry_proof()
     problem = (
-        r"直角三角形中\ \angle A=90^\circ,\ AB=8,\ AC=6,"
-        r"\ \text{求}\ BC\ \text{及周长}"
+        r"求直角三角形的斜边与周长：\quad AB=8,\ AC=6,\ \angle A=90^\circ"
     )
     graph_units = [
         unit("intro", "明确直角边与图像",
@@ -31,7 +30,7 @@ def export_memory_triangle(destination: Path) -> dict:
              [formula("legs", r"AB=8,\quad AC=6", "题目已知的两直角边。")],
              phase="strategy"),
         unit("angle", "确定直角与斜边",
-             "直角位于 A，因此 BC 是应当计算的斜边。",
+             "题设直角位于顶点处，另外两个顶点之间的线段是斜边。",
              [formula("perpendicular", r"AB\perp AC", "题设确定垂直关系。")]),
         unit("rule", "勾股定理",
              "直角三角形中两直角边的平方和等于斜边平方。",
