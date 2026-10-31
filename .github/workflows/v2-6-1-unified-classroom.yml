@@ -91,7 +91,7 @@ jobs:
           python - <<'PY'
           import json,subprocess
           from pathlib import Path
-          from PIL import Image,ImageDraw,ImageChops
+          from PIL import Image,ImageDraw,ImageChops,ImageStat
           root=Path('unified-evidence')
           m=json.loads((root/'area_combined_manifest.json').read_text())
           video=root/'area_combined.mp4'
@@ -134,7 +134,12 @@ jobs:
           top=captures[1][1].crop((0,0,1280,106))
           for name,frame in captures[2:]:
               diff=ImageChops.difference(top,frame.crop((0,0,1280,106)))
-              assert not diff.getbbox(),('FLOW_HEADER_CHANGED',name)
+              # H.264 recompression can change antialiased edge pixels by
+              # a few RGB values despite an unchanged mathematical header.
+              # Assert a stable VISUAL header, not byte-identical codecs.
+              assert max(ImageStat.Stat(diff).mean)<1.5, (
+                  'FLOW_HEADER_VISUALLY_CHANGED',name
+              )
           collage=Image.new('RGB',(1280,1170),'#F1F4F8')
           draw=ImageDraw.Draw(collage)
           for i,(name,img) in enumerate(captures):
