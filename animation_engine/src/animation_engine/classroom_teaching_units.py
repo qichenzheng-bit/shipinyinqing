@@ -28,7 +28,8 @@ def _hash(value: dict) -> str:
 
 def compile_teaching_units(*, problem: str, reference_solution: str,
                            units: list[dict[str,Any]],
-                           teacher_reviewed: bool = False) -> tuple:
+                           teacher_reviewed: bool = False,
+                           knowledge_catalog: dict | None = None) -> tuple:
     """Preserve authored math/wording and bind every source object to a unit.
 
     Units:
@@ -46,6 +47,13 @@ def compile_teaching_units(*, problem: str, reference_solution: str,
             or not isinstance(reference_solution,str) or not reference_solution.strip()
             or not isinstance(units,list) or not 2<=len(units)<=60):
         raise LongboardError("TEACHING_UNITS_SOURCE_INVALID")
+    # Globally enforce semantic separation: a purple "核心知识点" must
+    # name a transferable fact and actually write its reviewed MathTex,
+    # never merely narrate this problem's simplification.
+    if knowledge_catalog is not None or any(
+            u.get("phase")=="knowledge" for u in units if isinstance(u,dict)):
+        from .core_knowledge import checked_core_knowledge
+        checked_core_knowledge(units,knowledge_catalog)
     required={"id","event_type","phase","heading","detail","goal",
               "pause_seconds","write_seconds","math"}
     step_keys={"id","latex","reason"}
