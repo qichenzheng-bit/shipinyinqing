@@ -23,7 +23,7 @@ def measure(tex,height):
 
 
 @pytest.mark.parametrize("variant,stages,groups", [
-    ("A",8,0),("B",7,0),("C",8,1)
+    ("A",9,0),("B",8,0),("C",9,1)
 ])
 def test_proof_stages_source_integrity_and_safe_pagination(variant,stages,groups):
     package,board,execution,cues,policy,manifest,units=build_variant(variant)
@@ -140,13 +140,13 @@ def test_all_branches_required_before_merged_conclusion():
     with pytest.raises(LongboardError,match="PROOF_MISSING_OR_EXTRA_CASES"):
         checked_proof_chain(bad,b,e)
     bad=copy.deepcopy(m)
-    bad["stages"][6]["cites"].remove("m_equal_result")
-    bad["stages"][6]["carry_ids"].remove("m_equal_result")
+    bad["stages"][7]["cites"].remove("m_equal_result")
+    bad["stages"][7]["carry_ids"].remove("m_equal_result")
     with pytest.raises(LongboardError,match="PROOF_INCOMPLETE_BRANCH_MERGE"):
         checked_proof_chain(bad,b,e)
     bad=copy.deepcopy(m)
-    bad["stages"][4]["cites"].append("m_less_result")
-    bad["stages"][4]["carry_ids"].append("m_less_result")
+    bad["stages"][5]["cites"].append("m_less_result")
+    bad["stages"][5]["carry_ids"].append("m_less_result")
     with pytest.raises(LongboardError,match="PROOF_CASE_CROSS_REFERENCE"):
         checked_proof_chain(bad,b,e)
 
@@ -154,7 +154,7 @@ def test_all_branches_required_before_merged_conclusion():
 def test_wrong_mathematics_source_ids_or_skipped_stage_are_rejected():
     _,b,e,c,p,m,_=build_variant("A")
     bad=copy.deepcopy(m)
-    bad["stages"][3]["output_ids"].remove("m_successor_split")
+    bad["stages"][4]["output_ids"].remove("m_successor_split")
     with pytest.raises(LongboardError,match="PROOF_SOURCE_OUTPUT_MISMATCH"):
         checked_proof_chain(bad,b,e)
     bad=copy.deepcopy(m)
