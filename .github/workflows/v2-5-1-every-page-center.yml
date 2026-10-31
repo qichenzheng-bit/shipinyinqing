@@ -73,6 +73,9 @@ jobs:
               p=root/variant
               l=json.loads((p/"board_pages.json").read_text())
               assert l["computation_groups"]["part_count"]==part_count
+              assert l["alignment"]["mode"]=="each_unit_centered_with_page_vertical_balance"
+              assert all(abs(page["ink_center_x"]-640)<2 and abs(page["ink_center_y"]-384)<2
+                         for page in l["alignment"]["pages"])
               assert l["events"][-1]["computation_role"]=="final"
               assert l["events"][0]["computation_role"]=="decomposition"
               writes=set()
