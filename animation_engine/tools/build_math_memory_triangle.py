@@ -33,7 +33,7 @@ def export_memory_triangle(destination: Path) -> dict:
         unit("angle", "确定直角与斜边",
              "直角位于 A，因此 BC 是应当计算的斜边。",
              [formula("perpendicular", r"AB\perp AC", "题设确定垂直关系。")]),
-        unit("rule", "回顾勾股定理",
+        unit("rule", "勾股定理",
              "直角三角形中两直角边的平方和等于斜边平方。",
              [formula("pythagoras", r"a^2+b^2=c^2",
                       "勾股定理适用于这道直角三角形题。")],
