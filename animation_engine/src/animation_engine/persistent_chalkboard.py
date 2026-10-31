@@ -339,7 +339,9 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
     events=[]
     all_math=set()
     last_event_id=None
-    for scene,action_scene,cue in zip(board.scenes,execution_plan.scenes,teaching):
+    pending_proof_row=None
+    sequence=list(zip(board.scenes,execution_plan.scenes,teaching))
+    for index,(scene,action_scene,cue) in enumerate(sequence):
         newids=list(dict.fromkeys(
             a.object_id for a in action_scene.actions
             if a.kind in ("progressive_write","restore")
@@ -368,6 +370,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         lines=_note_lines(cue["detail"],note_width) if note_needed else []
         noteheight=(NOTE_HEIGHT + len(lines)*NOTE_DETAIL_LINE_HEIGHT+5
                     if note_needed else 0)
+        proof_formula_rows=[]
         def group_at(start_y):
             additions=[]
             y=start_y
@@ -439,15 +442,70 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                     additions.append({"kind":"math","block_id":mid,**item})
                     work_y+=item["h"]+BOARD_ROW_GAP
                 return additions,max(left_bottom,work_y)
-            for mid in newids:
-                item=_math_placement(mid,sources,selected,size_of,size_cache,y)
-                additions.append({"kind":"math","block_id":mid,**item})
-                y+=item["h"]+BOARD_ROW_GAP
+            if proof is not None and newids:
+                formulae,y,rows=_proof_math_rows(
+                    newids,sources,selected,size_of,size_cache,y
+                )
+                proof_formula_rows[:]=rows
+                additions.extend(formulae)
+            else:
+                for mid in newids:
+                    item=_math_placement(mid,sources,selected,size_of,size_cache,y)
+                    additions.append({"kind":"math","block_id":mid,**item})
+                    y+=item["h"]+BOARD_ROW_GAP
             if note_needed and not newids:
                 y+=BOARD_ROW_GAP
             return additions,y
-        proposed,next_y=group_at(cursor)
-        _center_new_group(proposed)
+        proof_layout_mode="stacked"
+        proof_row_group_id=None
+        planned_pair=None
+        if pending_proof_row is not None:
+            if pending_proof_row["second_event"]!=scene.event_id:
+                raise LongboardError("PROOF_PAIR_EVENT_ORDER")
+            # The left tile is already on screen and must NEVER move.
+            proposed=pending_proof_row["blocks"]
+            next_y=pending_proof_row["next_y"]
+            proof_layout_mode="paired_right"
+            proof_row_group_id=pending_proof_row["group_id"]
+            proof_formula_rows[:]=[[mid] for mid in newids]
+            pending_proof_row=None
+        else:
+            proposed,next_y=group_at(cursor)
+            _center_new_group(proposed)
+            if proof is not None:
+                if any(len(row)>1 for row in proof_formula_rows):
+                    proof_layout_mode="compact_within_stage"
+                # Only consecutive plain derivations / small lemmas qualify
+                # for cross-event pairing. Never combine case distinctions,
+                # title/knowledge notes, the final answer, or geometry.
+                if (not note_needed and index+1<len(sequence)
+                        and proof.for_event(scene.event_id).role
+                        in ("derivation","lemma")):
+                    next_scene,next_actions,next_cue=sequence[index+1]
+                    next_stage=proof.for_event(next_scene.event_id)
+                    next_ids=list(dict.fromkeys(
+                        a.object_id for a in next_actions.actions
+                        if a.kind in ("progressive_write","restore")
+                        and a.object_id in sources and a.to_region!="question"
+                    ))
+                    if (next_stage.role in ("derivation","lemma")
+                            and next_cue["phase"] not in BOARD_GUIDANCE_PHASES):
+                        pair=_proof_stage_pair(
+                            newids,next_ids,sources,selected,size_of,
+                            size_cache,cursor
+                        )
+                        if pair is not None:
+                            tiles,finish_y=pair
+                            proposed=tiles[0]
+                            next_y=cursor  # reserve the same board row
+                            proof_layout_mode="paired_left"
+                            proof_row_group_id="proof-row:"+scene.event_id
+                            proof_formula_rows[:]=[[mid] for mid in newids]
+                            planned_pair={
+                                "second_event":next_scene.event_id,
+                                "blocks":tiles[1],"next_y":finish_y,
+                                "group_id":proof_row_group_id,
+                            }
         clear=False
         if next_y>BOARD_BOTTOM_Y:
             if not active:
@@ -528,6 +586,10 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             active.append(item)
             added.append(item)
         cursor=next_y
+        if planned_pair is not None:
+            if clear:
+                raise LongboardError("PROOF_PAIR_MUST_NOT_CLEAR")
+            pending_proof_row=planned_pair
         events.append({
             "event_id":scene.event_id,"page_index":page,
             **(computation.event_info(scene.event_id)
@@ -547,6 +609,12 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "math_write_count":len(newids),
             "unit_source_step_ids":list(cue["source_step_ids"]),
             "unit_heading":cue["heading"],
+            **({"proof_layout":{
+                "mode":proof_layout_mode,
+                "row_group_id":proof_row_group_id,
+                "formula_rows":proof_formula_rows,
+                "source_order_preserved":True,
+            }} if proof is not None else {}),
             "erase_reason":("whole_reasoning_unit_cannot_fit"
                             if clear else None),
             "added_blocks":added,
@@ -555,6 +623,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "write_seconds":cue["write_seconds"],
         })
         last_event_id=scene.event_id
+    if pending_proof_row is not None:
+        raise LongboardError("PROOF_UNFINISHED_HORIZONTAL_ROW")
     # Every requested write event must have survived the planning pass.
     expected={a.object_id for sc in execution_plan.scenes for a in sc.actions
               if a.kind in ("progressive_write","restore")
@@ -589,7 +659,17 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "arithmetically_verified":True,
             "presentation":"before_operation_after_atomic"
         }} if matrix is not None else {}),
-        **({"proof_chain":proof.as_manifest()} if proof is not None else {}),
+        **({"proof_chain":{
+            **proof.as_manifest(),
+            "layout_strategy":"adaptive_short_math_rows_and_paired_proof_stages",
+            "paired_stage_groups":sum(
+                e["proof_layout"]["mode"]=="paired_left" for e in events
+            ),
+            "compact_stage_count":sum(
+                e["proof_layout"]["mode"]=="compact_within_stage"
+                for e in events
+            ),
+        }} if proof is not None else {}),
     }
 
 
