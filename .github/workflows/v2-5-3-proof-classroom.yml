@@ -17,6 +17,8 @@ jobs:
         run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
       - name: Verify long induction, inequality, all parameter cases and negative guards
         run: cd animation_engine && python -m pytest tests/test_proof_classroom.py -q
+      - name: Strict cross-stage mathematical-knowledge formula audit
+        run: cd animation_engine && python -m pytest tests/test_core_knowledge_semantics.py -q
       - name: Preserve previous teacher contract
         run: cd teacher_module && python -m pytest -q
       - name: Preserve visual director contract
@@ -60,6 +62,18 @@ jobs:
           for v,stages,branches in [('A',9,0),('B',8,0),('C',9,1)]:
               p=root/v
               layout=json.loads((p/'board_pages.json').read_text())
+              catalog=json.loads((p/'core_knowledge.json').read_text())
+              cue=json.loads((p/'teacher_approved_cues.json').read_text())
+              assert len(catalog['points'])==1
+              point=catalog['points'][0]
+              assert next(ev for ev in cue['events'] if ev['event_id']==point['event_id'])['phase']=='knowledge'
+              source=json.loads((p/'teaching_package.json').read_text())
+              byid={o['math_object_id']:o['latex'] for o in source['lesson']['math_objects']}
+              assert all(byid[f['object_id']]==f['latex'] for f in point['formulae'])
+              assert point['used_in']
+              assert any(e['event_id']==point['event_id'] and
+                         e['math_write_count']>=len(point['formulae'])
+                         for e in layout['events'])
               proof=layout['proof_chain']
               assert proof['stage_count']==stages
               assert proof['reference_order_verified']
@@ -114,9 +128,9 @@ jobs:
               assert m['in_page_reposition_count']==m['in_page_fadeout_count']==0
               assert m['voice_status']=='not_recorded'
               ids=['e_setup']
-              if v=='A': ids+=['e_successor','e_lemma','e_final']
-              if v=='B': ids+=['e_squares','e_equality','e_final']
-              if v=='C': ids+=['e_case_less','e_case_equal','e_case_greater','e_merge','e_final']
+              if v=='A': ids+=['e_knowledge_induction','e_successor','e_lemma','e_final']
+              if v=='B': ids+=['e_squares','e_knowledge_square','e_equality','e_final']
+              if v=='C': ids+=['e_knowledge_quadratic','e_case_less','e_case_equal','e_case_greater','e_merge','e_final']
               shots=[]
               for eid in ids:
                   row=next(e for e in m['event_timing'] if e['event_id']==eid)
