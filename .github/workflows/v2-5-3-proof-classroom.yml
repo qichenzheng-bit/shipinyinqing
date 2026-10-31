@@ -57,7 +57,7 @@ jobs:
           import json
           from pathlib import Path
           from animation_engine.board_motion import overlaps
-          from animation_engine.persistent_chalkboard import BOARD_CENTER_X,_ink_width
+          from animation_engine.persistent_chalkboard import BOARD_CENTER_X,BOARD_X,_ink_width
           root=Path('proof-evidence')
           for v,stages,branches in [('A',9,0),('B',8,0),('C',9,1)]:
               p=root/v
@@ -82,6 +82,7 @@ jobs:
               assert proof['case_coverage_verified']
               assert len(proof['branch_groups'])==branches
               assert layout['alignment']['mode']=='each_unit_centered_with_header_near_top'
+              assert layout['alignment']['proof_math_independent_centered'] is True
               assert all(abs(page['ink_center_x']-BOARD_CENTER_X)<2
                          and page['first_ink_y']<=layout['alignment']['max_first_ink_y']
                          for page in layout['alignment']['pages'])
@@ -98,6 +99,20 @@ jobs:
                   writes=[x['block_id'] for x in ev['added_blocks']
                           if x['kind']=='math' and not x.get('carry')]
                   assert [m for row in rows for m in row]==writes
+                  lookup={b['block_id']:b for b in ev['added_blocks']}
+                  notes=[b for b in ev['added_blocks'] if b['kind']=='teacher_note']
+                  if notes:
+                      assert len(notes)==1 and notes[0]['x']==BOARD_X
+                  if meta['mode'] not in ('paired_left','paired_right'):
+                      for row in rows:
+                          parts=[lookup[mid] for mid in row]
+                          center=(min(b['x'] for b in parts)+
+                                  max(b['x']+_ink_width(b) for b in parts))/2
+                          assert abs(center-BOARD_CENTER_X)<2, (v,ev['event_id'],center)
+                  if ev['erase_before']:
+                      for b in ev['added_blocks']:
+                          if b.get('carry'):
+                              assert abs(b['x']+b['w']/2-BOARD_CENTER_X)<2
                   if ev['erase_before']:
                       assert prior and prior['safe_break_after']
                       assert {'m_condition','m_goal'}<=set(ev['carry_object_ids'])
