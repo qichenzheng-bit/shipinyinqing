@@ -97,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
         help="V2.5.2 algebra-verified before/operation/after matrix contract")
     longboard_plan.add_argument("--proof-chain",type=Path,
         help="V2.5.3 reviewed proof stages, dependencies, cases and carry context")
+    longboard_plan.add_argument("--diagram-classroom",type=Path,
+        help="V2.5.4 reviewed source-bound geometry, curves and shaded regions")
     longboard_plan.add_argument("--output", type=Path, required=True)
     longboard_plan.add_argument("--pixel-width", type=int, default=1280)
     longboard_plan.add_argument("--pixel-height", type=int, default=720)
@@ -114,6 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         help="V2.5.2 teacher-reviewed exact matrix operations")
     longboard_render.add_argument("--proof-chain",type=Path,
         help="V2.5.3 source-verified proof structure and safe page breaks")
+    longboard_render.add_argument("--diagram-classroom",type=Path,
+        help="V2.5.4 genuine geometric MathTex teaching and source-revealed diagram")
     longboard_render.add_argument("--output", type=Path, required=True)
     longboard_render.add_argument("--manifest", type=Path, required=True)
     longboard_render.add_argument("--pixel-width", type=int, default=1280)
@@ -134,7 +138,8 @@ def main(argv: list[str] | None = None) -> int:
             # proof/diagram lessons can still pass an explicit layout policy.
             if args.classroom_cues is not None and raw_policy is None:
                 # Special mathematical layouts require reviewed manifests.
-                if args.matrix_steps is not None or args.proof_chain is not None:
+                if (args.matrix_steps is not None or args.proof_chain is not None
+                        or args.diagram_classroom is not None):
                     from .classroom_policy import simple_classroom_policy
                     raw_policy=simple_classroom_policy()
             if args.classroom_cues is not None and raw_policy is None:
@@ -170,8 +175,12 @@ def main(argv: list[str] | None = None) -> int:
                 json.loads(args.proof_chain.read_text(encoding="utf-8"))
                 if args.proof_chain is not None else None
             )
+            diagram_data=(
+                json.loads(args.diagram_classroom.read_text(encoding="utf-8"))
+                if args.diagram_classroom is not None else None
+            )
             if sum(value is not None for value in (
-                    computation_data,matrix_data,proof_data))>1:
+                    computation_data,matrix_data,proof_data,diagram_data))>1:
                 raise ValueError("SPECIAL_CONTRACTS_MUTUALLY_EXCLUSIVE")
             if computation_data is not None and not chalkboard:
                 raise ValueError("COMPUTATION_GROUPS_REQUIRES_PERSISTENT_CHALKBOARD")
@@ -179,6 +188,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("MATRIX_STEPS_REQUIRES_PERSISTENT_CHALKBOARD")
             if proof_data is not None and not chalkboard:
                 raise ValueError("PROOF_CHAIN_REQUIRES_PERSISTENT_CHALKBOARD")
+            if diagram_data is not None and not chalkboard:
+                raise ValueError("DIAGRAM_REQUIRES_PERSISTENT_CHALKBOARD")
             if args.command == "plan-longboard":
                 if chalkboard:
                     if args.classroom_cues is None:
@@ -194,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
                            if matrix_data is not None else {}),
                         **({"proof_manifest":proof_data}
                            if proof_data is not None else {}),
+                        **({"diagram_manifest":diagram_data}
+                           if diagram_data is not None else {}),
                     )
                 else:
                     from .longboard_plan import build_longboard_plan
@@ -227,6 +240,8 @@ def main(argv: list[str] | None = None) -> int:
                            if matrix_data is not None else {}),
                         **({"proof_manifest":proof_data}
                            if proof_data is not None else {}),
+                        **({"diagram_manifest":diagram_data}
+                           if diagram_data is not None else {}),
                     )
                 else:
                     render_longboard_movie(
