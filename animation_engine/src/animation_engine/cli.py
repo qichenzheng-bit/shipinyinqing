@@ -175,8 +175,79 @@ def main(argv: list[str] | None = None) -> int:
     spoken_render.add_argument("--fps", type=int, default=30)
     spoken_render.add_argument("--adaptive", action="store_true")
 
+    # V2.6.5 is a headless engine: no GUI or side-by-side comparison.
+    editing_start = subparsers.add_parser(
+        "edit-start", help="Initialize iterative editing on a verified spoken video")
+    editing_start.add_argument("--package", type=Path, required=True)
+    editing_start.add_argument("--movie", type=Path, required=True)
+    editing_start.add_argument("--manifest", type=Path, required=True)
+    editing_start.add_argument("--session", type=Path, required=True)
+    editing_start.add_argument("--fps", type=int, default=30)
+    editing_start.add_argument("--nonadaptive", action="store_true")
+
+    editing_apply = subparsers.add_parser(
+        "edit-apply", help="Apply any number of natural-language changes to latest movie")
+    editing_apply.add_argument("--session", type=Path, required=True)
+    instructions=editing_apply.add_mutually_exclusive_group(required=True)
+    instructions.add_argument("--instruction", type=str)
+    instructions.add_argument("--instruction-file", type=Path)
+    providers=editing_apply.add_mutually_exclusive_group(required=True)
+    providers.add_argument("--plan", type=Path,
+        help="Structured multi-request edit plan from an external AI model")
+    providers.add_argument("--ai-config", type=Path,
+        help="Opt-in OpenAI-compatible AI provider JSON configuration")
+
+    editing_feedback = subparsers.add_parser(
+        "edit-feedback", help="Keep editing the latest movie until the user is satisfied")
+    editing_feedback.add_argument("--session", type=Path, required=True)
+    editing_feedback.add_argument("--text", type=str, required=True)
+    editing_feedback.add_argument("--satisfied", action="store_true")
+
+    editing_export = subparsers.add_parser(
+        "edit-export", help="Export all original instructions and outcomes as ONE JSON")
+    editing_export.add_argument("--session", type=Path, required=True)
+    editing_export.add_argument("--output", type=Path, required=True)
+
     args = parser.parse_args(argv)
     try:
+        if args.command == "edit-start":
+            from .iterative_edit_engine import create_session
+            result = create_session(
+                args.package, args.movie, args.manifest, args.session,
+                adaptive=not args.nonadaptive, fps=args.fps,
+            )
+            print(json.dumps({
+                "revision": result["revision"],
+                "latest_movie": str(args.session / "latest.mp4"),
+            }, ensure_ascii=False))
+            return 0
+        if args.command == "edit-apply":
+            from .iterative_edit_engine import run_edit, plan_from_file
+            if args.plan is not None:
+                agent=plan_from_file(args.plan)
+            else:
+                from .iterative_ai_adapter import make_openai_compatible_agent
+                agent=make_openai_compatible_agent(args.ai_config)
+            raw=(args.instruction if args.instruction is not None else
+                 args.instruction_file.read_text(encoding="utf-8"))
+            result=run_edit(args.session, raw, agent)
+            print(json.dumps(result, ensure_ascii=False))
+            return 0 if result["status"]=="preview_ready" else 2
+        if args.command == "edit-feedback":
+            from .iterative_edit_engine import record_feedback
+            result=record_feedback(args.session, args.text,
+                                   satisfied=args.satisfied)
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
+        if args.command == "edit-export":
+            from .iterative_edit_engine import export_history
+            result=export_history(args.session, args.output)
+            print(json.dumps({
+                "output": str(args.output),
+                "rounds": len(result["rounds"]),
+                "revision": result["current_revision"],
+            }, ensure_ascii=False))
+            return 0
         if args.command == "plan-spoken":
             if args.output.suffix.lower() != ".json":
                 raise ValueError("SPOKEN_PLAN_REQUIRES_JSON_OUTPUT")
