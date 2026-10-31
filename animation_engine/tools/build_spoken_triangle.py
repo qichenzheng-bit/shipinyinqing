@@ -96,7 +96,12 @@ def export_spoken_triangle(root: Path):
             spans.append({"kind":kind,"object_id":obj,"parts":parts})
         events.append({
             "stage_id":stage_id,"event_id":eid,
-            "pedagogical_cue_covered":True,"spans":spans,
+            "pedagogical_cue_covered":True,
+            "question_read_aloud":len(events)==0,
+            "question_source_sha256":(
+                canonical_sha(flow.problem) if len(events)==0 else None
+            ),
+            "spans":spans,
         })
     result={
         "schema_version":"1.0",
