@@ -94,7 +94,7 @@ def function_graph():
         stage("tangent",["T0","T1","tangent"]),
         stage("final",["x_tip","y_tip"]),
     ]
-    return (r"已知 f(x)=x^2,\ 求曲线在 P(1,1) 处的切线方程。",
+    return (r"求曲线切线方程：\quad f(x)=x^2,\ P(1,1)",
             "function_graph",specs,units,shows,[])
 
 
@@ -149,7 +149,7 @@ def integral_region():
     ]
     regions=[{"id":"shade_between","upper_curve_id":"upper_line",
               "lower_curve_id":"lower_parabola"}]
-    return (r"求 y=x 和 y=x^2 在 0\le x\le1 围成区域的面积。",
+    return (r"求两曲线围成的面积：\quad y=x,\ y=x^2,\ 0\le x\le1",
             "integration_region",specs,units,shows,regions)
 
 
@@ -204,7 +204,7 @@ def geometry_proof():
         stage("apply",[]),
         stage("final",[]),
     ]
-    return (r"在直角三角形 ABC 中，AB=4,\ AC=3,\ \angle A=90^\circ，求 BC。",
+    return (r"求直角三角形的斜边：\quad AB=4,\ AC=3,\ \angle A=90^\circ",
             "geometry_proof",specs,units,shows,[])
 
 
