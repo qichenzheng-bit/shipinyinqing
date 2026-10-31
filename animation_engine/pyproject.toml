@@ -13,6 +13,7 @@ dependencies = ["pydantic>=2.7,<3", "shipinyinqing-visual-director>=0.1.0"]
 test = ["pytest>=8", "sympy>=1.13"]
 matrix = ["sympy>=1.13"]
 render = ["manim==0.22.1", "Pillow>=10"]
+speech = ["edge-tts>=7.2,<9"]
 
 [project.scripts]
 math-animation = "animation_engine.cli:main"
