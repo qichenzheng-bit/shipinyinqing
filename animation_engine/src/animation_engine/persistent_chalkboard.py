@@ -644,14 +644,24 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 )
             else:
                 for mid in carryids:
-                    item=_math_placement(
-                        mid,sources,selected,size_of,size_cache,cursor
-                    )
+                    if diagram is not None:
+                        item=_math_placement(
+                            mid,sources,selected,size_of,size_cache,cursor,
+                            x=DIAGRAM_LEFT_X,width=DIAGRAM_LEFT_WIDTH
+                        )
+                        _translate_block(
+                            item,dx=(DIAGRAM_LEFT_WIDTH-item["w"])/2
+                        )
+                    else:
+                        item=_math_placement(
+                            mid,sources,selected,size_of,size_cache,cursor
+                        )
                     carried.append({
                         "kind":"math","block_id":mid,"carry":True,**item
                     })
                     cursor+=item["h"]+BOARD_ROW_GAP
-                _center_new_group(carried)
+                if diagram is None:
+                    _center_new_group(carried)
             proposed,next_y=group_at(cursor)
             center_new_content(proposed)
             if next_y>BOARD_BOTTOM_Y:
