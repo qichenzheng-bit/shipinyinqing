@@ -162,18 +162,17 @@ def test_long_math_goes_to_own_line_even_if_next_item_is_short():
     from animation_engine.adaptive_layout import GlyphSize
     import animation_engine.persistent_chalkboard as boardmod
     selected=LongboardPolicy.parse(simple_classroom_policy())
-    sources={
-        "a":{"latex":r"\frac{n(n+1)}2"},
-        "b":{"latex":r"n=1"},
-        "c":{"latex":r"S_n=n^2"},
-    }
+    from animation_engine.longboard_plan import _sources
+    _,_,execution,_,_,_,_=build_variant("A")
+    sources=_sources(execution)
     def selective(tex,height):
         return GlyphSize(1030 if "frac" in tex else 130,42)
     size_cache={}
     placed,stop,rows=_proof_math_rows(
-        ["a","b","c"],sources,selected,selective,size_cache,148
+        ["m_goal","m_condition","m_definition"],
+        sources,selected,selective,size_cache,148
     )
-    assert rows==[["a"],["b","c"]]
+    assert rows==[["m_goal"],["m_condition","m_definition"]]
     assert stop>148
     assert all(block["scale"]>=selected.math_min_scale for block in placed)
 
@@ -290,8 +289,12 @@ def test_proof_layout_requires_reviewed_manifest():
 
 def test_proof_safe_boundary_and_mandatory_carry_cannot_be_silently_skipped():
     _,b,e,c,p,m,_=build_variant("A")
+    # Compact short-formula packing can correctly fit all tiny mock glyphs
+    # on one screen; use deliberately taller *valid* measured glyphs to force
+    # a genuine full-board cut and exercise the no-unsafe-break invariant.
+    taller=lambda tex,height:GlyphSize(210,85)
     good=make_chalkboard_plan(
-        b,e,c,p,measure=measure,proof_manifest=m
+        b,e,c,p,measure=taller,proof_manifest=m
     )
     assert good["page_count"]>1
     bad=copy.deepcopy(m)
@@ -299,7 +302,7 @@ def test_proof_safe_boundary_and_mandatory_carry_cannot_be_silently_skipped():
         stage["safe_break_after"]=False
     with pytest.raises(LongboardError,match="PROOF_NO_SAFE_BREAK"):
         make_chalkboard_plan(
-            b,e,c,p,measure=measure,proof_manifest=bad
+            b,e,c,p,measure=taller,proof_manifest=bad
         )
 
 
