@@ -2,11 +2,6 @@ name: V2.5.1 wideboard five-term full classroom
 on:
   push:
     branches: [fix/v2-5-1-knowledge-wideboard]
-    paths:
-      - '.github/workflows/v2-5-1-wideboard-five-part.yml'
-      - 'animation_engine/src/animation_engine/computation_groups.py'
-      - 'animation_engine/src/animation_engine/persistent_chalkboard.py'
-      - 'animation_engine/tools/build_multipart_integral_lesson.py'
   workflow_dispatch:
 permissions:
   contents: read
