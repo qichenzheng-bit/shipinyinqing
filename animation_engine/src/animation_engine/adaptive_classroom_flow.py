@@ -14,6 +14,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from visual_director.models import StoryboardPlan
+from .models import ExecutionPlan
 from .diagram_classroom import DIAGRAM_PANEL, checked_diagram_classroom
 from .longboard_plan import LongboardError
 from .persistent_chalkboard import (
@@ -108,7 +110,10 @@ def checked_adaptive_flow(input_file: Path | str) -> AdaptiveFlow:
                 raise LongboardError("ADAPTIVE_INVALID_DIAGRAM_CREATE")
             # Source geometry, labels, fill and reveal order are independently
             # checked by the existing V2.5.4 source contract.
-            checked_diagram_classroom(stage.special, stage.storyboard, stage.execution)
+            checked_diagram_classroom(
+                stage.special, StoryboardPlan.model_validate(stage.storyboard),
+                ExecutionPlan.model_validate(stage.execution),
+            )
             saved_diagrams[source] = stage.special["source_storyboard_sha256"]
             visible = source
         elif action == "hold":
