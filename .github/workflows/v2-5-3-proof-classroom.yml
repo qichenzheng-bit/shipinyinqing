@@ -57,7 +57,7 @@ jobs:
           from animation_engine.board_motion import overlaps
           from animation_engine.persistent_chalkboard import BOARD_CENTER_X,_ink_width
           root=Path('proof-evidence')
-          for v,stages,branches in [('A',8,0),('B',7,0),('C',8,1)]:
+          for v,stages,branches in [('A',9,0),('B',8,0),('C',9,1)]:
               p=root/v
               layout=json.loads((p/'board_pages.json').read_text())
               proof=layout['proof_chain']
@@ -103,7 +103,7 @@ jobs:
           from pathlib import Path
           from PIL import Image,ImageDraw
           root=Path('proof-evidence')
-          for v,count in [('A',8),('B',7),('C',8)]:
+          for v,count in [('A',9),('B',8),('C',9)]:
               p=root/v
               m=json.loads((p/'video_manifest.json').read_text())
               q=json.loads((p/'ffprobe.json').read_text())['streams'][0]
