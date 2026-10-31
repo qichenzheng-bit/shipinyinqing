@@ -149,19 +149,30 @@ def test_carry_math_rows_centered_after_full_board_erase():
 
 
 def test_A_second_page_recap_grouping_and_breathing_space():
-    """Regression for cramped upper part of A's second classroom board."""
-    _,board,execution,cues,policy,manifest,units=build_variant("A")
-    plan=make_chalkboard_plan(
-        board,execution,cues,policy,measure=measure,proof_manifest=manifest
+    """Regression for cramped upper part of A's second classroom board.
+
+    Mock MathTex glyphs make the short proof fit one page; exercise the
+    dedicated recap algorithm directly. Real-font CI separately verifies
+    A's genuine page-two event and all its geometry.
+    """
+    from animation_engine.persistent_chalkboard import (
+        _proof_carry_layout,_proof_math_rows
     )
-    assert plan["page_count"]==2
-    first=next(e for e in plan["events"] if e["page_index"]==2)
-    assert first["erase_before"]
-    assert first["event_id"]=="e_lemma"
-    assert first["proof_carry_rows"]==[
-        ["m_condition","m_goal"],["m_factor_result"]
-    ]
-    by_id={b["block_id"]:b for b in first["added_blocks"]}
+    from animation_engine.longboard_plan import _sources,LongboardPolicy
+    from animation_engine.classroom_policy import simple_classroom_policy
+    _,board,execution,cues,policy,manifest,units=build_variant("A")
+    proof=checked_proof_chain(manifest,board,execution)
+    sources=_sources(execution)
+    selected=LongboardPolicy.parse(simple_classroom_policy())
+    carried,start,rows=_proof_carry_layout(
+        ["m_condition","m_goal","m_factor_result"],
+        proof,sources,selected,measure,{},148
+    )
+    assert rows==[["m_condition","m_goal"],["m_factor_result"]]
+    math,new_bottom,_=_proof_math_rows(
+        ["m_lemma_result"],sources,selected,measure,{},start
+    )
+    by_id={b["block_id"]:b for b in carried+math}
     condition,goal,factor,lemma=(
         by_id[mid] for mid in (
             "m_condition","m_goal","m_factor_result","m_lemma_result"
@@ -171,11 +182,9 @@ def test_A_second_page_recap_grouping_and_breathing_space():
     assert abs((condition["x"]+goal["x"]+goal["w"])/2
                -BOARD_CENTER_X)<1.01
     assert abs((factor["x"]+factor["w"]/2)-BOARD_CENTER_X)<1.01
-    # Gap between proof recap rows, then between recap and a NEW step.
     assert factor["y"]-(goal["y"]+goal["h"])>=25
     assert lemma["y"]-(factor["y"]+factor["h"])>=30
-    assert all(b["y"]+b["h"]<=BOARD_BOTTOM_Y for e in plan["events"]
-               for b in e["added_blocks"])
+    assert new_bottom<=BOARD_BOTTOM_Y
 
 
 @pytest.mark.parametrize("variant",["A","B","C"])
