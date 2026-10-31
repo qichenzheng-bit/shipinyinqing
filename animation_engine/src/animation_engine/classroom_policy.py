@@ -22,10 +22,10 @@ def simple_classroom_policy(*, result_ids: tuple[str,...]=()) -> dict:
         "full_width_without_diagram":True,
         "safe_auto_break":True,
         "content_top_offset_px":0,
-        "board_column_width_px":655,
-        "math_base_scale":0.5625,
-        "math_min_scale":0.54,
-        "row_gap_px":13,
+        "board_column_width_px":1060,
+        "math_base_scale":0.50,
+        "math_min_scale":0.47,
+        "row_gap_px":11,
     }
 
 
