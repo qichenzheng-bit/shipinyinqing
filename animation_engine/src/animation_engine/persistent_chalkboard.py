@@ -873,6 +873,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
         matrix_manifest=matrix_manifest,proof_manifest=proof_manifest,
         diagram_manifest=diagram_manifest, layout_hint=layout_hint
     )
+    from .diagram_classroom import DIAGRAM_PANEL
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
                        tempconfig,linear)
     fw=8*1280/720
@@ -987,7 +988,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             # The existing V2.5 behavior is untouched without
                             # the explicit, source-checked adaptive hint.
                             erase_w = (
-                                (680 - 20) / 90 if keep_graph else fw + .2
+                                (DIAGRAM_PANEL["x"] - 20) / 90 if keep_graph else fw + .2
                             )
                             erase_target = (
                                 -fw/2 + erase_w/2 if keep_graph else 0
