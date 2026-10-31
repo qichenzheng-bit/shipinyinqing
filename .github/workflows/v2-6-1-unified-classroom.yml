@@ -16,7 +16,19 @@ jobs:
       - name: Install reviewed teacher, director and engine
         run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
       - name: Verify V2.6.1 exact-math handoffs and negative tests
-        run: cd animation_engine && python -m pytest tests/test_unified_classroom_flow.py -q
+        run: |
+          cd animation_engine
+          python -m pytest tests/test_unified_classroom_flow.py -q > ../unified-test-output.log 2>&1 || {
+            cat ../unified-test-output.log
+            exit 1
+          }
+          cat ../unified-test-output.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-6-1-contract-debug-logs
+          path: unified-test-output.log
+          if-no-files-found: warn
       - name: Preserve teacher and knowledge standards
         run: cd teacher_module && python -m pytest -q
       - name: Preserve visual director, diagrams and mathematical layout
