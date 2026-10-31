@@ -34,8 +34,9 @@ KINDS = frozenset({"diagram", "note", "math"})
 FORBIDDEN = re.compile(
     r"(?:按照|根据|依据|参考|照着|依照|看(?:一下)?)\s*"
     r"(?:这份|那个|标准|参考|原)?\s*(?:答案|解答|题解)"
+    r"|(?:由|从|按|依照|依据)\s*(?:标准|参考|原)?\s*答案"
     r"|(?:参考答案|标准答案|原答案|答案里|答案中|"
-    r"题解里|题解中|解答里|解答中|讲义答案)"
+    r"题解里|题解中|解答里|解答中|讲义答案|参考解法)"
 )
 VOICES = frozenset({
     "zh-CN-YunxiNeural", "zh-CN-YunjianNeural",
