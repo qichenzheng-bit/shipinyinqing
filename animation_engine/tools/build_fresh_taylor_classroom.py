@@ -48,8 +48,8 @@ UNITS=[
        "reason":"使用正切等于正弦除余弦，直接取得可控乘积结构。"},
    ]},
   {"id":"expansions","event_type":"knowledge","phase":"knowledge",
-   "heading":"只展开到需要的阶",
-   "detail":"分母是五次幂，三个因子按乘积阶数分别保留足够的项。",
+   "heading":"常用麦克劳林展开公式",
+   "detail":"零点附近正弦与余弦及其倒数的标准展开，可用于判断极限阶数。",
    "goal":"说明正弦保留三次、余弦差保留四次、倒数保留二次。",
    "pause_seconds":2.4,"write_seconds":1.0,
    "math":[
@@ -114,10 +114,24 @@ UNITS=[
 STEPS=UNITS
 
 
+def _knowledge_catalog():
+    formulas=next(u for u in UNITS if u["id"]=="expansions")
+    return {
+        "schema_version":"1.0","teacher_reviewed":True,
+        "points":[{
+            "event_id":"e_expansions","topic_id":"maclaurin_standard_expansions",
+            "title":formulas["heading"],"kind":"formula",
+            "formulae":[{"object_id":"m_"+m["id"],"latex":m["latex"]}
+                        for m in formulas["math"]],
+            "used_in":["e_product","e_quotient"],
+        }],
+    }
+
+
 def build_new():
     pkg,board,execution,cues=compile_teaching_units(
         problem=PROBLEM,reference_solution=REFERENCE_SOLUTION,units=UNITS,
-        teacher_reviewed=True  # These demo sources were independently audited.
+        teacher_reviewed=True,knowledge_catalog=_knowledge_catalog()
     )
     policy=simple_classroom_policy(result_ids=("m_final",))
     return pkg,board,execution,cues,policy
@@ -138,6 +152,7 @@ def main(output:Path):
        "execution.json":execution.model_dump(mode="json"),
        "teacher_approved_cues.json":cues,
        "page_policy.json":policy,
+       "core_knowledge.json":_knowledge_catalog(),
     }
     for name,value in data.items():
         (output/name).write_text(
