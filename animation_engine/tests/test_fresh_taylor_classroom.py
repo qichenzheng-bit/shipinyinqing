@@ -49,7 +49,7 @@ def test_default_preset_implements_confirmed_blackboard_requirements():
     assert p["guidance_style"]=="persistent_chalkboard"
     assert p["allow_scroll"] is False
     assert p["cut_before_events"]==[]
-    assert p["math_base_scale"]==.5625
+    assert p["math_base_scale"]==.50
     assert SIMPLE_CLASSROOM_RULES["writing"]=="append_only_until_board_full"
     assert SIMPLE_CLASSROOM_RULES["math_color"]=="#111111"
     assert len({BOARD_TEXT_STYLE[k]["heading"] for k in
