@@ -126,6 +126,9 @@ def _common(variant: str):
                      "经过第一次分部积分得到第二次计算所需的可靠关系。"),
             ],
             [
+                math("b_i2_j_rule",
+                     r"\int_a^b u\,\mathrm{d}v=[uv]_a^b-\int_a^b v\,\mathrm{d}u",
+                     "第二次分部积分前，重新给出所用公式。"),
                 math("b_i2_j_choice",
                      r"u=x,\quad \mathrm{d}v=e^x\,\mathrm{d}x",
                      "计算子积分时再次应用前面讲过的分部积分公式。"),
@@ -199,9 +202,9 @@ def build_variant(variant: str):
         ))
         units.append(unit(
             "i2finish","继续计算第二项",
-            "再做一次分部积分，算出子积分后返回原式。",
+            "再次使用分部积分公式求子积分，算完后代回原式。",
             "沿用前面已经得到的中间关系，完成第二项。",
-            segments[2]
+            segments[2],phase="knowledge"
         ))
         groups.append({
             "id":"I2","event_ids":["e_i2start","e_i2finish"],
