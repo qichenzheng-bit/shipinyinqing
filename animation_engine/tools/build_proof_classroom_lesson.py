@@ -275,20 +275,14 @@ def parameter_cases():
 _BUILD={"A":induction,"B":inequality,"C":parameter_cases}
 
 
-def build_variant(variant: str):
-    if variant not in _BUILD:
-        raise ValueError("PROOF_UNKNOWN_VARIANT")
-    problem,units,stages,groups=_BUILD[variant]()
-    reference="\n".join(
-        [problem]+[step["latex"] for u in units for step in u["math"]]
-    )
+def _knowledge_catalog(variant: str, units: list[dict]):
     knowledge_spec={
         "A":("knowledge_induction","induction_principle","principle",
              ["e_base","e_hypothesis","e_successor_done"]),
         "B":("knowledge_square","sum_of_squares_nonnegative","property",
              ["e_nonnegative","e_equality"]),
         "C":("knowledge_quadratic","quadratic_vertex_minimum","property",
-             ["e_square","e_necessary","e_case_less"]),
+             ["e_square","e_necessary"]),
     }
     uid,topic,kind,used_in=knowledge_spec[variant]
     source_unit=next(u for u in units if u["id"]==uid)
@@ -302,6 +296,17 @@ def build_variant(variant: str):
             "used_in":used_in,
         }],
     }
+    return knowledge_catalog
+
+
+def build_variant(variant: str):
+    if variant not in _BUILD:
+        raise ValueError("PROOF_UNKNOWN_VARIANT")
+    problem,units,stages,groups=_BUILD[variant]()
+    reference="\n".join(
+        [problem]+[step["latex"] for u in units for step in u["math"]]
+    )
+    knowledge_catalog=_knowledge_catalog(variant,units)
     package,board,execution,cues=compile_teaching_units(
         problem=problem,reference_solution=reference,
         units=units,teacher_reviewed=True,knowledge_catalog=knowledge_catalog
@@ -335,7 +340,7 @@ def export_variant(output: Path,variant: str):
         "teacher_approved_cues.json":cues,
         "page_policy.json":policy,
         "proof_chain.json":manifest,
-        "core_knowledge.json":knowledge_catalog,
+        "core_knowledge.json":_knowledge_catalog(variant,units),
     }
     for filename,data in files.items():
         (output/filename).write_text(
