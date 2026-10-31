@@ -201,4 +201,4 @@ def test_independent_symbolic_checks_of_three_authored_proof_examples():
         ((x-y)**2+(y-z)**2+(z-x)**2)
     )==0
     assert s.expand((x-a)**2+1-a*a-(x*x-2*a*x+1))==0
-    assert s.solve_univariate_inequality(1-a*a>=0,a)==s.Interval(-1,1)
+    assert s.solve_univariate_inequality(1-a*a>=0,a,relational=False)==s.Interval(-1,1)
