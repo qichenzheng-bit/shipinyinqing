@@ -114,7 +114,8 @@ def _center_new_group(blocks: list[dict]) -> float:
 
 
 def _center_page_heights(events: list[dict], *, page_start_y: int,
-                         header_bottom_y: int) -> list[dict]:
+                         header_bottom_y: int,
+                         proof_math_only: bool = False) -> list[dict]:
     """Keep every page close to the question, with modest vertical balancing.
 
     Formerly, short pages were unconditionally centered at y=384; their
@@ -141,8 +142,14 @@ def _center_page_heights(events: list[dict], *, page_start_y: int,
                     block["x"] < BOARD_X-0.01 or
                     block["x"] + _ink_width(block) > BOARD_X+BOARD_WIDTH+0.01):
                 raise LongboardError("CHALKBOARD_CENTERING_OUT_OF_BOUNDS")
-        left = min(block["x"] for block in blocks)
-        right = max(block["x"] + _ink_width(block) for block in blocks)
+        # Left-hand guidance is not mathematical ink: its left edge
+        # must not distort the independent center of the formula rows.
+        horizontal = ([b for b in blocks if b["kind"] == "math"]
+                      if proof_math_only else blocks)
+        if not horizontal:
+            horizontal = blocks
+        left = min(block["x"] for block in horizontal)
+        right = max(block["x"] + _ink_width(block) for block in horizontal)
         new_top = min(block["y"] for block in blocks)
         new_bottom = max(block["y"] + block["h"] for block in blocks)
         if new_top > page_start_y + MAX_PAGE_TOP_OFFSET_PX + 0.01:
@@ -371,6 +378,13 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         noteheight=(NOTE_HEIGHT + len(lines)*NOTE_DETAIL_LINE_HEIGHT+5
                     if note_needed else 0)
         proof_formula_rows=[]
+        def center_new_content(blocks):
+            if proof is not None and note_needed:
+                # MathTex rows are individually centered by _proof_math_rows.
+                # Centering the note AND formulas together previously shifted
+                # each mathematical formula to the right.
+                return
+            _center_new_group(blocks)
         def group_at(start_y):
             additions=[]
             y=start_y
@@ -471,7 +485,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             pending_proof_row=None
         else:
             proposed,next_y=group_at(cursor)
-            _center_new_group(proposed)
+            center_new_content(proposed)
             if proof is not None:
                 if any(len(row)>1 for row in proof_formula_rows):
                     proof_layout_mode="compact_within_stage"
@@ -542,9 +556,14 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 item=_math_placement(mid,sources,selected,size_of,size_cache,cursor)
                 carried.append({"kind":"math","block_id":mid,"carry":True,**item})
                 cursor+=item["h"]+BOARD_ROW_GAP
-            _center_new_group(carried)
+            if proof is not None:
+                # Carry formulas are separate already-proven source lines.
+                for item in carried:
+                    _center_new_group([item])
+            else:
+                _center_new_group(carried)
             proposed,next_y=group_at(cursor)
-            _center_new_group(proposed)
+            center_new_content(proposed)
             if next_y>BOARD_BOTTOM_Y:
                 if computation is not None or proof is not None:
                     raise LongboardError(
@@ -556,7 +575,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                 carried=[]
                 cursor=page_start_y
                 proposed,next_y=group_at(cursor)
-                _center_new_group(proposed)
+                center_new_content(proposed)
             if next_y>BOARD_BOTTOM_Y:
                 raise LongboardError(
                     f"CHALKBOARD_EVENT_TOO_TALL: {scene.event_id}"
@@ -632,7 +651,8 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
     if all_math != expected:
         raise LongboardError("CHALKBOARD_MATH_EVENT_LOST")
     centering=_center_page_heights(
-        events, page_start_y=page_start_y, header_bottom_y=header_bottom_y
+        events, page_start_y=page_start_y, header_bottom_y=header_bottom_y,
+        proof_math_only=proof is not None
     )
     return {
         "schema_version":"1.0","mode":"persistent_chalkboard",
@@ -643,6 +663,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                        "board_left":BOARD_X,"board_width":BOARD_WIDTH},
         "alignment":{"mode":"each_unit_centered_with_header_near_top",
                      "center_x":BOARD_CENTER_X,
+                     "proof_math_independent_centered":proof is not None,
                      "preferred_vertical_center_y":BOARD_CENTER_Y,
                      "header_bottom_y":header_bottom_y,
                      "max_first_ink_y":page_start_y+MAX_PAGE_TOP_OFFSET_PX,
