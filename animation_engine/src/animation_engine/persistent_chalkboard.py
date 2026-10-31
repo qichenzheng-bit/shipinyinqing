@@ -887,6 +887,10 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
         )
         record=diagram.objects[ident]
         kind=record["kind"]
+        if kind=="coordinate":
+            # Source geometry can reference this point without showing an
+            # irrelevant dot at each axis or right-angle-marker corner.
+            return None
         if kind=="point":
             return Dot(diagram_point(record["x"],record["y"]),
                        radius=.043,color=BLACK)
@@ -970,7 +974,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                       run_time=.75,rate_func=linear)
                             for obj in list(active.values())+list(
                                     diagram_active.values()):
-                                self.remove(obj)
+                                if obj is not None:
+                                    self.remove(obj)
                             active.clear()
                             diagram_active.clear()
                             self.remove(eraser)
@@ -987,7 +992,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                 if ident in diagram_active:
                                     raise LongboardError("DIAGRAM_CARRY_DUPLICATE")
                                 obj=build_diagram(ident)
-                                self.add(obj)
+                                if obj is not None:
+                                    self.add(obj)
                                 diagram_active[ident]=obj
                             def reveal_diagram():
                                 from manim import Create,FadeIn
@@ -998,7 +1004,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                     mode=diagram.objects[ident]["kind"]
                                     if mode in ("line","curve"):
                                         self.play(Create(obj),run_time=.72)
-                                    else:
+                                    elif obj is not None:
                                         self.play(FadeIn(obj),run_time=.36)
                                     diagram_active[ident]=obj
                             if row["diagram_order"]=="diagram_then_math":
