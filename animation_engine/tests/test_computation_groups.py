@@ -108,12 +108,16 @@ def test_mid_part_page_break_without_teacher_approved_checkpoint_rejected():
         )
 
 
-def test_mandatory_context_not_dropped_to_make_a_page_fit():
+def test_mandatory_context_not_dropped_to_make_a_page_fit(monkeypatch):
+    import animation_engine.persistent_chalkboard as chalkboard
+    # Narrow only the mock test board: an atomic group itself fits,
+    # but the mandatory previous result + decomposition do not fit with it.
+    monkeypatch.setattr(chalkboard,"BOARD_BOTTOM_Y",420)
     _,board,execution,cues,policy,manifest,_,_,_=build_variant("B")
     with pytest.raises(LongboardError,match="COMPUTATION_MANDATORY_CARRY_OVERFLOW"):
         make_chalkboard_plan(
             board,execution,cues,policy,
-            measure=lambda latex,h:GlyphSize(220,74),
+            measure=lambda latex,h:GlyphSize(240,63),
             computation_manifest=manifest
         )
 
