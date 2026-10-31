@@ -52,6 +52,9 @@ jobs:
           assert (q['width'],q['height'],q['r_frame_rate'])==(1280,720,'30/1')
           assert int(q['nb_read_frames'])>800
           assert m['computation_groups']['part_count']==5
+          assert m['alignment']['mode']=='each_unit_centered_with_page_vertical_balance'
+          assert all(abs(page['ink_center_x']-640)<2 and abs(page['ink_center_y']-384)<2
+                     for page in m['alignment']['pages'])
           assert m['event_count']==8 and m['page_count']>=2
           assert m['erase_count']==m['page_count']-1
           assert m['in_page_fadeout_count']==0==m['in_page_reposition_count']
