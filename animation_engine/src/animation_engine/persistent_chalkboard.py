@@ -45,6 +45,17 @@ BOARD_CENTER_Y = (BOARD_START_Y + BOARD_BOTTOM_Y) / 2
 QUESTION_TO_BOARD_MIN_GAP_PX = 22
 MAX_PAGE_TOP_OFFSET_PX = 20
 
+# V2.5.3: actual MathTex glyph widths, not the source string length, decide
+# if a formula can share a horizontal teaching row. The rules apply to proof
+# mode only; approved integral and matrix arrangements are unchanged.
+PROOF_ROW_GUTTER = 36
+PROOF_INLINE_MAX_FORMULA_WIDTH = 440
+PROOF_INLINE_ROW_WIDTH = 940
+PROOF_INLINE_MAX_ITEMS = 3
+PROOF_STAGE_GUTTER = 68
+PROOF_STAGE_MAX_WIDTH = 500
+PROOF_PAIRED_ROW_WIDTH = 950
+
 
 def _page_start_y(board) -> tuple[int, int]:
     """Keep the first board write below the APPROVED fixed-question region.
@@ -208,6 +219,91 @@ def _math_placement(mid,sources,selected,measure,size_cache,y, *,
         mid,source,parts,x,y,width,(1280,720),"working",
         selected.math_base_scale,selected.math_min_scale
     )
+
+
+def _proof_math_rows(ids, sources, selected, measure, size_cache, y):
+    """Pack genuinely short consecutive formulae; preserve source read order.
+
+    Short mathematics reads left-to-right, then top-to-bottom. A long formula
+    starts its own row; a too-wide expression is never shrunk to force a row.
+    Every placement still uses the real MathTex sizing contract.
+    """
+    items=[
+        _math_placement(mid,sources,selected,measure,size_cache,0)
+        for mid in ids
+    ]
+    rows=[]
+    current=[]
+    for mid,item in zip(ids,items):
+        width=sum(b["w"] for _,b in current)
+        gap=PROOF_ROW_GUTTER*len(current)
+        fits=(item["w"]<=PROOF_INLINE_MAX_FORMULA_WIDTH
+              and all(b["w"]<=PROOF_INLINE_MAX_FORMULA_WIDTH
+                      for _,b in current)
+              and len(current)<PROOF_INLINE_MAX_ITEMS
+              and width+gap+item["w"]<=PROOF_INLINE_ROW_WIDTH)
+        if current and not fits:
+            rows.append(current)
+            current=[]
+        current.append((mid,item))
+    if current:
+        rows.append(current)
+    placed=[]
+    positions=[]
+    for row in rows:
+        total=sum(item["w"] for _,item in row)+PROOF_ROW_GUTTER*(len(row)-1)
+        x=BOARD_CENTER_X-total/2
+        h=max(item["h"] for _,item in row)
+        row_ids=[]
+        for mid,item in row:
+            _translate_block(item,dx=x-BOARD_X,dy=y+(h-item["h"])/2)
+            placed.append({"kind":"math","block_id":mid,**item})
+            row_ids.append(mid)
+            x+=item["w"]+PROOF_ROW_GUTTER
+        positions.append(row_ids)
+        y+=h+BOARD_ROW_GAP
+    return placed,y,positions
+
+
+def _proof_stage_pair(first,second,sources,selected,measure,size_cache,y):
+    """Two short chronological proof stages in stable left and right columns.
+
+    Treat each stage as one semantic tile (up to two source formulae).
+    Its own formulas stay vertical if necessary. The next event writes into
+    its RESERVED right-hand tile; nothing already shown is repositioned.
+    """
+    first_ids,second_ids=first,second
+    if not (1<=len(first_ids)<=2 and 1<=len(second_ids)<=2):
+        return None
+    placements=[]
+    for ids in (first_ids,second_ids):
+        items=[_math_placement(mid,sources,selected,measure,size_cache,0)
+               for mid in ids]
+        if any(item["w"]>PROOF_STAGE_MAX_WIDTH for item in items):
+            return None
+        placements.append(items)
+    widths=[max(item["w"] for item in tile) for tile in placements]
+    heights=[sum(item["h"] for item in tile)
+             +BOARD_ROW_GAP*(len(tile)-1) for tile in placements]
+    total=sum(widths)+PROOF_STAGE_GUTTER
+    if total>PROOF_PAIRED_ROW_WIDTH:
+        return None
+    if y+max(heights)+BOARD_ROW_GAP>BOARD_BOTTOM_Y:
+        return None
+    x=BOARD_CENTER_X-total/2
+    two=[]
+    for ids,items,tile_width in zip(
+            (first_ids,second_ids),placements,widths):
+        col=[]
+        line_y=y
+        for mid,item in zip(ids,items):
+            _translate_block(item,dx=x+(tile_width-item["w"])/2-BOARD_X,
+                             dy=line_y)
+            col.append({"kind":"math","block_id":mid,**item})
+            line_y+=item["h"]+BOARD_ROW_GAP
+        two.append(col)
+        x+=tile_width+PROOF_STAGE_GUTTER
+    return two,y+max(heights)+BOARD_ROW_GAP
 
 
 def make_chalkboard_plan(storyboard,execution,cues,policy, *,
