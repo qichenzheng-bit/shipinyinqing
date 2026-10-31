@@ -93,7 +93,12 @@ def checked_diagram_classroom(payload: Any, storyboard, execution) -> DiagramCon
         points[p.id]=(p.x,p.y)
         if not (.035<=p.x<=.965 and .035<=p.y<=.965):
             raise LongboardError("DIAGRAM_POINT_OUT_OF_SAFE_PANEL")
-        insert(p.id,"point",{"x":p.x,"y":p.y})
+        # Only teacher-named mathematical points get visible dots.
+        # Endpoints needed merely to define axes, tangents, or a right-angle
+        # marker must NOT become stray black dots in the classroom image.
+        insert(p.id,"point" if p.label else "coordinate",{
+            "x":p.x,"y":p.y
+        })
         if p.label:
             validate_math_latex(p.label)
     for line in diagram.lines:
