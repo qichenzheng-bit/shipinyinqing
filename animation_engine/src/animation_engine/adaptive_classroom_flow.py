@@ -146,8 +146,8 @@ def checked_adaptive_flow(input_file: Path | str) -> AdaptiveFlow:
 
 def _stage_plan(stage, adaptive, *, measure=None) -> dict:
     layout_hint = (
-        "diagram_left"
-        if adaptive.layout == "math_left_diagram_right"
+        "diagram_left" if adaptive.layout == "math_left_diagram_right"
+        else "preserve_diagram" if adaptive.layout == "diagram_native"
         else None
     )
     board = make_chalkboard_plan(
@@ -302,8 +302,11 @@ def render_adaptive_flow(input_file: Path | str, *,
             rendered = render_persistent_chalkboard(
                 stage.storyboard, stage.execution, stage.cues, stage.policy,
                 output_mp4=raw, output_json=raw_manifest, fps=fps,
-                layout_hint=("diagram_left" if spec.layout ==
-                             "math_left_diagram_right" else None),
+                layout_hint=(
+                    "diagram_left" if spec.layout == "math_left_diagram_right"
+                    else "preserve_diagram" if spec.layout == "diagram_native"
+                    else None
+                ),
                 **stage.kwargs(),
             )
             if (rendered["source_storyboard_sha256"] !=
