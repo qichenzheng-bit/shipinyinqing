@@ -49,8 +49,8 @@ def test_every_individual_integral_has_written_rule_and_side_by_side_work(
                   if b["kind"]=="math" and not b.get("carry")]
         assert len(formulas)>=2
         assert formulas[0]["block_id"]==knowledge
-        assert formulas[0]["x"]==BOARD_X
-        assert all(b["x"]>=BOARD_X+KNOWLEDGE_WIDTH+KNOWLEDGE_GUTTER
+        assert abs(formulas[0]["x"]-notes[0]["x"]) <= 0.01
+        assert all(b["x"]>=notes[0]["x"]+KNOWLEDGE_WIDTH+KNOWLEDGE_GUTTER-0.01
                    for b in formulas[1:])
         assert formulas[-1]["block_id"]==(
             part.result_id if len(part.event_ids)==1
@@ -58,6 +58,18 @@ def test_every_individual_integral_has_written_rule_and_side_by_side_work(
         )
         assert all(b["scale"]<=0.50 for b in formulas)
     assert set(layout["math_written_ids"])==set(source)
+    # Both single-column and paired units are centered as a group, not
+    # pinned to the left just because blank canvas exists on the right.
+    from animation_engine.persistent_chalkboard import _ink_width, BOARD_CENTER_X
+    for event in layout["events"]:
+        blocks=[b for b in event["added_blocks"] if not b.get("carry")]
+        if not blocks:
+            continue
+        left=min(b["x"] for b in blocks)
+        right=max(b["x"]+_ink_width(b) for b in blocks)
+        assert abs((left+right)/2-BOARD_CENTER_X)<1.0, (variant,event["event_id"])
+    assert all(abs(p["ink_center_x"]-BOARD_CENTER_X)<1.0
+               for p in layout["alignment"]["pages"])
 
 
 def test_nested_integration_by_parts_restates_knowledge_when_continuing():
