@@ -263,3 +263,31 @@ def test_no_fake_claim_for_unit_test_media():
     # Unit tests never check fake bytes through the actual production
     # ffprobe or claim them to be genuine TTS/Manim artifacts.
     assert b"MOCK" != b"\x00\x00\x00\x18ftypmp42"
+
+
+
+def test_cached_mathtex_subtitle_png_decodes_and_rejects_bad_alpha(tmp_path):
+    from io import BytesIO
+    PIL=pytest.importorskip("PIL")
+    from PIL import Image,ImageDraw
+    cache=ArtifactCache(tmp_path/"cache")
+    key=cache.key("subtitle_png",{
+        "kind":"math","display":r"\int_0^1x\,dx",
+        "pixel_width":1280,"safe_band_height":88,
+        "caption_renderer":"manim_mathtex",
+    })
+    picture=Image.new("RGBA",(1280,88),(0,0,0,0))
+    ImageDraw.Draw(picture).rectangle((300,12,980,72),fill=(12,20,30,255))
+    buffer=BytesIO()
+    picture.save(buffer,format="PNG")
+    cache.write("subtitle_png",key,{"payload.bin":buffer.getvalue()})
+    output=tmp_path/"valid.png"
+    assert cache.get_png(key,output) is True
+    assert output.read_bytes()==buffer.getvalue()
+    # No non-transparent backdrop may be added to the classroom view.
+    invalid=Image.new("RGBA",(1280,88),(255,255,255,255))
+    invalid_bytes=BytesIO()
+    invalid.save(invalid_bytes,format="PNG")
+    cache.write("subtitle_png",key,{"payload.bin":invalid_bytes.getvalue()})
+    assert cache.get_png(key,tmp_path/"invalid.png") is False
+    assert cache.stats()["subtitle_png_invalid"]>=1
