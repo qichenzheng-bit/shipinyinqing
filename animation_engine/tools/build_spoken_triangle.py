@@ -122,11 +122,6 @@ def export_spoken_triangle(root: Path):
                 item["diagram_phrase_cues"]=DIAGRAM_PHRASE_CUES[(stage_id,eid)]
             spans.append(item)
         events.append({
-            **({"question_fact_alignment": [
-                {"source_excerpt":"AB=8","spoken_excerpt":"AB 长八"},
-                {"source_excerpt":"AC=6","spoken_excerpt":"AC 长六"},
-                {"source_excerpt":"斜边与周长","spoken_excerpt":"斜边和周长"},
-            ]} if not events else {}),
             "stage_id":stage_id,"event_id":eid,
             "pedagogical_cue_covered":True,
             "question_read_aloud":len(events)==0,
