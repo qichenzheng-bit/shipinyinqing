@@ -4,6 +4,7 @@ No AI requests, no speech or movie rendering; only real source and math gates.
 """
 import json
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -45,8 +46,8 @@ def curriculum_fixture(root):
             "math_after":AFTER_MATH.get(eid,""),
         }
     candidate={
-        "units":UNITS,
-        "knowledge_catalog":KNOWLEDGE_CATALOG,
+        "units":deepcopy(UNITS),
+        "knowledge_catalog":deepcopy(KNOWLEDGE_CATALOG),
         "narration":narration,
         "lesson_contract":contract,
     }
