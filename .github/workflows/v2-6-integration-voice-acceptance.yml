@@ -1,0 +1,101 @@
+name: V2.6 integration real Yunxi and Xiaoxiao voice acceptance
+on:
+  push:
+    branches: [integration/v2-6-release-2026-11-01, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dual-voice-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Check both voices, speed validation, cache isolation and invalidation
+        run: cd animation_engine && python -m pytest tests/test_spoken_classroom.py tests/test_incremental_render.py -q -m 'not render'
+  real-xiaoxiao-and-rate:
+    needs: dual-voice-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install authentic Edge TTS, Manim, MathTex and FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+          python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test,speech]'
+      - name: Verify actual Yunxi old/new speech duration and both neural voices
+        run: |
+          python - <<'PY'
+          import asyncio,json,tempfile
+          from pathlib import Path
+          from animation_engine.spoken_audio import _edge_clip,SAMPLE_RATE
+          from animation_engine.render_cache import ArtifactCache
+          async def main(root):
+              cache=ArtifactCache(root/"cache")
+              sem=asyncio.Semaphore(1)
+              txt="考研数学这道题，我们先读题，分析图形关系，然后一步一步计算。"
+              old=await _edge_clip(0,txt,"zh-CN-YunxiNeural",root,sem,cache,rate="-4%")
+              new=await _edge_clip(1,txt,"zh-CN-YunxiNeural",root,sem,cache,rate="+1%")
+              hit=await _edge_clip(2,txt,"zh-CN-YunxiNeural",root,sem,cache,rate="+1%")
+              xiao=await _edge_clip(3,txt,"zh-CN-XiaoxiaoNeural",root,sem,cache,rate="+1%")
+              assert new==hit and all(len(x)>SAMPLE_RATE for x in (old,new,xiao))
+              ratio=len(old)/len(new)
+              assert 0.97<ratio<1.15,ratio
+              assert cache.stats()["speech_pcm_hit"]>=1
+              data={"yunxi_old_s":len(old)/2/SAMPLE_RATE,"yunxi_new_s":len(new)/2/SAMPLE_RATE,
+                    "xiaoxiao_new_s":len(xiao)/2/SAMPLE_RATE,
+                    "old_new_pcm_duration_ratio":ratio,"nominal_rate_ratio":1.01/0.96}
+              p=Path("dual-voice-evidence")
+              p.mkdir(exist_ok=True)
+              (p/"real_voice_speeds.json").write_text(json.dumps(data,indent=2),encoding="utf-8")
+              print("V26_REAL_TWO_VOICE_SPEED_PASS",data)
+          with tempfile.TemporaryDirectory() as tmp:
+              asyncio.run(main(Path(tmp)))
+          PY
+      - name: Render full Xiaoxiao classroom with source-synchronized captions
+        run: |
+          python animation_engine/tools/build_spoken_triangle.py --output dual-voice-evidence/xiaoxiao
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("dual-voice-evidence/xiaoxiao/spoken_classroom.json")
+          data=json.loads(p.read_text("utf-8"))
+          data["voice"]="zh-CN-XiaoxiaoNeural"
+          data["speech_rate"]="+1%"
+          p.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+          math-animation render-spoken --spoken dual-voice-evidence/xiaoxiao/spoken_classroom.json --output dual-voice-evidence/xiaoxiao/lesson.mp4 --manifest dual-voice-evidence/xiaoxiao/manifest.json --srt dual-voice-evidence/xiaoxiao/lesson.srt --fps 30 --adaptive
+      - name: Audit real Xiaoxiao MP4, MathTex, subtitle and contract source
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          p=Path("dual-voice-evidence/xiaoxiao")
+          r=json.loads((p/"manifest.json").read_text("utf-8"))
+          assert r["voice"]=="zh-CN-XiaoxiaoNeural"
+          assert r["speech_rate"]=="+1%"
+          assert r["voice_status"]=="real_edge_neural_pcm_verified"
+          assert r["subtitle_status"]=="actual_tts_phrase_aligned"
+          assert r["math_caption_renderer"]=="true_manim_mathtex"
+          assert r["source_narration_action_count"]==r["voiced_action_count"]==18
+          assert len(r["event_timing"])==11 and r["actual_video_frames"]>1000
+          assert r["fabricated_voice_or_subtitle_count"]==0
+          streams=json.loads(subprocess.check_output(
+              ["ffprobe","-v","error","-show_streams","-of","json",str(p/"lesson.mp4")]
+          ))["streams"]
+          assert {x["codec_type"] for x in streams}>={"video","audio"}
+          assert (p/"lesson.srt").stat().st_size>100
+          print("V26_REAL_XIAOXIAO_MP4_PASS",r["actual_video_frames"])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v26-real-Xiaoxiao-voice-and-speed-evidence
+          path: dual-voice-evidence/
+          if-no-files-found: warn

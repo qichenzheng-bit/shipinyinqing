@@ -1,0 +1,111 @@
+name: V2.6.4 authentic voice teaching coverage and synchronization
+on:
+  push:
+    branches: [feature/v2-6-4-spoken-classroom-sync]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v2-6-4-spoken-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  narration-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Verify every teaching action has reviewed speech and no answer-reading shortcuts
+        run: cd animation_engine && python -m pytest tests/test_spoken_classroom.py -q
+      - name: Old source contracts and all old teaching engine regressions
+        run: cd animation_engine && python -m pytest -q -m 'not render'
+      - name: Preserve teacher/director quality
+        run: |
+          cd teacher_module && python -m pytest -q
+          cd ../visual_director && python -m pytest -q
+      - run: python -m compileall -q animation_engine/src animation_engine/tools teacher_module/src visual_director/src
+  real-spoken-classroom:
+    needs: narration-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install real Manim TeX ffmpeg Chinese fonts and provider
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+          python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test,speech]'
+      - name: Build real teacher-reviewed spoken classroom
+        run: |
+          python animation_engine/tools/build_spoken_triangle.py --output spoken-evidence/triangle
+          math-animation plan-spoken --spoken spoken-evidence/triangle/spoken_classroom.json --output spoken-evidence/triangle/planned.json --adaptive
+      - name: Render true neural teacher voice and synchronized captions
+        run: |
+          math-animation render-spoken --spoken spoken-evidence/triangle/spoken_classroom.json --output spoken-evidence/triangle/spoken_teaching.mp4 --manifest spoken-evidence/triangle/movie_manifest.json --srt spoken-evidence/triangle/real_voice.srt --fps 30 --adaptive
+      - name: Audit heard lines, real audio and math formula subtitle appearance
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from PIL import Image,ImageChops,ImageStat
+          p=Path('spoken-evidence/triangle')
+          m=json.loads((p/'movie_manifest.json').read_text())
+          plan=json.loads((p/'planned.json').read_text())
+          assert m['voice_status']=='real_edge_neural_pcm_verified'
+          assert m['subtitle_status']=='actual_tts_phrase_aligned'
+          assert m['math_caption_renderer']=='true_manim_mathtex'
+          assert m['fabricated_voice_or_subtitle_count']==0
+          assert m['source_narration_action_count']==m['voiced_action_count']
+          assert m['source_spoken_sha256']==plan['source_spoken_sha256']
+          assert m['subtitle_count']>m['voiced_action_count']
+          assert len(m['event_timing'])==11
+          assert len({(x['stage_id'],x['event_id'],x['object_id']) for x in
+                     m['caption_timing']})==m['voiced_action_count']
+          assert all(c['start_frame']<c['end_frame'] for c in m['caption_timing'])
+          assert all(x['kind'] in ('math','text') for x in m['caption_timing'])
+          assert any(c['kind']=='math' and c['display']==r'BC=10'
+                     for c in m['caption_timing'])
+          assert m['actual_video_frames']==m['audio_verification']['video_frames']
+          assert m['audio_verification']['sample_rate']>=16000
+          assert m['audio_verification']['channels']>=1
+          stream=json.loads(subprocess.check_output([
+              'ffprobe','-v','error','-show_streams','-of','json',
+              str(p/'spoken_teaching.mp4')
+          ]))
+          assert set(x['codec_type'] for x in stream['streams'])>={'audio','video'}
+          assert len((p/'real_voice.srt').read_text(encoding='utf-8').strip())>10
+          def image(frame,path):
+              subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y',
+                  '-ss',str(frame/30),'-i',str(p/'spoken_teaching.mp4'),
+                  '-frames:v','1',str(path)],check=True)
+              obj=Image.open(path).convert('RGB')
+              assert obj.size==(1280,720)
+              return obj
+          first=next(x for x in m['caption_timing'] if x['kind']=='math')
+          target=(first['start_frame']+first['end_frame'])//2
+          picture=image(target,p/'math_subtitle_appears.png')
+          silent_index=next((first['end_frame']+v for v in range(2,14)
+              if all(not (c['start_frame']<=first['end_frame']+v<c['end_frame'])
+                     for c in m['caption_timing'])),None)
+          if silent_index is not None:
+              absent=image(silent_index,p/'silent_subtitle_clear.png')
+              band=(0,630,1280,716)
+              delta=ImageStat.Stat(ImageChops.difference(
+                  picture.crop(band),absent.crop(band))).mean
+              assert max(delta)>0.15,'SUBTITLE_STILL_VISIBLE_OR_MISSING'
+          assert m['preserving_wipe_count']==2
+          print('V2_6_4_ACTUAL_SPOKEN_CLASSROOM_PASS',
+                m['actual_video_frames'],'frames',
+                m['voiced_action_count'],'narrated objects',
+                m['subtitle_count'],'actual speech captions')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-6-4-real-teacher-voice-MathTex-subtitle-mp4-and-audit
+          path: spoken-evidence/
+          if-no-files-found: warn

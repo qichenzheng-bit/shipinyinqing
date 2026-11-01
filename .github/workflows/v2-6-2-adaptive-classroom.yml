@@ -1,0 +1,135 @@
+name: V2.6.2 native adaptive classroom and source-bound persistent diagrams
+on:
+  push:
+    branches: [feature/v2-6-2-adaptive-classroom-layout]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  adaptive-source-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install teacher, director and engine test dependencies
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Check V2.6.2 positive and negative source/lifecycle contracts
+        run: |
+          cd animation_engine
+          python -m pytest tests/test_adaptive_classroom_flow.py -q
+      - name: Preserve existing V2.6.1 mathematical handoffs and V2.5 engines
+        run: |
+          cd animation_engine
+          python -m pytest tests/test_unified_classroom_flow.py -q
+          python -m pytest -q -m 'not render'
+      - name: Preserve teacher and director rules
+        run: |
+          cd teacher_module && python -m pytest -q
+          cd ../visual_director && python -m pytest -q
+      - name: Compile Python source
+        run: python -m compileall -q animation_engine/src animation_engine/tools teacher_module/src visual_director/src
+  real-adaptive-videos:
+    needs: adaptive-source-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install real MathTex Manim and video environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+          python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test]'
+      - name: Create three complete approved classroom flow variants
+        run: |
+          for mode in hold hide restore; do
+            python animation_engine/tools/build_adaptive_area_lesson.py --mode "$mode" --output "adaptive-evidence/$mode"
+            math-animation plan-adaptive-flow --layout "adaptive-evidence/$mode/adaptive_layout.json" --output "adaptive-evidence/$mode/planned.json"
+          done
+      - name: Render actual native Manim and MathTex MP4, not mockups
+        run: |
+          for mode in hold hide restore; do
+            math-animation render-adaptive-flow --layout "adaptive-evidence/$mode/adaptive_layout.json" --output "adaptive-evidence/$mode/classroom.mp4" --manifest "adaptive-evidence/$mode/movie_manifest.json" --fps 30
+          done
+      - name: Audit diagram retention, disappearance, exact restore and fixed header
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from PIL import Image,ImageChops,ImageStat,ImageDraw
+          root=Path('adaptive-evidence')
+          shots=[]
+          def shot(movie,frame,path):
+              subprocess.run([
+                  'ffmpeg','-hide_banner','-loglevel','error','-y',
+                  '-ss',str(max(0,frame)/30),'-i',str(movie),
+                  '-frames:v','1',str(path)
+              ],check=True)
+              image=Image.open(path).convert('RGB')
+              assert image.size==(1280,720)
+              return image
+          def diff(a,b):
+              return max(ImageStat.Stat(ImageChops.difference(a,b)).mean)
+          for mode in ('hold','hide','restore'):
+              folder=root/mode
+              data=json.loads((folder/'movie_manifest.json').read_text())
+              planned=json.loads((folder/'planned.json').read_text())
+              reports=data['stage_render_reports']
+              assert data['fps']==30
+              assert data['pixel_width']==1280 and data['pixel_height']==720
+              assert data['fabricated_voice_or_subtitle_count']==0
+              assert len(data['event_timing'])==planned['event_count']
+              assert data['diagram_lifecycle_source_verified']
+              assert all(s['native_math_size_preserved'] for s in reports)
+              assert reports[0]['diagram_action']=='create'
+              assert reports[0]['engine']=='diagram'
+              assert [s['diagram_action'] for s in reports]=={
+                  'hold':['create','hold'],
+                  'hide':['create','hide'],
+                  'restore':['create','hide','restore'],
+              }[mode]
+              movie=folder/'classroom.mp4'
+              original=shot(movie,reports[0]['video_frames']-4,folder/'diagram_source.png')
+              second=shot(movie,reports[1]['start_frame']+min(30,reports[1]['video_frames']-3),folder/'second_stage.png')
+              p=data['diagram_panel_pixels']
+              rect=(p['x'],p['y'],p['x']+p['w'],p['y']+p['h'])
+              graph=original.crop(rect)
+              later=second.crop(rect)
+              if mode=='hold':
+                  assert diff(graph,later)<5.0, ('GRAPH_DROPPED_ACROSS_WIPE',diff(graph,later))
+                  assert data['preserving_wipe_count']==1
+              else:
+                  # Hidden stage must actually remove the plot, not just set a flag.
+                  changed=diff(graph,later)
+                  assert changed>3, ('GRAPH_STILL_VISIBLE_AFTER_HIDE',changed)
+                  assert data['preserving_wipe_count']==0
+              if mode=='restore':
+                  final=shot(movie,reports[2]['start_frame']+min(30,reports[2]['video_frames']-3),folder/'restored_graph.png')
+                  assert diff(graph,final.crop(rect))<5, 'RESTORE_FAILED'
+              # Existing title remains in place on all scene transitions.
+              assert diff(original.crop((0,0,1280,106)),second.crop((0,0,1280,106)))<1.5
+              frames=int(subprocess.check_output([
+                  'ffprobe','-v','error','-select_streams','v:0',
+                  '-count_frames','-show_entries','stream=nb_read_frames',
+                  '-of','default=noprint_wrappers=1:nokey=1',str(movie)
+              ]).strip())
+              assert abs(frames-data['actual_video_frames'])<=1
+              shots.extend([(f'{mode}:original',original),(f'{mode}:second',second)])
+              print('V2_6_2_TRUE_ADAPTIVE_VIDEO_PASS',mode,frames,'frames')
+          montage=Image.new('RGB',(1280,1230),'#f1f4f8')
+          draw=ImageDraw.Draw(montage)
+          for i,(name,img) in enumerate(shots):
+              x=(i%2)*640; y=(i//2)*400+24
+              montage.paste(img.resize((640,360)),(x,y))
+              draw.text((x+12,y-20),name,fill='#111111')
+          montage.save(root/'adaptive_comparison_keyframes.png')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-6-2-hold-hide-restore-authentic-mathtex-mp4s-and-manifests
+          path: adaptive-evidence/
+          if-no-files-found: warn

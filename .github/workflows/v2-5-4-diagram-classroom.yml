@@ -1,0 +1,157 @@
+name: V2.5.4 genuine graphs geometry and integral-region classroom
+on:
+  push:
+    branches: [feature/v2-5-4-diagram-classroom]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validated-source-and-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install teacher, visual director and animation logic
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: V2.5.4 source, geometry, shaded area, label and stage-negative tests
+        run: cd animation_engine && python -m pytest tests/test_diagram_classroom.py -q
+      - name: Preserve previous teacher module
+        run: cd teacher_module && python -m pytest -q
+      - name: Preserve previous director and geometry placement
+        run: cd visual_director && python -m pytest -q
+      - name: All V2.5.1 through V2.5.3 animation tests
+        run: cd animation_engine && python -m pytest -q -m 'not render'
+      - name: Compile every Python source
+        run: python -m compileall -q animation_engine/src animation_engine/tools teacher_module/src visual_director/src
+  genuine-diagram-movies:
+    needs: validated-source-and-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install genuine LaTeX Manim CJK and FFmpeg dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+      - name: Install MathTex measuring and rendering engine
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test]'
+      - name: Create independently reviewed new function curve, area and triangle lessons
+        run: |
+          for V in A B C; do
+            P="diagram-evidence/$V"
+            mkdir -p "$P"
+            python animation_engine/tools/build_diagram_classroom_lesson.py --variant "$V" --output "$P"
+          done
+      - name: Measure actual MathTex and audit every source figure shape/page/label
+        run: |
+          for V in A B C; do
+            P="diagram-evidence/$V"
+            math-animation plan-longboard --storyboard "$P/storyboard.json" --execution "$P/execution.json" --classroom-cues "$P/teacher_approved_cues.json" --policy "$P/page_policy.json" --diagram-classroom "$P/diagram_classroom.json" --output "$P/board_pages.json"
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from animation_engine.diagram_classroom import (
+              DIAGRAM_PANEL,DIAGRAM_FORMULA_X,DIAGRAM_FORMULA_W
+          )
+          from animation_engine.board_motion import overlaps
+          from animation_engine.persistent_chalkboard import _ink_width
+          root=Path('diagram-evidence')
+          for variant,count in [('A',5),('B',6),('C',5)]:
+              p=root/variant
+              plan=json.loads((p/'board_pages.json').read_text())
+              assert plan['event_count']==count
+              assert plan['alignment']['mode']=='diagram_left_math_right_geometry'
+              assert plan['diagram_classroom']['all_revealed']
+              assert plan['diagram_classroom']['source_verified']
+              shown=[]
+              live={}
+              for e in plan['events']:
+                  if e['erase_before']:
+                      live={}
+                      assert e['diagram_carry_ids']==shown
+                  for b in e['added_blocks']:
+                      assert b['x']>=DIAGRAM_FORMULA_X-1
+                      assert b['x']+_ink_width(b)<=DIAGRAM_FORMULA_X+DIAGRAM_FORMULA_W+1
+                      assert b['y']+b['h']<=620
+                      assert all(not overlaps(b,other,margin=0) for other in live.values())
+                      live[b['block_id']]=b
+                  assert list(live)==e['visible_block_ids']
+                  shown+=e['diagram_reveal_ids']
+                  assert shown==e['visible_diagram_ids']
+              assert len(shown)==plan['diagram_classroom']['object_count']
+              source=plan['diagram_classroom']['source_objects']
+              assert all(obj['kind']=='coordinate' for obj in source.values()
+                         if obj['kind']=='coordinate')
+              if variant=='C':
+                  assert all(source[p]['kind']=='coordinate'
+                             for p in ('U','V','W'))
+              if variant=='B':
+                  assert plan['page_count']==2
+                  final=next(e for e in plan['events'] if e['erase_before'])
+                  assert final['carry_object_ids']==[
+                      'm_area_rule','m_area_step'
+                  ]
+                  carry=[b for b in final['added_blocks'] if b.get('carry')]
+                  assert [b['block_id'] for b in carry]==final['carry_object_ids']
+                  assert all(abs(b['x']+b['w']/2-
+                                  (DIAGRAM_FORMULA_X+DIAGRAM_FORMULA_W/2))<2
+                             for b in carry)
+              print('V2_5_4_REAL_MATHTEX_PLAN',variant,plan['page_count'],len(shown))
+          PY
+      - name: Render actual 1280x720 30fps MatTex and graph figure animations
+        run: |
+          for V in A B C; do
+            P="diagram-evidence/$V"
+            math-animation render-longboard --storyboard "$P/storyboard.json" --execution "$P/execution.json" --classroom-cues "$P/teacher_approved_cues.json" --policy "$P/page_policy.json" --diagram-classroom "$P/diagram_classroom.json" --output "$P/diagram_classroom.mp4" --manifest "$P/video_manifest.json" --fps 30
+            ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=width,height,nb_read_frames,r_frame_rate -of json "$P/diagram_classroom.mp4" > "$P/ffprobe.json"
+          done
+      - name: Extract and audit real video frames and exact lifecycle
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from PIL import Image,ImageDraw
+          root=Path("diagram-evidence")
+          for v in "ABC":
+              p=root/v
+              m=json.loads((p/'video_manifest.json').read_text())
+              info=json.loads((p/'ffprobe.json').read_text())['streams'][0]
+              assert (info['width'],info['height'],info['r_frame_rate'])==(1280,720,'30/1')
+              assert int(info['nb_read_frames'])>200
+              assert m['diagram_classroom']['all_revealed']
+              assert m['erase_count']==m['page_count']-1
+              assert m['in_page_fadeout_count']==m['in_page_reposition_count']==0
+              assert m['voice_status']=='not_recorded'
+              shot=[]
+              ids=[e['event_id'] for e in m['events']]
+              for eid in (ids[0],ids[len(ids)//2],ids[-1]):
+                  timing=next(x for x in m['event_timing'] if x['event_id']==eid)
+                  png=p/(eid+'.png')
+                  subprocess.run(['ffmpeg','-y','-hide_banner','-loglevel','error',
+                      '-ss',str(max(0,timing['end_preview_second']-.2)),
+                      '-i',str(p/'diagram_classroom.mp4'),
+                      '-frames:v','1',str(png)],check=True)
+                  img=Image.open(png).convert('RGB')
+                  assert img.size==(1280,720)
+                  shot.append((eid,img))
+              canvas=Image.new('RGB',(1280,780),'#E8EDF2')
+              draw=ImageDraw.Draw(canvas)
+              for i,(eid,img) in enumerate(shot):
+                  x=(i%2)*640
+                  y=(i//2)*390+25
+                  canvas.paste(img.resize((640,360)),(x,y))
+                  draw.text((x+8,y-20),eid,fill='#111111')
+              canvas.save(p/'diagram_key_frames.png')
+              print('V2_5_4_GENUINE_MANIM_MOVIE_PASS',v,info['nb_read_frames'],m['page_count'])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-5-4-diagram-genuine-mp4-and-verified-source
+          path: diagram-evidence/
+          if-no-files-found: warn

@@ -1,0 +1,2158 @@
+{
+  "schema_version": "1.0",
+  "input_sha256": "a392057e7ec2f94e6b5c2eff50304e5bea259c0cc0101efa517a7e6cb4a2bfee",
+  "prompt_versions": {
+    "global": "1.0",
+    "A": "1.0",
+    "B": "1.0",
+    "C": "1.0"
+  },
+  "source": {
+    "problem": "求极限：\\lim_{x\\to0}\\left[\\frac{1+\\int_0^x\\sin t\\,\\mathrm dt}{\\ln(1+x^2)}-\\frac1{\\sin^2x}\\right].",
+    "reference_solution": "原式 = \\lim_{x\\to0}\\frac{\\left(1+\\int_0^x\\sin t\\,\\mathrm dt\\right)\\sin^2x-\\ln(1+x^2)}{\\ln(1+x^2)\\sin^2x}.\n利用 \\ln(1+x^2)\\sim x^2, \\sin^2x\\sim x^2，所以分母与 x^4 等价。\n分子可写为 \\sin^2x+(\\sin^2x)\\int_0^x\\sin t\\,\\mathrm dt-\\ln(1+x^2)。\n加减 x^2 得到 (\\sin^2x-x^2)+(x^2-\\ln(1+x^2))+(\\sin^2x)\\int_0^x\\sin t\\,\\mathrm dt；按参考解法拆为三个极限。\n第一个极限 \\lim_{x\\to0}(\\sin^2x-x^2)/x^4，泰勒展开得到 -1/3。\n第二个极限 \\lim_{x\\to0}(x^2-\\ln(1+x^2))/x^4，展开得到 1/2。\n第三个极限 \\lim_{x\\to0}(\\sin^2x)\\int_0^x\\sin t\\,\\mathrm dt/x^4 = \\lim_{x\\to0}\\int_0^x\\sin t\\,\\mathrm dt/x^2 = \\lim_{x\\to0}\\sin x/(2x) = 1/2。\n最后 -1/3+1/2+1/2=2/3。",
+    "problem_segments": [
+      {
+        "source_id": "problem:0",
+        "text": "求极限：\\lim_{x\\to0}\\left[\\frac{1+\\int_0^x\\sin t\\,\\mathrm dt}{\\ln(1+x^2)}-\\frac1{\\sin^2x}\\right].",
+        "kind": "problem"
+      }
+    ],
+    "solution_segments": [
+      {
+        "source_id": "solution:0",
+        "text": "原式 = \\lim_{x\\to0}\\frac{\\left(1+\\int_0^x\\sin t\\,\\mathrm dt\\right)\\sin^2x-\\ln(1+x^2)}{\\ln(1+x^2)\\sin^2x}.\n利用 \\ln(1+x^2)\\sim x^2, \\sin^2x\\sim x^2，所以分母与 x^4 等价。\n分子可写为 \\sin^2x+(\\sin^2x)\\int_0^x\\sin t\\,\\mathrm dt-\\ln(1+x^2)。\n加减 x^2 得到 (\\sin^2x-x^2)+(x^2-\\ln(1+x^2))+(\\sin^2x)\\int_0^x\\sin t\\,\\mathrm dt；按参考解法拆为三个极限。\n第一个极限 \\lim_{x\\to0}(\\sin^2x-x^2)/x^4，泰勒展开得到 -1/3。\n第二个极限 \\lim_{x\\to0}(x^2-\\ln(1+x^2))/x^4，展开得到 1/2。\n第三个极限 \\lim_{x\\to0}(\\sin^2x)\\int_0^x\\sin t\\,\\mathrm dt/x^4 = \\lim_{x\\to0}\\int_0^x\\sin t\\,\\mathrm dt/x^2 = \\lim_{x\\to0}\\sin x/(2x) = 1/2。\n最后 -1/3+1/2+1/2=2/3。",
+        "kind": "solution"
+      }
+    ]
+  },
+  "understanding": {
+    "problem_understanding": {
+      "domain": "高等数学",
+      "problem_type": "极限计算题",
+      "goal": "计算 \\lim_{x\\to0}[(1+\\int_0^x\\sin t\\,dt)/\\ln(1+x^2)-1/\\sin^2x]",
+      "conditions": [
+        "x\\to0",
+        "x\\ne0（极限附近）"
+      ],
+      "math_objects": [
+        "\\sin x",
+        "\\ln(1+x^2)",
+        "\\int_0^x\\sin t\\,dt"
+      ],
+      "subquestions": []
+    },
+    "reference_method": "通分；分母阶数判定；分子加减 x^2 拆项；分别用泰勒展开与洛必达计算，最后汇总",
+    "solution_structure": "通分 -> 分母等价 -> 拆成三个极限 -> I1, I2, I3 依次求值 -> 相加",
+    "solution_steps": [
+      {
+        "step_id": "s1",
+        "origin": "source",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "通分",
+        "input_expressions": [
+          "L"
+        ],
+        "output_expressions": [
+          "L=\\lim_{x\\to0}\\frac{(1+\\int_0^x\\sin t\\,dt)\\sin^2x-\\ln(1+x^2)}{\\ln(1+x^2)\\sin^2x}"
+        ],
+        "relation_type": "equals",
+        "operation": "通分",
+        "depends_on": [],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "用户参考解析首行",
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "原式 ="
+        }
+      },
+      {
+        "step_id": "s2",
+        "origin": "source",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "分母量级",
+        "input_expressions": [
+          "\\ln(1+x^2)",
+          "\\sin^2x"
+        ],
+        "output_expressions": [
+          "\\ln(1+x^2)\\sin^2x\\sim x^4"
+        ],
+        "relation_type": "asymptotic",
+        "operation": "等价无穷小",
+        "depends_on": [
+          "s1"
+        ],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "分母各因子与 x^2 等价",
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "利用"
+        }
+      },
+      {
+        "step_id": "s3",
+        "origin": "source",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "分子整理",
+        "input_expressions": [
+          "\\sin^2x+\\sin^2x\\int_0^x\\sin t\\,dt-\\ln(1+x^2)"
+        ],
+        "output_expressions": [
+          "(\\sin^2x-x^2)+(x^2-\\ln(1+x^2))+\\sin^2x\\int_0^x\\sin t\\,dt"
+        ],
+        "relation_type": "equals",
+        "operation": "加减同一项",
+        "depends_on": [
+          "s2"
+        ],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "用户参考解析拆项",
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "分子可写为"
+        }
+      },
+      {
+        "step_id": "s4",
+        "origin": "organizational",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "命名子目标",
+        "input_expressions": [
+          "L"
+        ],
+        "output_expressions": [
+          "L=I_1+I_2+I_3"
+        ],
+        "relation_type": "definition",
+        "operation": "按原解析拆成三个极限并命名",
+        "depends_on": [
+          "s3"
+        ],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "辅助记号只是组织板书，不改变解法",
+        "verification_status": "source_only"
+      },
+      {
+        "step_id": "s5a",
+        "origin": "derived",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "平方差补充",
+        "input_expressions": [
+          "\\sin^2x-x^2"
+        ],
+        "output_expressions": [
+          "(\\sin x-x)(\\sin x+x)"
+        ],
+        "relation_type": "equals",
+        "operation": "平方差分解",
+        "depends_on": [
+          "s4"
+        ],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "平方差恒等式；辅助说明 I1 的泰勒展开步骤",
+        "verification_status": "pending_check"
+      },
+      {
+        "step_id": "s5",
+        "origin": "source",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "计算第一个极限",
+        "input_expressions": [
+          "I_1=\\lim_{x\\to0}\\frac{\\sin^2x-x^2}{x^4}"
+        ],
+        "output_expressions": [
+          "I_1=-\\frac13"
+        ],
+        "relation_type": "limit",
+        "operation": "sin x 三阶泰勒展开",
+        "depends_on": [
+          "s5a"
+        ],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "参考解析中的第一项",
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "第一个极限"
+        }
+      },
+      {
+        "step_id": "s6",
+        "origin": "source",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "计算第二个极限",
+        "input_expressions": [
+          "I_2=\\lim_{x\\to0}\\frac{x^2-\\ln(1+x^2)}{x^4}"
+        ],
+        "output_expressions": [
+          "I_2=\\frac12"
+        ],
+        "relation_type": "limit",
+        "operation": "ln(1+u) 二阶泰勒展开",
+        "depends_on": [
+          "s4"
+        ],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "参考解析中的第二项",
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "第二个极限"
+        }
+      },
+      {
+        "step_id": "s7",
+        "origin": "source",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "计算第三个极限",
+        "input_expressions": [
+          "I_3=\\lim_{x\\to0}\\frac{\\sin^2x\\int_0^x\\sin t\\,dt}{x^4}"
+        ],
+        "output_expressions": [
+          "I_3=\\frac12"
+        ],
+        "relation_type": "limit",
+        "operation": "等价无穷小、微积分基本定理、洛必达法则",
+        "depends_on": [
+          "s4"
+        ],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "参考解析中的第三项",
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "第三个极限"
+        }
+      },
+      {
+        "step_id": "s8",
+        "origin": "source",
+        "source_refs": [
+          "solution:0"
+        ],
+        "step_role": "汇总结论",
+        "input_expressions": [
+          "L=I_1+I_2+I_3"
+        ],
+        "output_expressions": [
+          "L=\\frac23"
+        ],
+        "relation_type": "equals",
+        "operation": "三个有限极限相加",
+        "depends_on": [
+          "s5",
+          "s6",
+          "s7"
+        ],
+        "assumptions": [
+          "x\\to0"
+        ],
+        "justification": "参考解析最终结论",
+        "verification_status": "source_only",
+        "source_quotes": {
+          "solution:0": "最后"
+        }
+      }
+    ],
+    "check_requests": [
+      {
+        "check_id": "chk_factor",
+        "step_id": "s5a",
+        "kind": "algebraic_identity",
+        "lhs_expr": "sin(x)**2-x**2",
+        "rhs_expr": "(sin(x)-x)*(sin(x)+x)",
+        "conditions": []
+      }
+    ],
+    "issues": [],
+    "review_status": "ready_candidate"
+  },
+  "plan": {
+    "teaching_strategy": "参考解析为主；必要知识点先讲→本题应用→回推导；数学板书随口播同步。",
+    "reference_step_coverage": {
+      "s1": [
+        "e_read",
+        "e_orient",
+        "e_common"
+      ],
+      "s2": [
+        "e_k_eqv",
+        "e_app_eqv",
+        "e_d_eqv"
+      ],
+      "s3": [
+        "e_split_idea",
+        "e_split"
+      ],
+      "s4": [
+        "e_subgoal"
+      ],
+      "s5a": [
+        "e_k_sin",
+        "e_app_sin",
+        "e_d_sin"
+      ],
+      "s5": [
+        "e_k_sin",
+        "e_app_sin",
+        "e_d_sin"
+      ],
+      "s6": [
+        "e_k_log",
+        "e_app_log",
+        "e_d_log"
+      ],
+      "s7": [
+        "e_k_lhop",
+        "e_app_lhop",
+        "e_d_lhop"
+      ],
+      "s8": [
+        "e_end"
+      ]
+    },
+    "knowledge_bindings": [
+      {
+        "knowledge_id": "k_eqv",
+        "source_step_ids": [
+          "s2"
+        ],
+        "knowledge_type": "method",
+        "title": "等价无穷小的乘积",
+        "formula_or_theorem": "\\ln(1+x^2)\\sim x^2,\\;\\sin^2x\\sim x^2",
+        "applicability_conditions": [
+          "x\\to0"
+        ],
+        "application_mapping": {
+          "\\ln(1+x^2)\\sin^2x": "x^4"
+        },
+        "teaching_reason": "说明分母四阶量级",
+        "return_to_step_id": "s2"
+      },
+      {
+        "knowledge_id": "k_sin",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ],
+        "knowledge_type": "formula",
+        "title": "sin x 的三阶泰勒展开",
+        "formula_or_theorem": "\\sin x=x-\\frac{x^3}{6}+o(x^3)",
+        "applicability_conditions": [
+          "x\\to0"
+        ],
+        "application_mapping": {
+          "\\sin x-x": "-x^3/6+o(x^3)"
+        },
+        "teaching_reason": "计算第一项四阶主项",
+        "return_to_step_id": "s5"
+      },
+      {
+        "knowledge_id": "k_log",
+        "source_step_ids": [
+          "s6"
+        ],
+        "knowledge_type": "formula",
+        "title": "ln(1+u) 的泰勒展开",
+        "formula_or_theorem": "\\ln(1+u)=u-\\frac{u^2}{2}+o(u^2)",
+        "applicability_conditions": [
+          "u\\to0"
+        ],
+        "application_mapping": {
+          "u": "x^2"
+        },
+        "teaching_reason": "确定第二项四阶主项",
+        "return_to_step_id": "s6"
+      },
+      {
+        "knowledge_id": "k_lhop",
+        "source_step_ids": [
+          "s7"
+        ],
+        "knowledge_type": "theorem",
+        "title": "微积分基本定理与洛必达法则",
+        "formula_or_theorem": "\\frac{d}{dx}\\int_0^x\\sin t\\,dt=\\sin x",
+        "applicability_conditions": [
+          "x\\to0",
+          "\\frac{\\int_0^x\\sin t\\,dt}{x^2}\\to 0/0",
+          "在穿孔邻域可微且分母导数非零"
+        ],
+        "application_mapping": {
+          "\\int_0^x\\sin t\\,dt": "\\sin x\\;\\text{(求导)}"
+        },
+        "teaching_reason": "处理第三项积分极限",
+        "return_to_step_id": "s7"
+      }
+    ],
+    "teaching_events": [
+      {
+        "event_id": "e_read",
+        "event_type": "read_question",
+        "source_step_ids": [
+          "s1"
+        ],
+        "knowledge_binding_ids": [],
+        "teaching_goal": "读完整有效题干",
+        "intended_board_content": [
+          "\\lim_{x\\to0}\\left[\\frac{1+\\int_0^x\\sin t\\,dt}{\\ln(1+x^2)}-\\frac1{\\sin^2x}\\right]"
+        ],
+        "mathematical_progression": "读题时对应突出两个分式"
+      },
+      {
+        "event_id": "e_orient",
+        "event_type": "orient",
+        "source_step_ids": [
+          "s1"
+        ],
+        "knowledge_binding_ids": [],
+        "teaching_goal": "说明无穷减无穷不可逐项求极限",
+        "intended_board_content": [
+          "\\ln(1+x^2)\\to0,\\;\\sin^2x\\to0"
+        ],
+        "mathematical_progression": "同步突出分母及减号"
+      },
+      {
+        "event_id": "e_common",
+        "event_type": "derivation",
+        "source_step_ids": [
+          "s1"
+        ],
+        "knowledge_binding_ids": [],
+        "teaching_goal": "通分",
+        "intended_board_content": [
+          "L=\\lim_{x\\to0}\\frac{(1+\\int_0^x\\sin t\\,dt)\\sin^2x-\\ln(1+x^2)}{\\ln(1+x^2)\\sin^2x}"
+        ],
+        "mathematical_progression": "两个分式变形成同一个分母"
+      },
+      {
+        "event_id": "e_k_eqv",
+        "event_type": "knowledge",
+        "source_step_ids": [
+          "s2"
+        ],
+        "knowledge_binding_ids": [
+          "k_eqv"
+        ],
+        "teaching_goal": "引出分母等价关系",
+        "intended_board_content": [
+          "\\ln(1+x^2)\\sim x^2,\\;\\sin^2x\\sim x^2"
+        ],
+        "mathematical_progression": "两个因子各自对应 x 平方"
+      },
+      {
+        "event_id": "e_app_eqv",
+        "event_type": "application",
+        "source_step_ids": [
+          "s2"
+        ],
+        "knowledge_binding_ids": [
+          "k_eqv"
+        ],
+        "teaching_goal": "代入本题分母",
+        "intended_board_content": [
+          "\\ln(1+x^2)\\sin^2x\\sim x^4"
+        ],
+        "mathematical_progression": "两份 x 平方组合成四次方"
+      },
+      {
+        "event_id": "e_d_eqv",
+        "event_type": "derivation",
+        "source_step_ids": [
+          "s2"
+        ],
+        "knowledge_binding_ids": [
+          "k_eqv"
+        ],
+        "teaching_goal": "以四阶量级继续整理",
+        "intended_board_content": [
+          "\\lim_{x\\to0}\\frac{\\sin^2x+\\sin^2x\\int_0^x\\sin t\\,dt-\\ln(1+x^2)}{x^4}"
+        ],
+        "mathematical_progression": "保留分子，仅将分母比值转换为等价基准"
+      },
+      {
+        "event_id": "e_split_idea",
+        "event_type": "orient",
+        "source_step_ids": [
+          "s3"
+        ],
+        "knowledge_binding_ids": [],
+        "teaching_goal": "引导加减 x 平方",
+        "intended_board_content": [
+          "+x^2-x^2=0"
+        ],
+        "mathematical_progression": "分别高亮新加入的正负 x 平方"
+      },
+      {
+        "event_id": "e_split",
+        "event_type": "derivation",
+        "source_step_ids": [
+          "s3"
+        ],
+        "knowledge_binding_ids": [],
+        "teaching_goal": "将分子分成三项",
+        "intended_board_content": [
+          "(\\sin^2x-x^2)+(x^2-\\ln(1+x^2))+\\sin^2x\\int_0^x\\sin t\\,dt"
+        ],
+        "mathematical_progression": "代数项按对应关系分组"
+      },
+      {
+        "event_id": "e_subgoal",
+        "event_type": "subgoal",
+        "source_step_ids": [
+          "s4"
+        ],
+        "knowledge_binding_ids": [],
+        "teaching_goal": "为三个极限命名",
+        "intended_board_content": [
+          "L=I_1+I_2+I_3"
+        ],
+        "mathematical_progression": "建立三个子目标并保留其结果位置"
+      },
+      {
+        "event_id": "e_k_sin",
+        "event_type": "knowledge",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ],
+        "knowledge_binding_ids": [
+          "k_sin"
+        ],
+        "teaching_goal": "讲 sin 三阶泰勒展开",
+        "intended_board_content": [
+          "\\sin x=x-\\frac{x^3}{6}+o(x^3)"
+        ],
+        "mathematical_progression": "写出三阶展开式"
+      },
+      {
+        "event_id": "e_app_sin",
+        "event_type": "application",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ],
+        "knowledge_binding_ids": [
+          "k_sin"
+        ],
+        "teaching_goal": "平方差分解应用",
+        "intended_board_content": [
+          "\\sin^2x-x^2=(\\sin x-x)(\\sin x+x)"
+        ],
+        "mathematical_progression": "平方差转为两个因子"
+      },
+      {
+        "event_id": "e_d_sin",
+        "event_type": "derivation",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ],
+        "knowledge_binding_ids": [
+          "k_sin"
+        ],
+        "teaching_goal": "计算第一项的结果",
+        "intended_board_content": [
+          "I_1=-\\frac13"
+        ],
+        "mathematical_progression": "计算完成后保留 I 一的结果"
+      },
+      {
+        "event_id": "e_k_log",
+        "event_type": "knowledge",
+        "source_step_ids": [
+          "s6"
+        ],
+        "knowledge_binding_ids": [
+          "k_log"
+        ],
+        "teaching_goal": "讲对数泰勒公式",
+        "intended_board_content": [
+          "\\ln(1+u)=u-\\frac{u^2}{2}+o(u^2)"
+        ],
+        "mathematical_progression": "写出通用公式并保留余项"
+      },
+      {
+        "event_id": "e_app_log",
+        "event_type": "application",
+        "source_step_ids": [
+          "s6"
+        ],
+        "knowledge_binding_ids": [
+          "k_log"
+        ],
+        "teaching_goal": "u=x² 的本题对应",
+        "intended_board_content": [
+          "\\ln(1+x^2)=x^2-\\frac{x^4}{2}+o(x^4)"
+        ],
+        "mathematical_progression": "把 u 对应替换成 x 平方"
+      },
+      {
+        "event_id": "e_d_log",
+        "event_type": "derivation",
+        "source_step_ids": [
+          "s6"
+        ],
+        "knowledge_binding_ids": [
+          "k_log"
+        ],
+        "teaching_goal": "返回第二个极限计算",
+        "intended_board_content": [
+          "I_2=\\frac12"
+        ],
+        "mathematical_progression": "逐项抵消后填入 I 二结果"
+      },
+      {
+        "event_id": "e_k_lhop",
+        "event_type": "knowledge",
+        "source_step_ids": [
+          "s7"
+        ],
+        "knowledge_binding_ids": [
+          "k_lhop"
+        ],
+        "teaching_goal": "讲积分求导与洛必达前提",
+        "intended_board_content": [
+          "\\frac{d}{dx}\\int_0^x\\sin t\\,dt=\\sin x"
+        ],
+        "mathematical_progression": "突出积分上限 x 的变化"
+      },
+      {
+        "event_id": "e_app_lhop",
+        "event_type": "application",
+        "source_step_ids": [
+          "s7"
+        ],
+        "knowledge_binding_ids": [
+          "k_lhop"
+        ],
+        "teaching_goal": "提取 sin 平方的等价部分",
+        "intended_board_content": [
+          "I_3=\\lim_{x\\to0}\\frac{\\sin^2x}{x^2}\\cdot\\frac{\\int_0^x\\sin t\\,dt}{x^2}"
+        ],
+        "mathematical_progression": "拆出两个因子并把后一个移到计算区"
+      },
+      {
+        "event_id": "e_d_lhop",
+        "event_type": "derivation",
+        "source_step_ids": [
+          "s7"
+        ],
+        "knowledge_binding_ids": [
+          "k_lhop"
+        ],
+        "teaching_goal": "洛必达完成第三项",
+        "intended_board_content": [
+          "I_3=\\lim_{x\\to0}\\frac{\\sin x}{2x}=\\frac12"
+        ],
+        "mathematical_progression": "分子、分母依次对应求导"
+      },
+      {
+        "event_id": "e_end",
+        "event_type": "conclusion",
+        "source_step_ids": [
+          "s8"
+        ],
+        "knowledge_binding_ids": [],
+        "teaching_goal": "汇总三个极限",
+        "intended_board_content": [
+          "L=I_1+I_2+I_3=-\\frac13+\\frac12+\\frac12=\\frac23"
+        ],
+        "mathematical_progression": "三个子目标结果按顺序归位"
+      }
+    ],
+    "supplement_requests": [],
+    "planning_issues": []
+  },
+  "lesson": {
+    "lesson_events": [
+      {
+        "event_id": "e_read",
+        "source_step_ids": [
+          "s1"
+        ],
+        "knowledge_binding_ids": [],
+        "speech_unit_ids": [
+          "u_read"
+        ],
+        "board_action_ids": [
+          "b_read"
+        ],
+        "animation_intent_ids": [
+          "a_read"
+        ]
+      },
+      {
+        "event_id": "e_orient",
+        "source_step_ids": [
+          "s1"
+        ],
+        "knowledge_binding_ids": [],
+        "speech_unit_ids": [
+          "u_orient"
+        ],
+        "board_action_ids": [
+          "b_orient"
+        ],
+        "animation_intent_ids": [
+          "a_orient"
+        ]
+      },
+      {
+        "event_id": "e_common",
+        "source_step_ids": [
+          "s1"
+        ],
+        "knowledge_binding_ids": [],
+        "speech_unit_ids": [
+          "u_common"
+        ],
+        "board_action_ids": [
+          "b_common"
+        ],
+        "animation_intent_ids": [
+          "a_common"
+        ]
+      },
+      {
+        "event_id": "e_k_eqv",
+        "source_step_ids": [
+          "s2"
+        ],
+        "knowledge_binding_ids": [
+          "k_eqv"
+        ],
+        "speech_unit_ids": [
+          "u_k_eqv"
+        ],
+        "board_action_ids": [
+          "b_k_eqv"
+        ],
+        "animation_intent_ids": [
+          "a_k_eqv"
+        ]
+      },
+      {
+        "event_id": "e_app_eqv",
+        "source_step_ids": [
+          "s2"
+        ],
+        "knowledge_binding_ids": [
+          "k_eqv"
+        ],
+        "speech_unit_ids": [
+          "u_app_eqv"
+        ],
+        "board_action_ids": [
+          "b_app_eqv"
+        ],
+        "animation_intent_ids": [
+          "a_app_eqv"
+        ]
+      },
+      {
+        "event_id": "e_d_eqv",
+        "source_step_ids": [
+          "s2"
+        ],
+        "knowledge_binding_ids": [
+          "k_eqv"
+        ],
+        "speech_unit_ids": [
+          "u_d_eqv"
+        ],
+        "board_action_ids": [
+          "b_d_eqv"
+        ],
+        "animation_intent_ids": [
+          "a_d_eqv"
+        ]
+      },
+      {
+        "event_id": "e_split_idea",
+        "source_step_ids": [
+          "s3"
+        ],
+        "knowledge_binding_ids": [],
+        "speech_unit_ids": [
+          "u_split_idea"
+        ],
+        "board_action_ids": [
+          "b_split_idea"
+        ],
+        "animation_intent_ids": [
+          "a_split_idea"
+        ]
+      },
+      {
+        "event_id": "e_split",
+        "source_step_ids": [
+          "s3"
+        ],
+        "knowledge_binding_ids": [],
+        "speech_unit_ids": [
+          "u_split"
+        ],
+        "board_action_ids": [
+          "b_split"
+        ],
+        "animation_intent_ids": [
+          "a_split"
+        ]
+      },
+      {
+        "event_id": "e_subgoal",
+        "source_step_ids": [
+          "s4"
+        ],
+        "knowledge_binding_ids": [],
+        "speech_unit_ids": [
+          "u_subgoal"
+        ],
+        "board_action_ids": [
+          "b_subgoal"
+        ],
+        "animation_intent_ids": [
+          "a_subgoal"
+        ]
+      },
+      {
+        "event_id": "e_k_sin",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ],
+        "knowledge_binding_ids": [
+          "k_sin"
+        ],
+        "speech_unit_ids": [
+          "u_k_sin"
+        ],
+        "board_action_ids": [
+          "b_k_sin"
+        ],
+        "animation_intent_ids": [
+          "a_k_sin"
+        ]
+      },
+      {
+        "event_id": "e_app_sin",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ],
+        "knowledge_binding_ids": [
+          "k_sin"
+        ],
+        "speech_unit_ids": [
+          "u_app_sin"
+        ],
+        "board_action_ids": [
+          "b_app_sin"
+        ],
+        "animation_intent_ids": [
+          "a_app_sin"
+        ]
+      },
+      {
+        "event_id": "e_d_sin",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ],
+        "knowledge_binding_ids": [
+          "k_sin"
+        ],
+        "speech_unit_ids": [
+          "u_d_sin"
+        ],
+        "board_action_ids": [
+          "b_d_sin"
+        ],
+        "animation_intent_ids": [
+          "a_d_sin"
+        ]
+      },
+      {
+        "event_id": "e_k_log",
+        "source_step_ids": [
+          "s6"
+        ],
+        "knowledge_binding_ids": [
+          "k_log"
+        ],
+        "speech_unit_ids": [
+          "u_k_log"
+        ],
+        "board_action_ids": [
+          "b_k_log"
+        ],
+        "animation_intent_ids": [
+          "a_k_log"
+        ]
+      },
+      {
+        "event_id": "e_app_log",
+        "source_step_ids": [
+          "s6"
+        ],
+        "knowledge_binding_ids": [
+          "k_log"
+        ],
+        "speech_unit_ids": [
+          "u_app_log"
+        ],
+        "board_action_ids": [
+          "b_app_log"
+        ],
+        "animation_intent_ids": [
+          "a_app_log"
+        ]
+      },
+      {
+        "event_id": "e_d_log",
+        "source_step_ids": [
+          "s6"
+        ],
+        "knowledge_binding_ids": [
+          "k_log"
+        ],
+        "speech_unit_ids": [
+          "u_d_log"
+        ],
+        "board_action_ids": [
+          "b_d_log"
+        ],
+        "animation_intent_ids": [
+          "a_d_log"
+        ]
+      },
+      {
+        "event_id": "e_k_lhop",
+        "source_step_ids": [
+          "s7"
+        ],
+        "knowledge_binding_ids": [
+          "k_lhop"
+        ],
+        "speech_unit_ids": [
+          "u_k_lhop"
+        ],
+        "board_action_ids": [
+          "b_k_lhop"
+        ],
+        "animation_intent_ids": [
+          "a_k_lhop"
+        ]
+      },
+      {
+        "event_id": "e_app_lhop",
+        "source_step_ids": [
+          "s7"
+        ],
+        "knowledge_binding_ids": [
+          "k_lhop"
+        ],
+        "speech_unit_ids": [
+          "u_app_lhop"
+        ],
+        "board_action_ids": [
+          "b_app_lhop"
+        ],
+        "animation_intent_ids": [
+          "a_app_lhop"
+        ]
+      },
+      {
+        "event_id": "e_d_lhop",
+        "source_step_ids": [
+          "s7"
+        ],
+        "knowledge_binding_ids": [
+          "k_lhop"
+        ],
+        "speech_unit_ids": [
+          "u_d_lhop"
+        ],
+        "board_action_ids": [
+          "b_d_lhop"
+        ],
+        "animation_intent_ids": [
+          "a_d_lhop"
+        ]
+      },
+      {
+        "event_id": "e_end",
+        "source_step_ids": [
+          "s8"
+        ],
+        "knowledge_binding_ids": [],
+        "speech_unit_ids": [
+          "u_end"
+        ],
+        "board_action_ids": [
+          "b_end"
+        ],
+        "animation_intent_ids": [
+          "a_end"
+        ]
+      }
+    ],
+    "speech_units": [
+      {
+        "speech_unit_id": "u_read",
+        "event_id": "e_read",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "求当 x 趋于零时，这两个分式之差的极限。第一项的分子是一加从零到 x 的 sin t 的积分，分母是 ln 一加 x 平方；第二项是 sin x 平方分之一。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\lim_{x\\to0}\\left[\\frac{1+\\int_0^x\\sin t\\,dt}{\\ln(1+x^2)}-\\frac1{\\sin^2x}\\right]",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_orient",
+        "event_id": "e_orient",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "我们先看结构：两个分母都趋于零，而两个分子的主要部分都趋于一，不能分别求极限后相减。先通过通分让抵消关系显现出来。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\ln(1+x^2)\\to0,\\;\\sin^2x\\to0",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_common",
+        "event_id": "e_common",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "先通分，公共分母是 ln 一加 x 平方乘以 sin x 的平方。上面按交叉相乘的顺序写分子。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "L=\\lim_{x\\to0}\\frac{(1+\\int_0^x\\sin t\\,dt)\\sin^2x-\\ln(1+x^2)}{\\ln(1+x^2)\\sin^2x}",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_k_eqv",
+        "event_id": "e_k_eqv",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "这里回顾等价无穷小：当 x 趋于零时，ln 一加 x 平方和 sin x 的平方，都与 x 平方等价。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\ln(1+x^2)\\sim x^2,\\;\\sin^2x\\sim x^2",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_app_eqv",
+        "event_id": "e_app_eqv",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "在本题中，分母就是这两个因子的乘积，因此与 x 的四次方等价。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\ln(1+x^2)\\sin^2x\\sim x^4",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_d_eqv",
+        "event_id": "e_d_eqv",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "接下来先计算分子与 x 四次方之比的极限。因为原分母与 x 四次方等价，得到有限极限后就能返回原极限。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\lim_{x\\to0}\\frac{\\sin^2x+\\sin^2x\\int_0^x\\sin t\\,dt-\\ln(1+x^2)}{x^4}",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_split_idea",
+        "event_id": "e_split_idea",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "分子中 sin x 的平方与对数项的二阶主项都是 x 平方。所以我们加上一个 x 平方，再减去一个 x 平方，把它们各自整理成高阶差。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "+x^2-x^2=0",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_split",
+        "event_id": "e_split",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "这样分子就分成了三组：sin 平方与 x 平方作差，对数与 x 平方作差，最后保留积分这一项。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "(\\sin^2x-x^2)+(x^2-\\ln(1+x^2))+\\sin^2x\\int_0^x\\sin t\\,dt",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_subgoal",
+        "event_id": "e_subgoal",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "把这三项对应的极限依次记为 I 一、I 二、I 三，分别计算，最后相加。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "L=I_1+I_2+I_3",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_k_sin",
+        "event_id": "e_k_sin",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "求第一项之前，先回忆 sin x 在零点处的三阶泰勒展开。它的一次项是 x，三次项是负六分之 x 三次方。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\sin x=x-\\frac{x^3}{6}+o(x^3)",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_app_sin",
+        "event_id": "e_app_sin",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "本题的分子可以先按平方差分解；sin x 减 x 是三阶小量，而 sin x 加 x 与二 x 等价。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\sin^2x-x^2=(\\sin x-x)(\\sin x+x)",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_d_sin",
+        "event_id": "e_d_sin",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "把三阶主项相乘，再除以 x 的四次方，就得到第一个极限为负三分之一。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "I_1=-\\frac13",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_k_log",
+        "event_id": "e_k_log",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "第二项用到对数函数的泰勒展开。当 u 趋于零时，ln 一加 u 的前两项是 u 减二分之 u 平方。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\ln(1+u)=u-\\frac{u^2}{2}+o(u^2)",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_app_log",
+        "event_id": "e_app_log",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "在本题取 u 等于 x 平方，满足趋于零的条件，代入后得到 x 平方减二分之 x 的四次方，再加高阶无穷小。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\ln(1+x^2)=x^2-\\frac{x^4}{2}+o(x^4)",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_d_log",
+        "event_id": "e_d_log",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "回到第二个极限，代入展开式后，分子的两个二次项相互抵消，得到二分之一。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "I_2=\\frac12",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_k_lhop",
+        "event_id": "e_k_lhop",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "第三项要用到微积分基本定理：这个积分对 x 求导得到 sin x。后面遇到零比零型，再核对洛必达法则的条件。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "\\frac{d}{dx}\\int_0^x\\sin t\\,dt=\\sin x",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_app_lhop",
+        "event_id": "e_app_lhop",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "在本题先把第三项拆成两个因子。前一个因子的极限是一；后一个是零比零型，并满足这里使用洛必达法则的条件。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "I_3=\\lim_{x\\to0}\\frac{\\sin^2x}{x^2}\\cdot\\frac{\\int_0^x\\sin t\\,dt}{x^2}",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_d_lhop",
+        "event_id": "e_d_lhop",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "对后一个分式求导，分子变成 sin x，分母变成二 x，所以第三个极限等于二分之一。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "I_3=\\lim_{x\\to0}\\frac{\\sin x}{2x}=\\frac12",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      },
+      {
+        "speech_unit_id": "u_end",
+        "event_id": "e_end",
+        "parts": [
+          {
+            "kind": "text",
+            "value": "现在把三个结果相加：负三分之一，加二分之一，再加二分之一，原题极限等于三分之二。",
+            "reading_intent": null
+          },
+          {
+            "kind": "math",
+            "value": "L=I_1+I_2+I_3=-\\frac13+\\frac12+\\frac12=\\frac23",
+            "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+          }
+        ]
+      }
+    ],
+    "math_objects": [
+      {
+        "math_object_id": "m_read",
+        "latex": "\\lim_{x\\to0}\\left[\\frac{1+\\int_0^x\\sin t\\,dt}{\\ln(1+x^2)}-\\frac1{\\sin^2x}\\right]",
+        "source_step_ids": [
+          "s1"
+        ]
+      },
+      {
+        "math_object_id": "m_orient",
+        "latex": "\\ln(1+x^2)\\to0,\\;\\sin^2x\\to0",
+        "source_step_ids": [
+          "s1"
+        ]
+      },
+      {
+        "math_object_id": "m_common",
+        "latex": "L=\\lim_{x\\to0}\\frac{(1+\\int_0^x\\sin t\\,dt)\\sin^2x-\\ln(1+x^2)}{\\ln(1+x^2)\\sin^2x}",
+        "source_step_ids": [
+          "s1"
+        ]
+      },
+      {
+        "math_object_id": "m_k_eqv",
+        "latex": "\\ln(1+x^2)\\sim x^2,\\;\\sin^2x\\sim x^2",
+        "source_step_ids": [
+          "s2"
+        ]
+      },
+      {
+        "math_object_id": "m_app_eqv",
+        "latex": "\\ln(1+x^2)\\sin^2x\\sim x^4",
+        "source_step_ids": [
+          "s2"
+        ]
+      },
+      {
+        "math_object_id": "m_d_eqv",
+        "latex": "\\lim_{x\\to0}\\frac{\\sin^2x+\\sin^2x\\int_0^x\\sin t\\,dt-\\ln(1+x^2)}{x^4}",
+        "source_step_ids": [
+          "s2"
+        ]
+      },
+      {
+        "math_object_id": "m_split_idea",
+        "latex": "+x^2-x^2=0",
+        "source_step_ids": [
+          "s3"
+        ]
+      },
+      {
+        "math_object_id": "m_split",
+        "latex": "(\\sin^2x-x^2)+(x^2-\\ln(1+x^2))+\\sin^2x\\int_0^x\\sin t\\,dt",
+        "source_step_ids": [
+          "s3"
+        ]
+      },
+      {
+        "math_object_id": "m_subgoal",
+        "latex": "L=I_1+I_2+I_3",
+        "source_step_ids": [
+          "s4"
+        ]
+      },
+      {
+        "math_object_id": "m_k_sin",
+        "latex": "\\sin x=x-\\frac{x^3}{6}+o(x^3)",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ]
+      },
+      {
+        "math_object_id": "m_app_sin",
+        "latex": "\\sin^2x-x^2=(\\sin x-x)(\\sin x+x)",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ]
+      },
+      {
+        "math_object_id": "m_d_sin",
+        "latex": "I_1=-\\frac13",
+        "source_step_ids": [
+          "s5a",
+          "s5"
+        ]
+      },
+      {
+        "math_object_id": "m_k_log",
+        "latex": "\\ln(1+u)=u-\\frac{u^2}{2}+o(u^2)",
+        "source_step_ids": [
+          "s6"
+        ]
+      },
+      {
+        "math_object_id": "m_app_log",
+        "latex": "\\ln(1+x^2)=x^2-\\frac{x^4}{2}+o(x^4)",
+        "source_step_ids": [
+          "s6"
+        ]
+      },
+      {
+        "math_object_id": "m_d_log",
+        "latex": "I_2=\\frac12",
+        "source_step_ids": [
+          "s6"
+        ]
+      },
+      {
+        "math_object_id": "m_k_lhop",
+        "latex": "\\frac{d}{dx}\\int_0^x\\sin t\\,dt=\\sin x",
+        "source_step_ids": [
+          "s7"
+        ]
+      },
+      {
+        "math_object_id": "m_app_lhop",
+        "latex": "I_3=\\lim_{x\\to0}\\frac{\\sin^2x}{x^2}\\cdot\\frac{\\int_0^x\\sin t\\,dt}{x^2}",
+        "source_step_ids": [
+          "s7"
+        ]
+      },
+      {
+        "math_object_id": "m_d_lhop",
+        "latex": "I_3=\\lim_{x\\to0}\\frac{\\sin x}{2x}=\\frac12",
+        "source_step_ids": [
+          "s7"
+        ]
+      },
+      {
+        "math_object_id": "m_end",
+        "latex": "L=I_1+I_2+I_3=-\\frac13+\\frac12+\\frac12=\\frac23",
+        "source_step_ids": [
+          "s8"
+        ]
+      }
+    ],
+    "board_actions": [
+      {
+        "board_action_id": "b_read",
+        "event_id": "e_read",
+        "speech_unit_id": "u_read",
+        "math_object_id": "m_read",
+        "action": "highlight",
+        "semantic_reason": "读题时对应突出两个分式"
+      },
+      {
+        "board_action_id": "b_orient",
+        "event_id": "e_orient",
+        "speech_unit_id": "u_orient",
+        "math_object_id": "m_orient",
+        "action": "write",
+        "semantic_reason": "同步突出分母及减号"
+      },
+      {
+        "board_action_id": "b_common",
+        "event_id": "e_common",
+        "speech_unit_id": "u_common",
+        "math_object_id": "m_common",
+        "action": "write",
+        "semantic_reason": "两个分式变形成同一个分母"
+      },
+      {
+        "board_action_id": "b_k_eqv",
+        "event_id": "e_k_eqv",
+        "speech_unit_id": "u_k_eqv",
+        "math_object_id": "m_k_eqv",
+        "action": "write",
+        "semantic_reason": "两个因子各自对应 x 平方"
+      },
+      {
+        "board_action_id": "b_app_eqv",
+        "event_id": "e_app_eqv",
+        "speech_unit_id": "u_app_eqv",
+        "math_object_id": "m_app_eqv",
+        "action": "write",
+        "semantic_reason": "两份 x 平方组合成四次方"
+      },
+      {
+        "board_action_id": "b_d_eqv",
+        "event_id": "e_d_eqv",
+        "speech_unit_id": "u_d_eqv",
+        "math_object_id": "m_d_eqv",
+        "action": "write",
+        "semantic_reason": "保留分子，仅将分母比值转换为等价基准"
+      },
+      {
+        "board_action_id": "b_split_idea",
+        "event_id": "e_split_idea",
+        "speech_unit_id": "u_split_idea",
+        "math_object_id": "m_split_idea",
+        "action": "write",
+        "semantic_reason": "分别高亮新加入的正负 x 平方"
+      },
+      {
+        "board_action_id": "b_split",
+        "event_id": "e_split",
+        "speech_unit_id": "u_split",
+        "math_object_id": "m_split",
+        "action": "write",
+        "semantic_reason": "代数项按对应关系分组"
+      },
+      {
+        "board_action_id": "b_subgoal",
+        "event_id": "e_subgoal",
+        "speech_unit_id": "u_subgoal",
+        "math_object_id": "m_subgoal",
+        "action": "write",
+        "semantic_reason": "建立三个子目标并保留其结果位置"
+      },
+      {
+        "board_action_id": "b_k_sin",
+        "event_id": "e_k_sin",
+        "speech_unit_id": "u_k_sin",
+        "math_object_id": "m_k_sin",
+        "action": "write",
+        "semantic_reason": "写出三阶展开式"
+      },
+      {
+        "board_action_id": "b_app_sin",
+        "event_id": "e_app_sin",
+        "speech_unit_id": "u_app_sin",
+        "math_object_id": "m_app_sin",
+        "action": "write",
+        "semantic_reason": "平方差转为两个因子"
+      },
+      {
+        "board_action_id": "b_d_sin",
+        "event_id": "e_d_sin",
+        "speech_unit_id": "u_d_sin",
+        "math_object_id": "m_d_sin",
+        "action": "write",
+        "semantic_reason": "计算完成后保留 I 一的结果"
+      },
+      {
+        "board_action_id": "b_k_log",
+        "event_id": "e_k_log",
+        "speech_unit_id": "u_k_log",
+        "math_object_id": "m_k_log",
+        "action": "write",
+        "semantic_reason": "写出通用公式并保留余项"
+      },
+      {
+        "board_action_id": "b_app_log",
+        "event_id": "e_app_log",
+        "speech_unit_id": "u_app_log",
+        "math_object_id": "m_app_log",
+        "action": "write",
+        "semantic_reason": "把 u 对应替换成 x 平方"
+      },
+      {
+        "board_action_id": "b_d_log",
+        "event_id": "e_d_log",
+        "speech_unit_id": "u_d_log",
+        "math_object_id": "m_d_log",
+        "action": "write",
+        "semantic_reason": "逐项抵消后填入 I 二结果"
+      },
+      {
+        "board_action_id": "b_k_lhop",
+        "event_id": "e_k_lhop",
+        "speech_unit_id": "u_k_lhop",
+        "math_object_id": "m_k_lhop",
+        "action": "write",
+        "semantic_reason": "突出积分上限 x 的变化"
+      },
+      {
+        "board_action_id": "b_app_lhop",
+        "event_id": "e_app_lhop",
+        "speech_unit_id": "u_app_lhop",
+        "math_object_id": "m_app_lhop",
+        "action": "write",
+        "semantic_reason": "拆出两个因子并把后一个移到计算区"
+      },
+      {
+        "board_action_id": "b_d_lhop",
+        "event_id": "e_d_lhop",
+        "speech_unit_id": "u_d_lhop",
+        "math_object_id": "m_d_lhop",
+        "action": "write",
+        "semantic_reason": "分子、分母依次对应求导"
+      },
+      {
+        "board_action_id": "b_end",
+        "event_id": "e_end",
+        "speech_unit_id": "u_end",
+        "math_object_id": "m_end",
+        "action": "write",
+        "semantic_reason": "三个子目标结果按顺序归位"
+      }
+    ],
+    "animation_intents": [
+      {
+        "animation_id": "a_read",
+        "event_id": "e_read",
+        "speech_unit_ids": [
+          "u_read"
+        ],
+        "board_action_ids": [
+          "b_read"
+        ],
+        "mathematical_goal": "读题时对应突出两个分式"
+      },
+      {
+        "animation_id": "a_orient",
+        "event_id": "e_orient",
+        "speech_unit_ids": [
+          "u_orient"
+        ],
+        "board_action_ids": [
+          "b_orient"
+        ],
+        "mathematical_goal": "同步突出分母及减号"
+      },
+      {
+        "animation_id": "a_common",
+        "event_id": "e_common",
+        "speech_unit_ids": [
+          "u_common"
+        ],
+        "board_action_ids": [
+          "b_common"
+        ],
+        "mathematical_goal": "两个分式变形成同一个分母"
+      },
+      {
+        "animation_id": "a_k_eqv",
+        "event_id": "e_k_eqv",
+        "speech_unit_ids": [
+          "u_k_eqv"
+        ],
+        "board_action_ids": [
+          "b_k_eqv"
+        ],
+        "mathematical_goal": "两个因子各自对应 x 平方"
+      },
+      {
+        "animation_id": "a_app_eqv",
+        "event_id": "e_app_eqv",
+        "speech_unit_ids": [
+          "u_app_eqv"
+        ],
+        "board_action_ids": [
+          "b_app_eqv"
+        ],
+        "mathematical_goal": "两份 x 平方组合成四次方"
+      },
+      {
+        "animation_id": "a_d_eqv",
+        "event_id": "e_d_eqv",
+        "speech_unit_ids": [
+          "u_d_eqv"
+        ],
+        "board_action_ids": [
+          "b_d_eqv"
+        ],
+        "mathematical_goal": "保留分子，仅将分母比值转换为等价基准"
+      },
+      {
+        "animation_id": "a_split_idea",
+        "event_id": "e_split_idea",
+        "speech_unit_ids": [
+          "u_split_idea"
+        ],
+        "board_action_ids": [
+          "b_split_idea"
+        ],
+        "mathematical_goal": "分别高亮新加入的正负 x 平方"
+      },
+      {
+        "animation_id": "a_split",
+        "event_id": "e_split",
+        "speech_unit_ids": [
+          "u_split"
+        ],
+        "board_action_ids": [
+          "b_split"
+        ],
+        "mathematical_goal": "代数项按对应关系分组"
+      },
+      {
+        "animation_id": "a_subgoal",
+        "event_id": "e_subgoal",
+        "speech_unit_ids": [
+          "u_subgoal"
+        ],
+        "board_action_ids": [
+          "b_subgoal"
+        ],
+        "mathematical_goal": "建立三个子目标并保留其结果位置"
+      },
+      {
+        "animation_id": "a_k_sin",
+        "event_id": "e_k_sin",
+        "speech_unit_ids": [
+          "u_k_sin"
+        ],
+        "board_action_ids": [
+          "b_k_sin"
+        ],
+        "mathematical_goal": "写出三阶展开式"
+      },
+      {
+        "animation_id": "a_app_sin",
+        "event_id": "e_app_sin",
+        "speech_unit_ids": [
+          "u_app_sin"
+        ],
+        "board_action_ids": [
+          "b_app_sin"
+        ],
+        "mathematical_goal": "平方差转为两个因子"
+      },
+      {
+        "animation_id": "a_d_sin",
+        "event_id": "e_d_sin",
+        "speech_unit_ids": [
+          "u_d_sin"
+        ],
+        "board_action_ids": [
+          "b_d_sin"
+        ],
+        "mathematical_goal": "计算完成后保留 I 一的结果"
+      },
+      {
+        "animation_id": "a_k_log",
+        "event_id": "e_k_log",
+        "speech_unit_ids": [
+          "u_k_log"
+        ],
+        "board_action_ids": [
+          "b_k_log"
+        ],
+        "mathematical_goal": "写出通用公式并保留余项"
+      },
+      {
+        "animation_id": "a_app_log",
+        "event_id": "e_app_log",
+        "speech_unit_ids": [
+          "u_app_log"
+        ],
+        "board_action_ids": [
+          "b_app_log"
+        ],
+        "mathematical_goal": "把 u 对应替换成 x 平方"
+      },
+      {
+        "animation_id": "a_d_log",
+        "event_id": "e_d_log",
+        "speech_unit_ids": [
+          "u_d_log"
+        ],
+        "board_action_ids": [
+          "b_d_log"
+        ],
+        "mathematical_goal": "逐项抵消后填入 I 二结果"
+      },
+      {
+        "animation_id": "a_k_lhop",
+        "event_id": "e_k_lhop",
+        "speech_unit_ids": [
+          "u_k_lhop"
+        ],
+        "board_action_ids": [
+          "b_k_lhop"
+        ],
+        "mathematical_goal": "突出积分上限 x 的变化"
+      },
+      {
+        "animation_id": "a_app_lhop",
+        "event_id": "e_app_lhop",
+        "speech_unit_ids": [
+          "u_app_lhop"
+        ],
+        "board_action_ids": [
+          "b_app_lhop"
+        ],
+        "mathematical_goal": "拆出两个因子并把后一个移到计算区"
+      },
+      {
+        "animation_id": "a_d_lhop",
+        "event_id": "e_d_lhop",
+        "speech_unit_ids": [
+          "u_d_lhop"
+        ],
+        "board_action_ids": [
+          "b_d_lhop"
+        ],
+        "mathematical_goal": "分子、分母依次对应求导"
+      },
+      {
+        "animation_id": "a_end",
+        "event_id": "e_end",
+        "speech_unit_ids": [
+          "u_end"
+        ],
+        "board_action_ids": [
+          "b_end"
+        ],
+        "mathematical_goal": "三个子目标结果按顺序归位"
+      }
+    ],
+    "consistency_issues": []
+  },
+  "subtitles": [
+    {
+      "subtitle_id": "subtitle:u_read",
+      "speech_unit_id": "u_read",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "求当 x 趋于零时，这两个分式之差的极限。第一项的分子是一加从零到 x 的 sin t 的积分，分母是 ln 一加 x 平方；第二项是 sin x 平方分之一。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\lim_{x\\to0}\\left[\\frac{1+\\int_0^x\\sin t\\,dt}{\\ln(1+x^2)}-\\frac1{\\sin^2x}\\right]",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_orient",
+      "speech_unit_id": "u_orient",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "我们先看结构：两个分母都趋于零，而两个分子的主要部分都趋于一，不能分别求极限后相减。先通过通分让抵消关系显现出来。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\ln(1+x^2)\\to0,\\;\\sin^2x\\to0",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_common",
+      "speech_unit_id": "u_common",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "先通分，公共分母是 ln 一加 x 平方乘以 sin x 的平方。上面按交叉相乘的顺序写分子。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "L=\\lim_{x\\to0}\\frac{(1+\\int_0^x\\sin t\\,dt)\\sin^2x-\\ln(1+x^2)}{\\ln(1+x^2)\\sin^2x}",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_k_eqv",
+      "speech_unit_id": "u_k_eqv",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "这里回顾等价无穷小：当 x 趋于零时，ln 一加 x 平方和 sin x 的平方，都与 x 平方等价。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\ln(1+x^2)\\sim x^2,\\;\\sin^2x\\sim x^2",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_app_eqv",
+      "speech_unit_id": "u_app_eqv",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "在本题中，分母就是这两个因子的乘积，因此与 x 的四次方等价。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\ln(1+x^2)\\sin^2x\\sim x^4",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_d_eqv",
+      "speech_unit_id": "u_d_eqv",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "接下来先计算分子与 x 四次方之比的极限。因为原分母与 x 四次方等价，得到有限极限后就能返回原极限。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\lim_{x\\to0}\\frac{\\sin^2x+\\sin^2x\\int_0^x\\sin t\\,dt-\\ln(1+x^2)}{x^4}",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_split_idea",
+      "speech_unit_id": "u_split_idea",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "分子中 sin x 的平方与对数项的二阶主项都是 x 平方。所以我们加上一个 x 平方，再减去一个 x 平方，把它们各自整理成高阶差。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "+x^2-x^2=0",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_split",
+      "speech_unit_id": "u_split",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "这样分子就分成了三组：sin 平方与 x 平方作差，对数与 x 平方作差，最后保留积分这一项。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "(\\sin^2x-x^2)+(x^2-\\ln(1+x^2))+\\sin^2x\\int_0^x\\sin t\\,dt",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_subgoal",
+      "speech_unit_id": "u_subgoal",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "把这三项对应的极限依次记为 I 一、I 二、I 三，分别计算，最后相加。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "L=I_1+I_2+I_3",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_k_sin",
+      "speech_unit_id": "u_k_sin",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "求第一项之前，先回忆 sin x 在零点处的三阶泰勒展开。它的一次项是 x，三次项是负六分之 x 三次方。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\sin x=x-\\frac{x^3}{6}+o(x^3)",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_app_sin",
+      "speech_unit_id": "u_app_sin",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "本题的分子可以先按平方差分解；sin x 减 x 是三阶小量，而 sin x 加 x 与二 x 等价。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\sin^2x-x^2=(\\sin x-x)(\\sin x+x)",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_d_sin",
+      "speech_unit_id": "u_d_sin",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "把三阶主项相乘，再除以 x 的四次方，就得到第一个极限为负三分之一。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "I_1=-\\frac13",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_k_log",
+      "speech_unit_id": "u_k_log",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "第二项用到对数函数的泰勒展开。当 u 趋于零时，ln 一加 u 的前两项是 u 减二分之 u 平方。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\ln(1+u)=u-\\frac{u^2}{2}+o(u^2)",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_app_log",
+      "speech_unit_id": "u_app_log",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "在本题取 u 等于 x 平方，满足趋于零的条件，代入后得到 x 平方减二分之 x 的四次方，再加高阶无穷小。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\ln(1+x^2)=x^2-\\frac{x^4}{2}+o(x^4)",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_d_log",
+      "speech_unit_id": "u_d_log",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "回到第二个极限，代入展开式后，分子的两个二次项相互抵消，得到二分之一。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "I_2=\\frac12",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_k_lhop",
+      "speech_unit_id": "u_k_lhop",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "第三项要用到微积分基本定理：这个积分对 x 求导得到 sin x。后面遇到零比零型，再核对洛必达法则的条件。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "\\frac{d}{dx}\\int_0^x\\sin t\\,dt=\\sin x",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_app_lhop",
+      "speech_unit_id": "u_app_lhop",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "在本题先把第三项拆成两个因子。前一个因子的极限是一；后一个是零比零型，并满足这里使用洛必达法则的条件。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "I_3=\\lim_{x\\to0}\\frac{\\sin^2x}{x^2}\\cdot\\frac{\\int_0^x\\sin t\\,dt}{x^2}",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_d_lhop",
+      "speech_unit_id": "u_d_lhop",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "对后一个分式求导，分子变成 sin x，分母变成二 x，所以第三个极限等于二分之一。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "I_3=\\lim_{x\\to0}\\frac{\\sin x}{2x}=\\frac12",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    },
+    {
+      "subtitle_id": "subtitle:u_end",
+      "speech_unit_id": "u_end",
+      "parts": [
+        {
+          "kind": "text",
+          "value": "现在把三个结果相加：负三分之一，加二分之一，再加二分之一，原题极限等于三分之二。",
+          "reading_intent": null
+        },
+        {
+          "kind": "math",
+          "value": "L=I_1+I_2+I_3=-\\frac13+\\frac12+\\frac12=\\frac23",
+          "reading_intent": "对应本事件的规范数学表达；语音时自然读出所需部分"
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "issues": [],
+    "math_checks": [
+      {
+        "check_id": "chk_factor",
+        "step_id": "s5a",
+        "status": "verified",
+        "explanation": "Bounded algebraic identity checked; any external hypotheses/theorem applicability still require separate review"
+      }
+    ],
+    "status": "ready_with_limits"
+  }
+}

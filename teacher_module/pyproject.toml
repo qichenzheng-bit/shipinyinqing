@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shipinyinqing-math-teacher"
+version = "0.1.0"
+description = "Standalone postgraduate mathematics teacher lesson-planning module"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.7,<3", "sympy>=1.12,<2"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+math-teacher = "math_teacher.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+math_teacher = ["prompts/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

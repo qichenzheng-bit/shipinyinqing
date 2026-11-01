@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shipinyinqing-animation-engine"
+version = "0.1.0"
+description = "Deterministic storyboard execution planner (animation engine V1.0 step 1)"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.7,<3", "shipinyinqing-visual-director>=0.1.0"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "sympy>=1.13"]
+matrix = ["sympy>=1.13"]
+render = ["manim==0.22.1", "Pillow>=10"]
+speech = ["edge-tts>=7.2,<9"]
+
+[project.scripts]
+math-animation = "animation_engine.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["render: requires real Manim, LaTeX and FFmpeg installation"]
