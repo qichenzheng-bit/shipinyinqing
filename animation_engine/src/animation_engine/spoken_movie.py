@@ -203,26 +203,44 @@ def render_spoken_classroom(
         if cache is not None:
             cache.timed("subtitle_glyphs_seconds",time.perf_counter()-started)
         started=time.perf_counter()
-        subtitle_video=root/"mathtex_subtitle_band.mkv"
-        _encode_caption_band(
-            cues,mapped,subtitle_video,fps=fps,
-            frames=rendered["actual_video_frames"],
-        )
         final=root/"full_voiced_classroom.mp4"
         duration=rendered["actual_video_frames"]/fps
-        _run([
-            "ffmpeg","-hide_banner","-loglevel","error","-y",
-            "-i",str(silent),"-i",str(audio_wav),
-            "-i",str(subtitle_video),
-            "-filter_complex",
-            "[0:v][2:v]overlay=0:628:shortest=1:eof_action=pass[v]",
-            "-map","[v]","-map","1:a",
-            "-c:v","libx264","-preset","veryfast","-crf","20",
-            "-pix_fmt","yuv420p","-r",str(fps),
-            "-c:a","aac","-b:a","128k",
-            "-t",f"{duration:.5f}",
-            "-movflags","+faststart",str(final),
-        ],"SPOKEN_VOICED_CAPTION_MUX_FAILED")
+        caption_mux={"pipeline":"legacy_verified_ffv1_overlay"}
+        sparse_ok=False
+        if cache is not None:
+            from .sparse_caption_mux import mux_sparse_mathtex
+            try:
+                caption_mux=mux_sparse_mathtex(
+                    silent,audio_wav,cues,mapped,final,
+                    workdir=root,fps=fps,
+                    frames=rendered["actual_video_frames"],
+                )
+                sparse_ok=True
+            except (LongboardError,OSError):
+                # Fidelity before speed: if the sparse filter rejects a
+                # source frame or codec, use the already accepted full
+                # transparent FFV1 band route, never a silent placeholder.
+                cache.counts["sparse_caption_safe_fallback"]+=1
+                final.unlink(missing_ok=True)
+        if not sparse_ok:
+            subtitle_video=root/"mathtex_subtitle_band.mkv"
+            _encode_caption_band(
+                cues,mapped,subtitle_video,fps=fps,
+                frames=rendered["actual_video_frames"],
+            )
+            _run([
+                "ffmpeg","-hide_banner","-loglevel","error","-y",
+                "-i",str(silent),"-i",str(audio_wav),
+                "-i",str(subtitle_video),
+                "-filter_complex",
+                "[0:v][2:v]overlay=0:628:shortest=1:eof_action=pass[v]",
+                "-map","[v]","-map","1:a",
+                "-c:v","libx264","-preset","veryfast","-crf","20",
+                "-pix_fmt","yuv420p","-r",str(fps),
+                "-c:a","aac","-b:a","128k",
+                "-t",f"{duration:.5f}",
+                "-movflags","+faststart",str(final),
+            ],"SPOKEN_VOICED_CAPTION_MUX_FAILED")
         verified=_audio_video_verified(
             final,fps=fps,expected_frames=rendered["actual_video_frames"],
         )
@@ -247,6 +265,7 @@ def render_spoken_classroom(
                 len(e) for stage in voice.values() for e in stage.values()
             ),
             "caption_timing":cues,
+            "caption_mux":caption_mux,
             "incremental_cache": cache.stats() if cache is not None else None,
             "render_timings_seconds": (
                 cache.profile() if cache is not None else None
