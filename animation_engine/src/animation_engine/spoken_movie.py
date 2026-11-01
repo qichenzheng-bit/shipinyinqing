@@ -12,6 +12,7 @@ import json
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from .longboard_plan import LongboardError
@@ -116,7 +117,7 @@ def render_spoken_classroom(
     input_file: Path | str, *,
     output_mp4: Path, output_json: Path,
     output_srt: Path | None=None,
-    fps: int=30, adaptive: bool=True,
+    fps: int=30, adaptive: bool=True, cache_dir: Path | None=None,
 ) -> dict:
     path=Path(input_file).resolve()
     if (not isinstance(fps,int) or not 8<=fps<=60
@@ -133,11 +134,17 @@ def render_spoken_classroom(
     planned=plan_spoken(path,adaptive=adaptive)
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         raise LongboardError("SPOKEN_FFMPEG_UNAVAILABLE")
+    from .render_cache import ArtifactCache
+    cache=ArtifactCache(cache_dir) if cache_dir is not None else None
     with tempfile.TemporaryDirectory(prefix="spoken-classroom-") as tmp:
         root=Path(tmp)
+        started=time.perf_counter()
         voice=asyncio.run(synthesize_voiced_spans(
-            checked,root/"tts",fps=fps
+            checked,root/"tts",fps=fps,cache=cache
         ))
+        if cache is not None:
+            cache.timed("speech_synthesis_seconds",time.perf_counter()-started)
+        started=time.perf_counter()
         schedules=build_render_schedules(voice,fps=fps)
         silent=root/"native_manim.mp4"
         native_manifest=root/"silent_source.json"
@@ -146,15 +153,17 @@ def render_spoken_classroom(
             rendered=render_adaptive_flow(
                 path.parent/"adaptive_layout.json",
                 output_mp4=silent,output_json=native_manifest,fps=fps,
-                narration_schedules=schedules,
+                narration_schedules=schedules,cache=cache,
             )
         else:
             from .unified_classroom_flow import render_flow
             rendered=render_flow(
                 path.parent/"unified_flow.json",
                 output_mp4=silent,output_json=native_manifest,fps=fps,
-                narration_schedules=schedules,
+                narration_schedules=schedules,cache=cache,
             )
+        if cache is not None:
+            cache.timed("native_scene_pipeline_seconds",time.perf_counter()-started)
         if rendered["source_flow_sha256"] != checked.flow.source_sha256:
             raise LongboardError("SPOKEN_SOURCE_FLOW_MISMATCH")
         if len(rendered["event_timing"]) != len(checked.events):
@@ -169,6 +178,7 @@ def render_spoken_classroom(
         caption_dir=root/"caption_pngs"
         caption_dir.mkdir()
         mapped={}
+        started=time.perf_counter()
         for cue in cues:
             key=(cue["kind"],cue["display"])
             if key not in mapped:
@@ -176,8 +186,23 @@ def render_spoken_classroom(
                     (key[0]+":"+key[1]).encode("utf-8")
                 ).hexdigest()[:16]
                 image=caption_dir/f"mathtex_caption_{digest}.png"
-                render_caption_png(cue["kind"],cue["display"],image)
+                ckey=(
+                    cache.key("subtitle_png",{
+                        "kind":cue["kind"],"display":cue["display"],
+                        "pixel_width":1280,"safe_band_height":88,
+                        "caption_renderer":"manim_mathtex",
+                    }) if cache is not None else None
+                )
+                if cache is None or not cache.get_png(ckey,image):
+                    render_caption_png(cue["kind"],cue["display"],image)
+                    if cache is not None:
+                        cache.write("subtitle_png",ckey,{
+                            "payload.bin":image.read_bytes(),
+                        })
                 mapped[key]=image
+        if cache is not None:
+            cache.timed("subtitle_glyphs_seconds",time.perf_counter()-started)
+        started=time.perf_counter()
         subtitle_video=root/"mathtex_subtitle_band.mkv"
         _encode_caption_band(
             cues,mapped,subtitle_video,fps=fps,
@@ -201,6 +226,9 @@ def render_spoken_classroom(
         verified=_audio_video_verified(
             final,fps=fps,expected_frames=rendered["actual_video_frames"],
         )
+        if cache is not None:
+            cache.timed("subtitle_encode_final_mux_seconds",
+                        time.perf_counter()-started)
         # Source-authoritative audit: no fake voice, no non-audio subtitles.
         report={
             **rendered,
@@ -219,6 +247,10 @@ def render_spoken_classroom(
                 len(e) for stage in voice.values() for e in stage.values()
             ),
             "caption_timing":cues,
+            "incremental_cache": cache.stats() if cache is not None else None,
+            "render_timings_seconds": (
+                cache.profile() if cache is not None else None
+            ),
         }
         if report["source_narration_action_count"]!=report["voiced_action_count"]:
             raise LongboardError("SPOKEN_UNVOICED_SOURCE_ACTION")
