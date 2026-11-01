@@ -529,3 +529,79 @@ def test_event_source_hash_or_edit_duration_invalidates_event_clip(tmp_path):
             {"start_preview_second":0},
             {"start_preview_second":0},
         ],60,30)
+
+
+
+@pytest.mark.skipif(
+    not shutil.which("ffmpeg") or not shutil.which("ffprobe"),
+    reason="true FFmpeg is required to test exact event-frame extraction",
+)
+def test_actual_ffmpeg_event_clip_extraction_uses_compatible_fixed_fps(tmp_path):
+    """Frame-precise slicing test using synthetic visual source, NOT voice."""
+    import subprocess
+    from animation_engine.incremental_render import (
+        _cache_full_stage_events, _event_key,
+    )
+    from animation_engine.unified_classroom_flow import _video_frames
+    source_sha="c"*64
+    stage=SimpleNamespace(
+        stage_id="test_clips",engine="standard",package={},
+        storyboard={"id":"synthetic_video_only"},
+        execution={"source_storyboard_sha256":source_sha},
+        cues={},policy={},special=None,handoff=(),
+        events=("e1","e2"),kwargs=lambda:{},
+    )
+    schedules={
+        "e1":[{"kind":"math","object_id":"m1",
+               "duration":1.0,"math_start_delay":0.1}],
+        "e2":[{"kind":"math","object_id":"m2",
+               "duration":2.0,"math_start_delay":0.1}],
+    }
+    video=tmp_path/"verified_ffmpeg_synthetic.mp4"
+    subprocess.run([
+        "ffmpeg","-hide_banner","-loglevel","error","-y",
+        "-f","lavfi","-i","color=c=white:s=1280x720:r=30:d=3",
+        "-c:v","libx264","-pix_fmt","yuv420p","-r","30",
+        str(video),
+    ],check=True,capture_output=True,text=True)
+    assert _video_frames(video,30)==90
+    events=[
+        {"event_id":eid,"start_preview_second":start,
+         "end_preview_second":end,
+         "action_timing":[{
+             "kind":"math","object_id":f"m{i+1}",
+             "start_preview_second":start+0.1,
+             "end_preview_second":end,
+         }]}
+        for i,(eid,start,end) in enumerate([
+            ("e1",0.0,1.0),("e2",1.0,3.0)
+        ])
+    ]
+    report={
+        "source_storyboard_sha256":source_sha,
+        "voice_status":"not_recorded","event_timing":events,
+        "page_count":1,"event_count":2,
+    }
+    cache=ArtifactCache(tmp_path/"cache")
+    _cache_full_stage_events(
+        stage,report,video,fps=30,layout_hint=None,
+        narration_events=schedules,cache=cache
+    )
+    for i,(eid,frames) in enumerate([("e1",30),("e2",60)]):
+        key=_event_key(
+            stage,i,eid,fps=30,layout_hint=None,
+            narration_events=schedules,cache=cache,
+        )
+        dest=tmp_path/f"{eid}.mp4"
+        js=tmp_path/f"{eid}.json"
+        restored=cache.restore_stage(
+            key,dest,js,fps=30,
+            source_storyboard_sha256=source_sha,
+            namespace="event_clip",
+            expected_event_id=eid,
+            expected_event_index=i,
+        )
+        assert restored is not None
+        assert _video_frames(dest,30,min_frames=1)==frames
+        assert len(restored["event_timing"])==1
+        assert restored["event_timing"][0]["event_id"]==eid
