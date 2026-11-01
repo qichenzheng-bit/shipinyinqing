@@ -24,7 +24,7 @@ from .persistent_chalkboard import (
 )
 from .unified_classroom_flow import (
     TRANSITION_FRAMES, Flow, _command, _load, _render_board_wipe,
-    _video_frames, checked_flow, plan_flow,
+    _video_frames, _concat_verified_clips, checked_flow, plan_flow,
 )
 
 LAYOUT_FIELDS = frozenset({
@@ -375,13 +375,9 @@ def render_adaptive_flow(input_file: Path | str, *,
             encoding="utf-8",
         )
         movie = root / "adaptive_full.mp4"
-        _command([
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            "-f", "concat", "-safe", "0", "-i", str(playlist),
-            "-c:v", "libx264", "-pix_fmt", "yuv420p",
-            "-r", str(fps), "-an", "-movflags", "+faststart", str(movie),
-        ], "ADAPTIVE_JOIN_FAILED")
-        frames = _video_frames(movie, fps)
+        frames, join_mode = _concat_verified_clips(
+            playlist,movie,fps=fps,expected_frames=frame_offset,
+        )
         if abs(frames-frame_offset) > 2:
             raise LongboardError("ADAPTIVE_JOIN_FRAME_MISMATCH")
         report = {
@@ -404,6 +400,7 @@ def render_adaptive_flow(input_file: Path | str, *,
             "incremental_stage_cache": (
                 cache.stats() if cache is not None else None
             ),
+            "join_mode": join_mode,
         }
         target = Path(output_mp4)
         manifest = Path(output_json)
