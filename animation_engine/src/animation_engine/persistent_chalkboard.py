@@ -501,6 +501,10 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         note_width=(DIAGRAM_LEFT_WIDTH if diagram_column else
                     KNOWLEDGE_WIDTH if paired else BOARD_WIDTH)
         lines=_note_lines(cue["detail"],note_width) if note_needed else []
+        if cue["phase"]=="summary" and recap_references:
+            # The teacher comments briefly; the reviewed source objects
+            # below carry the educational substance without long text.
+            lines=[]
         noteheight=(NOTE_HEIGHT + len(lines)*NOTE_DETAIL_LINE_HEIGHT+5
                     if note_needed else 0)
         proof_formula_rows=[]
