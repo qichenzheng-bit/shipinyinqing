@@ -56,6 +56,24 @@ NARRATIVE = {
     ("calculate_perimeter", "e_final", "math"):
         "这个三角形的周长就是：",
 }
+# Each visible stroke/label is anchored to a specific true TTS phrase.
+# It is not enough to bind all strokes to the same broad teaching event.
+DIAGRAM_PHRASE_CUES = {
+    ("introduce_triangle", "e_intro"): [
+        {"object_id":"AB","phrase":"先画直角三角形的两条直角边，"},
+        {"object_id":"AC","phrase":"先画直角三角形的两条直角边，"},
+        {"object_id":"BC","phrase":"再连接 B、C。"},
+    ],
+    ("introduce_triangle", "e_angle"): [
+        {"object_id":"right_1","phrase":"在 A 角这里标出直角，"},
+        {"object_id":"right_2","phrase":"在 A 角这里标出直角，"},
+        {"object_id":"label:A","phrase":"在 A 角这里标出直角，"},
+    ],
+    ("introduce_triangle", "e_rule"): [
+        {"object_id":"label:B","phrase":"再标上 B、C。"},
+        {"object_id":"label:C","phrase":"再标上 B、C。"},
+    ],
+}
 MATH_READING = {
     "m_legs": "A B 等于八，A C 等于六。",
     "m_perpendicular": "A B 垂直于 A C。",
@@ -96,7 +114,10 @@ def export_spoken_triangle(root: Path):
                 ]
             else:
                 parts=[{"kind":"text","value":text}]
-            spans.append({"kind":kind,"object_id":obj,"parts":parts})
+            item={"kind":kind,"object_id":obj,"parts":parts}
+            if kind=="diagram" and (stage_id,eid) in DIAGRAM_PHRASE_CUES:
+                item["diagram_phrase_cues"]=DIAGRAM_PHRASE_CUES[(stage_id,eid)]
+            spans.append(item)
         events.append({
             "stage_id":stage_id,"event_id":eid,
             "pedagogical_cue_covered":True,

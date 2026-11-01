@@ -31,6 +31,7 @@ EVENT = frozenset({
     "question_read_aloud", "question_source_sha256",
 })
 SPAN = frozenset({"kind", "object_id", "parts"})
+SPAN_WITH_DIAGRAM_CUES = SPAN | {"diagram_phrase_cues"}
 TEXT_PART = frozenset({"kind", "value"})
 MATH_PART = frozenset({"kind", "latex", "reading"})
 MATH_PART_WITH_CAPTION = MATH_PART | {"spoken_math_latex"}
@@ -70,6 +71,7 @@ class SpokenSpan:
     parts: tuple[dict, ...]
     tts_text: str
     math_latex: str | None
+    diagram_phrase_cues: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -140,6 +142,7 @@ def _expected_actions(flow: Flow, *, measure=None, adaptive=False) -> list[dict]
             result.append({
                 "stage_id": stage.stage_id, "event_id": event["event_id"],
                 "actions": expected,
+                "diagram_reveal_ids": list(event.get("diagram_reveal_ids", [])),
             })
     return result
 
@@ -188,8 +191,34 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
             raise LongboardError("SPOKEN_ACTION_COVERAGE")
         checked = []
         for row, (kind, ident, latex) in zip(spans, planned["actions"]):
-            if not isinstance(row, dict) or set(row) != SPAN:
+            if not isinstance(row, dict) or set(row) not in (SPAN, SPAN_WITH_DIAGRAM_CUES):
                 raise LongboardError("SPOKEN_SPAN_FIELDS")
+            diagram_cues = row.get("diagram_phrase_cues", [])
+            if diagram_cues:
+                from .spoken_audio import split_natural_phrases
+                if kind != "diagram" or not isinstance(diagram_cues, list):
+                    raise LongboardError("SPOKEN_DIAGRAM_BEATS_INVALID")
+                candidates = [
+                    phrase for part in row["parts"] if part.get("kind") == "text"
+                    for phrase in split_natural_phrases(part.get("value", ""))
+                ]
+                actual_ids = []
+                phrase_positions = []
+                for cue in diagram_cues:
+                    if (not isinstance(cue, dict) or
+                            set(cue) != {"object_id", "phrase"} or
+                            cue["object_id"] not in planned["diagram_reveal_ids"] or
+                            cue["phrase"] not in candidates):
+                        raise LongboardError("SPOKEN_DIAGRAM_BEATS_UNSOURCED")
+                    actual_ids.append(cue["object_id"])
+                    phrase_positions.append(candidates.index(cue["phrase"]))
+                ordered_ids = planned["diagram_reveal_ids"]
+                if (len(set(actual_ids)) != len(actual_ids) or
+                        actual_ids != sorted(actual_ids, key=ordered_ids.index) or
+                        phrase_positions != sorted(phrase_positions)):
+                    raise LongboardError("SPOKEN_DIAGRAM_BEATS_ORDER")
+            elif "diagram_phrase_cues" in row and kind != "diagram":
+                raise LongboardError("SPOKEN_DIAGRAM_BEATS_INVALID")
             if (row["kind"], row["object_id"]) != (kind, ident):
                 raise LongboardError("SPOKEN_ACTION_ORDER")
             if not isinstance(row["parts"], list) or not row["parts"]:
@@ -244,7 +273,8 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
                 raise LongboardError("SPOKEN_CLASSROOM_META_LANGUAGE")
             if STILTED_TRANSITION.search(actual):
                 raise LongboardError("SPOKEN_STILTED_TRANSITION")
-            checked.append(SpokenSpan(kind, ident, tuple(parts), actual, latex))
+            checked.append(SpokenSpan(kind, ident, tuple(parts), actual, latex,
+                                     tuple(dict(c) for c in diagram_cues)))
         validated.append(SpokenEvent(
             recorded["stage_id"], recorded["event_id"], tuple(checked)
         ))

@@ -1174,20 +1174,39 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                     each=min(2.25,max(.12,duration*.70/visible))
                                 else:
                                     each=None
+                                beat_map = {
+                                    beat["object_id"]: beat
+                                    for beat in (speech or {}).get("diagram_beats", [])
+                                }
                                 for ident in ids:
                                     if ident in diagram_active:
                                         raise LongboardError("DIAGRAM_REVEAL_LIVE")
                                     obj=build_diagram(ident)
                                     mode=diagram.objects[ident]["kind"]
+                                    if obj is not None and beat_map:
+                                        if ident not in beat_map:
+                                            raise LongboardError("CHALKBOARD_DIAGRAM_BEAT_MISSING")
+                                        beat=beat_map[ident]
+                                        target_start=before+beat["start_offset"]
+                                        if self.time > target_start + 2/fps:
+                                            raise LongboardError("CHALKBOARD_DIAGRAM_BEAT_ORDER")
+                                        if target_start > self.time:
+                                            self.wait(target_start-self.time)
+                                        window=beat["end_offset"]-beat["start_offset"]
+                                        if window <= 0:
+                                            raise LongboardError("CHALKBOARD_DIAGRAM_BEAT_WINDOW")
+                                        draw_time=min(2.25,max(.08,window*.82))
+                                    else:
+                                        draw_time=each
                                     reveal_start=self.time
                                     if mode in ("line","curve"):
                                         self.play(
-                                            Create(obj),run_time=each if each
+                                            Create(obj),run_time=draw_time if draw_time
                                             is not None else .72
                                         )
                                     elif obj is not None:
                                         self.play(
-                                            FadeIn(obj),run_time=each if each
+                                            FadeIn(obj),run_time=draw_time if draw_time
                                             is not None else .36
                                         )
                                     diagram_active[ident]=obj
