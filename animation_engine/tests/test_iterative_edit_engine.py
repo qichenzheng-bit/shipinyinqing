@@ -242,6 +242,36 @@ def test_export_only_json(session,tmp_path):
         export_history(session,tmp_path/"history.csv")
 
 
+def test_history_export_is_revision_locked(session, tmp_path):
+    destination = tmp_path / "all_edits.json"
+    journal_before = (session / "edit_session.json").read_bytes()
+    with session_lock(session):
+        with pytest.raises(EditEngineError, match="EDIT_SESSION_LOCKED"):
+            export_history(session, destination)
+    assert not destination.exists()
+    assert (session / "edit_session.json").read_bytes() == journal_before
+    exported = export_history(session, destination)
+    assert exported["current_revision"] == 0
+    assert exported["rounds"] == []
+    assert json.loads(destination.read_text(encoding="utf-8")) == exported
+
+
+@pytest.mark.parametrize("protected", [
+    "edit_session.json",
+    "versions/0000/movie_manifest.json",
+    "attempts/0001/accidental.json",
+])
+def test_history_export_never_overwrites_edit_session_files(session, protected):
+    destination = session / protected
+    existing = destination.read_bytes() if destination.is_file() else None
+    with pytest.raises(EditEngineError, match="EDIT_EXPORT_PROTECTED_PATH"):
+        export_history(session, destination)
+    if existing is not None:
+        assert destination.read_bytes() == existing
+    else:
+        assert not destination.exists()
+
+
 def test_real_model_adapter_requires_explicit_configuration_and_api_key(tmp_path,monkeypatch):
     config=tmp_path/"openai.json"
     config.write_text(json.dumps({
