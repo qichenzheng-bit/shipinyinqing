@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import sympy as sp
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
 
 from build_unified_area_lesson import export_lesson
 from animation_engine.unified_classroom_flow import (

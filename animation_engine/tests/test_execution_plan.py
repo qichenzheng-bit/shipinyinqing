@@ -11,7 +11,7 @@ from visual_director import build_storyboard
 from animation_engine import ExecutionError, build_execution_plan
 
 
-SAMPLE = Path(__file__).resolve().parents[2] / "visual_director" / "examples" / "limit_teaching_package.json"
+SAMPLE = Path(__file__).resolve().parents[2] / "visual_director" / "tests" / "fixtures" / "limit_teaching_package.json"
 
 
 @pytest.fixture

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]/"tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parent/"fixtures"))
 
 from build_math_memory_triangle import export_memory_triangle
 from build_math_memory_cases import export_memory_parameter_cases

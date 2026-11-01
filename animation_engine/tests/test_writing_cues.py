@@ -8,7 +8,7 @@ from visual_director import build_storyboard
 from animation_engine import build_execution_plan
 from animation_engine.writing_cues import MathWritingError, plan_math_writing
 
-PACKAGE = Path(__file__).resolve().parents[2] / "visual_director" / "examples" / "limit_teaching_package.json"
+PACKAGE = Path(__file__).resolve().parents[2] / "visual_director" / "tests" / "fixtures" / "limit_teaching_package.json"
 
 
 @pytest.fixture

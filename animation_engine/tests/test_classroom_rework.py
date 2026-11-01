@@ -3,7 +3,7 @@ import copy
 import sys
 from pathlib import Path
 import pytest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
+sys.path.insert(0,str(Path(__file__).resolve().parent/'fixtures'))
 from animation_engine.classroom_cues import (checked_cues, BOARD_TEXT_STYLE,
     BOARD_DETAIL_FONT_PX, BOARD_DERIVATION_INK, BOARD_GUIDANCE_PHASES)
 from animation_engine.board_motion import interpolated_collisions, math_placement_collisions

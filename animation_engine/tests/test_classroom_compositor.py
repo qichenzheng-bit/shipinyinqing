@@ -30,7 +30,7 @@ def test_mixed_language_refused():
 def test_real_question_mathtex_and_board(tmp_path):
     pytest.importorskip("manim")
     from PIL import Image, ImageChops
-    source = Path(__file__).resolve().parents[2] / "visual_director/examples/limit_teaching_package.json"
+    source = Path(__file__).resolve().parents[2] / "visual_director/tests/fixtures/limit_teaching_package.json"
     board = build_storyboard(json.loads(source.read_text(encoding="utf-8")))
     execution = build_execution_plan(board)
     image = tmp_path / "classroom.png"

@@ -42,7 +42,7 @@ jobs:
           PY
       - name: Build source-approved V2.7 lesson without video
         run: |
-          python animation_engine/tools/build_novel_substitution_integral.py --output v27-script
+          python animation_engine/tests/fixtures/build_novel_substitution_integral.py --output v27-script
           math-animation export-spoken-script --spoken v27-script/spoken_classroom.json --output v27-script/lesson_script.md
           python - <<'PY'
           import json

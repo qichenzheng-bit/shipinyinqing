@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tools"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 from build_spoken_triangle import export_spoken_triangle
 from animation_engine.edit_impact import analyze_impact
 from animation_engine.incremental_render import render_or_reuse_stage

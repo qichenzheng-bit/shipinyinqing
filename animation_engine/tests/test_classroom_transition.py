@@ -11,7 +11,7 @@ from animation_engine.adaptive_layout import AdaptiveLayoutError
 @pytest.mark.render
 def test_genuine_classroom_video_with_fixed_question(tmp_path):
     pytest.importorskip("manim")
-    source=Path(__file__).resolve().parents[2] / "visual_director/examples/limit_teaching_package.json"
+    source=Path(__file__).resolve().parents[2] / "visual_director/tests/fixtures/limit_teaching_package.json"
     board=build_storyboard(json.loads(source.read_text(encoding="utf-8")))
     plan=build_execution_plan(board)
     video=tmp_path/"classroom.mp4"

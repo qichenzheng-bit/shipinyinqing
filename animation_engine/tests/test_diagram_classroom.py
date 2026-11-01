@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tools"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 
 from build_diagram_classroom_lesson import build_variant,export_variant
 from animation_engine.diagram_classroom import (

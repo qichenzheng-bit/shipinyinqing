@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tools"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 
 from animation_engine.classroom_teaching_units import compile_teaching_units
 from animation_engine.core_knowledge import checked_core_knowledge

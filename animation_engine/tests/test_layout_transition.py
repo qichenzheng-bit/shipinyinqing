@@ -14,7 +14,7 @@ from visual_director.director import build_storyboard
 @pytest.fixture(scope="module")
 def approved():
     file = (Path(__file__).resolve().parents[2] /
-            "visual_director/examples/limit_teaching_package.json")
+            "visual_director/tests/fixtures/limit_teaching_package.json")
     board = build_storyboard(json.loads(file.read_text(encoding="utf-8")))
     return board, build_execution_plan(board)
 

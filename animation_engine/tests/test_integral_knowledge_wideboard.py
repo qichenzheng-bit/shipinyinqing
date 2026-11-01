@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 import pytest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tools"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 from build_multipart_integral_lesson import build_variant
 from animation_engine.adaptive_layout import GlyphSize
 from animation_engine.persistent_chalkboard import (
