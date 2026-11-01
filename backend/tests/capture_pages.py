@@ -20,6 +20,7 @@ from playwright.sync_api import sync_playwright
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/
     "animation_engine"/"tests"/"fixtures"))
 from build_novel_substitution_integral import build
+from test_compiler import curriculum_fixture
 
 from weiguang_backend.main import create_app
 from weiguang_backend.models import Lesson
