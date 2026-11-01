@@ -155,8 +155,8 @@ def test_global_teacher_compiler_rejects_knowledge_without_formula_catalog():
 def test_knowledge_misuse_fails_closed(tmp_path,damage,expected):
     dest=tmp_path/"A"
     export_proof(dest,"A")
-    units=json.loads((dest/"teaching_units.json").read_text())["units"]
-    base=json.loads((dest/"core_knowledge.json").read_text())
+    units=json.loads((dest/"teaching_units.json").read_text(encoding="utf-8"))["units"]
+    base=json.loads((dest/"core_knowledge.json").read_text(encoding="utf-8"))
     bad=copy.deepcopy(base)
     point=bad["points"][0]
     if damage=="formula":
