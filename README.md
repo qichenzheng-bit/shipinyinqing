@@ -37,6 +37,10 @@ math-animation render-spoken --spoken demo/spoken_classroom.json --output demo/l
 
 微调引擎支持 `edit-start`、`edit-apply`、`edit-feedback`、`edit-export`；当前没有用户操作界面，开放式 AI 计划器必须显式配置并通过数学来源审查。无审核 TeX 不应在没有低权限沙箱、CPU/内存/超时限制的公网环境直接执行。
 
+## 口播与真实绘图同步（2026-11-01 追加）
+
+绘图类课堂要求老师说到哪个图元，就在同一口播动作中真实绘制该图元。完整三角形必须在声明画出完整图形的教学事件内形成；不得让图元在语音开头匆忙出现，余下长时间只播放音频。跨幕结论承接保留数学来源，不机械重复整段解说。以真实 Manim/MathTex 动画、PCM、字幕和 `diagram_reveal_timing` 检查为准。详见 [口播与可视动作同步规范](docs/V2_6_SPOKEN_VISUAL_SYNC_2026-11-01.md)。
+
 ## 真实验收
 
 - [V2.6.6 原始 HEAD 有声编辑和性能测试](https://github.com/qichenzheng-bit/shipinyinqing/actions/runs/41268963404)：相同编辑任务冷缓存 181 秒、热缓存 74 秒，提速 2.45 倍；仅代表该测试任务。
