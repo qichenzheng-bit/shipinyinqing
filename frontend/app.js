@@ -64,7 +64,7 @@
     '<a class="brand" href="#" data-route="work" aria-label="微光数学工作台"><img src="./logo.svg" alt="微光数学"/></a>'+
     '<nav class="topnav" aria-label="主导航">'+
     [['work','工作台'],['library','视频库'],['settings','设置']].map(([route,title])=>
-    '<button class="navlink '+(state.route===route?'active':'')+
+    '<button class="navlink '+((state.route===route||(route==='settings'&&state.route==='ai'))?'active':'')+
     '" data-route="'+route+'">'+title+'</button>').join('')+
     '</nav></header>';
   const head=(title,more='')=>'<div class="page-head"><h1>'+title+'</h1><div class="actions">'+more+'</div></div>';
@@ -230,6 +230,7 @@
     const family=current||preset;
     const protocols=[
       ['openai_chat','OpenAI 兼容接口'],
+      ['openai_responses','OpenAI Responses'],
       ['anthropic_messages','Claude Messages'],
       ['gemini_generate','Gemini GenerateContent'],
     ];
