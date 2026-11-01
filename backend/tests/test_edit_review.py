@@ -133,7 +133,7 @@ def test_http_pending_approve_render_and_reject_are_fully_connected(
     assert client.get(f"/api/v1/videos/{ident}/edits/pending").json()["pending"] is None
     with client.app.state.SessionLocal() as db:
         lesson=db.get(Lesson,ident)
-        assert lesson.latest_video.endswith("/versions/0001/movie.mp4")
+        assert Path(lesson.latest_video).parts[-3:]==("versions","0001","movie.mp4")
         row=db.get(EditRecord,edit_id)
         assert row.status=="preview_ready"
         assert row.reviewer=="实际数学审核人"
