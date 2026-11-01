@@ -426,9 +426,13 @@ def export_history(root: Path, output: Path) -> dict:
     # repair crash-interrupted latest.* aliases, so it also needs the lock.
     # Never overwrite the session journal or an immutable video revision.
     destination = output.resolve()
-    if (destination == (root / _SESSION).resolve()
+    if (destination in {
+                (root / _SESSION).resolve(),
+                (root / "latest_manifest.json").resolve(),
+            }
             or destination.is_relative_to((root / "versions").resolve())
-            or destination.is_relative_to((root / "attempts").resolve())):
+            or destination.is_relative_to((root / "attempts").resolve())
+            or destination.is_relative_to((root / "render_cache").resolve())):
         raise EditEngineError("EDIT_EXPORT_PROTECTED_PATH")
     with session_lock(root):
         state = _state(root)
