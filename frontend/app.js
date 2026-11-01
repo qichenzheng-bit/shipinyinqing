@@ -250,7 +250,7 @@
       '<div class="field"><label for="ai-preset">服务商</label>'+
       '<select class="select" id="ai-preset" '+(current?'disabled':'')+'>'+
       state.ai.catalog.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
-        (family.id===p.id||(!current&&state.ai.preset===p.id)?'selected':'')+'>'+
+        ((current?current.preset:state.ai.preset)===p.id?'selected':'')+'>'+
         escapeHTML(p.label)+'</option>').join('')+'</select></div>'+
       '<div class="field"><label for="ai-name">连接名称</label>'+
       '<input class="input" id="ai-name" value="'+escapeHTML(family.name||preset.label)+'" maxlength="120"></div>'+
