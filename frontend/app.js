@@ -504,7 +504,77 @@
     const action=event.target.closest('[data-action]');
     if(!action)return;
     const id=action.dataset.action;
-    if(id==='new'){state.route='work';render();}
+    if(id==='open-ai-settings'){
+      exec(async()=>{await refreshAI();state.route='ai';});
+    } else if(id==='back-ai-settings'){
+      state.route='settings';exec(async()=>{state.settings=await api('/settings');});
+    } else if(id==='ai-save-provider'){
+      const current=state.ai.providers.find(p=>p.id===state.ai.providerId);
+      const key=$('#ai-key').value;
+      const details={
+        name:$('#ai-name').value.trim(),
+        protocol:$('#ai-protocol').value,
+        base_url:$('#ai-url').value.trim(),
+        json_mode:$('#ai-json-mode').checked,
+      };
+      if(!details.name||!details.base_url)return flash('请输入连接名称与接口地址',true);
+      if(!current&&!key)return flash('请输入 API Key',true);
+      const payload=current?details:{...details,preset:$('#ai-preset').value,api_key:key};
+      if(current&&key)payload.api_key=key;
+      exec(async()=>{
+        const saved=await api(current?'/ai/providers/'+current.id:'/ai/providers',
+          options(current?'PATCH':'POST',payload));
+        await refreshAI(saved.id);
+        flash('服务商连接已保存');
+      });
+    } else if(id==='ai-delete-provider'){
+      const target=state.ai.providerId;
+      if(!target||!window.confirm('删除这个服务商连接？'))return;
+      exec(async()=>{
+        await api('/ai/providers/'+target,{method:'DELETE'});
+        await refreshAI('');
+        state.ai.modelId='';
+        flash('已删除连接');
+      });
+    } else if(id==='ai-discover'){
+      if(!state.ai.providerId)return flash('请先选择服务商',true);
+      exec(async()=>{
+        const result=await api('/ai/providers/'+state.ai.providerId+'/models',
+          options('POST',{}));
+        state.ai.versions=result.models||[];
+        state.ai.discovery=result.notice||(result.source==='live'?
+          '读取到 '+state.ai.versions.length+' 个可用模型。':'可手动填写模型版本。');
+        flash('模型列表已更新');
+      });
+    } else if(id==='ai-test'){
+      const modelId=$('#ai-manual-model')?.value?.trim()||
+        $('#ai-versions')?.value;
+      if(!state.ai.providerId||!modelId)return flash('请选择服务商并填写模型 ID',true);
+      exec(async()=>{
+        const result=await api('/ai/providers/'+state.ai.providerId+'/test',
+          options('POST',{model_id:modelId}));
+        state.ai.modelId=modelId;
+        state.ai.testStatus=result.status==='connected'?
+          '连接成功 · JSON 输出验证通过':'连接尚未通过';
+        flash(state.ai.testStatus);
+      });
+    } else if(id==='ai-assign'){
+      const modelId=$('#ai-manual-model')?.value?.trim()||
+        $('#ai-versions')?.value;
+      if(!state.ai.providerId||!modelId)return flash('请先选择模型的精确版本',true);
+      const tasks=state.ai.targetTask==='all'?
+        ['teacher','curriculum','edit']:[state.ai.targetTask];
+      exec(async()=>{
+        state.ai.bindings=await api('/ai/selections',options('PUT',{
+          bindings:tasks.map(task=>({
+            task,provider_id:state.ai.providerId,model_id:modelId,
+          })),
+        }));
+        state.ai.modelId=modelId;
+        state.settings=await api('/settings');
+        flash('已应用模型版本');
+      });
+    } else if(id==='new'){state.route='work';render();}
     else if(id==='trash'){exec(async()=>{state.trash=await api('/trash');state.route='trash';});}
     else if(id==='new-project'){
       const title=window.prompt('项目名称','');
