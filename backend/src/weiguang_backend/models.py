@@ -68,3 +68,14 @@ class EditRecord(Base):
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     satisfied: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class EditSessionArchive(Base):
+    """Immutable session index, retained when a lesson's source is replaced."""
+    __tablename__ = "edit_session_archives"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    lesson_id: Mapped[str] = mapped_column(String(32), ForeignKey("lessons.id"))
+    job_id: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    session_path: Mapped[str] = mapped_column(Text, nullable=False)
+    source_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
