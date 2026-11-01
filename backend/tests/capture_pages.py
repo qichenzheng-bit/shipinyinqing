@@ -116,6 +116,14 @@ def main():
             page.screenshot(path=str(shots/"07-trash.png"),full_page=True)
             page.get_by_role("button",name="恢复").click()
             page.get_by_text("回收站为空",exact=True).wait_for()
+            os.environ["WEIGUANG_API_TOKEN"]="preview-browser-only-auth-secret"
+            page.reload(wait_until="networkidle")
+            page.get_by_role("heading",name="登录微光数学").wait_for()
+            page.screenshot(path=str(shots/"08-login.png"),full_page=True)
+            page.locator("#login-secret").fill("preview-browser-only-auth-secret")
+            page.get_by_role("button",name="登录",exact=True).click()
+            page.get_by_role("heading",name="制作视频").wait_for()
+            os.environ.pop("WEIGUANG_API_TOKEN",None)
             if errors:
                 raise AssertionError("UI_PAGE_ERRORS: "+str(errors))
             browser.close()
