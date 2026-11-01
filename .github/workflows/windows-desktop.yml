@@ -1,0 +1,102 @@
+name: WeiGuang Math Windows Desktop installer
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'animation_engine/**'
+      - 'teacher_module/**'
+      - 'visual_director/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/windows-desktop.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'animation_engine/**'
+      - 'teacher_module/**'
+      - 'visual_director/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/windows-desktop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  windows-installers:
+    name: Windows 11 native installer and portable EXE
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      ELECTRON_BUILDER_DISABLE_PUBLISH: 'true'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Generate brand app ICO and PNG
+        shell: pwsh
+        run: |
+          python -m pip install Pillow
+          python desktop/tools/generate_app_icon.py --output desktop/build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install pinned Electron / Windows packager
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+      - name: Validate desktop URL/security rules
+        working-directory: desktop
+        run: npm test
+      - name: Create signed-off source inventory (no production data)
+        shell: pwsh
+        run: |
+          python tools/repository_audit.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Windows setup and portable executables
+        working-directory: desktop
+        run: npm run build:windows
+      - name: Verify installer files and exact packaged production modules
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem desktop/dist/*.exe)
+          $setup = @($installers | Where-Object { $_.Name -match 'Setup-' })
+          $portable = @($installers | Where-Object { $_.Name -match 'Portable-' })
+          if ($setup.Count -ne 1 -or $portable.Count -ne 1) {
+            Write-Error "EXPECTED_ONE_WINDOWS_SETUP_AND_PORTABLE"
+            exit 1
+          }
+          foreach ($file in $installers) {
+            if ($file.Length -lt 25000000) { throw "SUSPICIOUSLY_SMALL_APP: $($file.Name)" }
+          }
+          $sourceRoot = 'desktop/dist/win-unpacked/resources/service'
+          foreach ($path in @(
+            'docker-compose.yml', 'backend/Dockerfile',
+            'backend/src/weiguang_backend/main.py',
+            'animation_engine/src/animation_engine/spoken_movie.py',
+            'teacher_module/src/math_teacher/prompts/global.md',
+            'visual_director/src/visual_director/director.py',
+            'frontend/logo.svg',
+            'frontend/app.js'
+          )) {
+            if (!(Test-Path (Join-Path $sourceRoot $path))) {
+              throw "DESKTOP_BACKEND_RESOURCE_MISSING: $path"
+            }
+          }
+          if (Test-Path (Join-Path $sourceRoot 'backend/tests')) { throw 'PACKAGED_TESTS_NOT_ALLOWED' }
+          if (Test-Path (Join-Path $sourceRoot 'frontend/screenshots')) { throw 'PACKAGED_SCREENSHOTS_NOT_ALLOWED' }
+          if (Test-Path (Join-Path $sourceRoot '.env')) { throw 'PACKAGED_SECRETS_NOT_ALLOWED' }
+          Get-ChildItem desktop/dist/*.exe | Select-Object Name,Length
+          Write-Output "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WeiGuang-Math-Windows-Setup-and-Portable
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 30
