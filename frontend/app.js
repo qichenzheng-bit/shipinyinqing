@@ -5,7 +5,7 @@
   const $ = sel => document.querySelector(sel);
   const state = {
     route:'work', lessons:[], videos:[], selected:new Set(), search:'',
-    lesson:null, script:'', job:null, loading:false, error:'',
+    lesson:null, script:'', teacher:null, job:null, loading:false, error:'',
     modal:null, notice:'', trash:[], settings:null,
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, s => ({
@@ -46,7 +46,7 @@
     finally {state.loading=false;render();}
   };
   const label = s => ({
-    draft:'草稿',package_needed:'待准备',script_pending:'待审核',
+    draft:'草稿',package_needed:'待准备',teacher_review_pending:'待审核教学草稿',script_pending:'待审核',
     approved:'已审核',ready:'已完成',queued:'排队中',
     running:'制作中',failed:'失败',preview_ready:'可预览',
   }[s]||s||'未开始');
@@ -125,8 +125,11 @@
       '<div class="actions">'+actions+'</div></div>'+
       (state.job&&state.job.lesson_id===l.id?
       '<div class="notice">任务：'+escapeHTML(state.job.phase||label(state.job.status))+'</div>':'')+
-      (l.status==='draft'?'<div class="edit-section"><h2>课程资料</h2>'+
-        '<div class="upload"><input type="file" id="package-upload" accept=".zip"/>'+
+      ((l.status==='draft'||l.status==='package_needed'||l.status==='teacher_review_pending')?
+        '<div class="edit-section"><h2>课程资料</h2><div class="actions" style="margin-bottom:19px">'+
+        (l.status==='draft'?button('生成教学草稿','generate-teacher','primary'):'')+
+        (l.status==='teacher_review_pending'?button('查看教学草稿','view-teacher','primary'):'')+
+        '</div><div class="upload"><input type="file" id="package-upload" accept=".zip"/>'+
         button('上传已审核课程包','upload-package')+'</div></div>':'')+
       (l.status==='script_pending'?'<div class="edit-section"><h2>讲稿审核</h2>'+button('查看完整讲稿','open-review','primary')+'</div>':'')+
       (l.has_video?'<section class="edit-section"><h2>继续微调</h2>'+
@@ -136,6 +139,17 @@
         '<div class="row" style="margin-top:18px">'+button('满意，结束微调','satisfied')+'</div></section>':'')+
       '</div>';
   };
+  const teacherView = () => head('教学草稿',button('返回课程','back-to-detail'))+
+    '<div class="video-card"><h2>教学安排</h2>'+
+    '<div class="script">'+(state.teacher?.plan?.teaching_events||[]).map(
+      (entry,i)=>'<div style="padding:10px 0"><strong>'+
+      (i+1)+'. '+escapeHTML(entry.event_type)+'</strong><div>'+
+      escapeHTML(entry.teaching_goal)+'</div></div>'
+    ).join('')+'</div>'+
+    '<div class="field" style="margin-top:24px"><label for="teacher-reviewer">审核人</label>'+
+    '<input class="input" id="teacher-reviewer" placeholder="填写实际审核人标识"></div>'+
+    '<label class="row" style="margin-bottom:22px"><input class="check" type="checkbox" id="teacher-check">已核对数学推导与教学步骤</label>'+
+    button('确认教学草稿','approve-teacher','primary')+'</div>';
   const review = () => head('讲稿审核',button('返回课程','back-to-detail'))+
     '<div class="video-card"><div class="row spread" style="margin-bottom:17px"><h2>完整教师讲稿</h2><span class="muted small">待审核</span></div>'+
     '<div class="script" id="script-content">'+escapeHTML(state.script)+'</div>'+
@@ -172,6 +186,7 @@
     root.innerHTML=nav()+'<main class="main">'+(
       state.route==='work'?work():state.route==='library'?library():
       state.route==='detail'?detail():state.route==='review'?review():
+      state.route==='teacher'?teacherView():
       state.route==='trash'?trash():state.route==='login'?login():settings()
     )+'</main>'+modal();
     if(state.route==='work') {
@@ -315,6 +330,29 @@
         const data=new FormData();data.append('file',file);
         await api('/lessons/'+state.lesson.id+'/package',{method:'POST',body:data});
         await selectLesson(state.lesson.id);await refresh();flash('课程包验证通过');
+      });
+    } else if(id==='generate-teacher'){
+      exec(async()=>{
+        const task=await api('/lessons/'+state.lesson.id+'/prepare',
+          options('POST',{}));
+        state.job=task;
+        watch(task.id);
+        flash('教学草稿生成任务已提交');
+      });
+    } else if(id==='view-teacher'){
+      exec(async()=>{
+        state.teacher=await api('/lessons/'+state.lesson.id+'/teaching');
+        state.route='teacher';
+      });
+    } else if(id==='approve-teacher'){
+      const reviewer=$('#teacher-reviewer')?.value?.trim();
+      if(!reviewer||!$('#teacher-check')?.checked)return flash('请先检查数学内容',true);
+      exec(async()=>{
+        await api('/lessons/'+state.lesson.id+'/teaching/review',
+          options('POST',{reviewer,confirmed:true}));
+        await selectLesson(state.lesson.id);
+        await refresh();
+        flash('教学草稿已确认；下一步需要经过审核的课程数据');
       });
     } else if(id==='open-review'){
       exec(async()=>{
