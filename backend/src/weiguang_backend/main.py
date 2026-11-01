@@ -100,6 +100,10 @@ class Login(BaseModel):
     token: str=Field(min_length=1,max_length=1024)
 
 
+class DesktopHandshake(BaseModel):
+    nonce: str=Field(pattern=r"^[a-f0-9]{64}$")
+
+
 def _trusted(name: str | None):
     if not name:
         return None
@@ -172,6 +176,23 @@ def create_app(
         elif not (dev and request.client and
                   request.client.host in ("127.0.0.1","::1","localhost","testclient","testserver")):
             raise HTTPException(503,"PUBLIC_SERVER_REQUIRES_API_TOKEN")
+
+    @app.post("/api/v1/desktop/handshake")
+    def desktop_handshake(payload: DesktopHandshake):
+        """Proof of local backend identity without transmitting the app token.
+
+        The Electron launcher verifies this HMAC *before* it sends a login
+        token. The nonce is random and never reused by the launcher.
+        """
+        key=os.environ.get("WEIGUANG_API_TOKEN","")
+        if not key:
+            raise HTTPException(503,"DESKTOP_BACKEND_AUTH_NOT_CONFIGURED")
+        proof=hmac.new(
+            key.encode("utf-8"),
+            ("weiguang-desktop:"+payload.nonce).encode("ascii"),
+            hashlib.sha256,
+        ).hexdigest()
+        return {"schema_version":"1.0","proof":proof}
 
     @app.post("/api/v1/auth/login")
     def login(payload: Login, response: Response):
