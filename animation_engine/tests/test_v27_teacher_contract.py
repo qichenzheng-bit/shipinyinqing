@@ -176,3 +176,16 @@ def test_question_math_excerpt_must_match_full_authored_math_reading():
     ]
     with pytest.raises(LongboardError, match="V27_QUESTION_MATH_READING_NOT_COMPLETE"):
         check_v27_teacher_contract(flow, events, spec)
+
+
+def test_prerender_script_rejects_tampered_body_even_with_matching_source_hash(tmp_path):
+    import json
+    flow, events, spec = lesson()
+    approved = SimpleNamespace(flow=flow, events=tuple(events), source_sha256="approved")
+    document, _ = compile_spoken_script(approved, source_document={"lesson_contract":spec})
+    document["events"][-1]["actions"] = []
+    (tmp_path / "lesson_script.json").write_text(json.dumps(document),encoding="utf-8")
+    spoken = tmp_path / "spoken_classroom.json"
+    spoken.write_text(json.dumps({"lesson_contract":spec}),encoding="utf-8")
+    with pytest.raises(LongboardError, match="V27_SCRIPT_CONTENT_TAMPERED"):
+        require_prerender_script(approved, spoken)
