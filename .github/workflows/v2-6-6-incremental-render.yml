@@ -1,0 +1,156 @@
+name: V2.6.6 incremental math video render and edit acceptance
+on:
+  push:
+    branches: [feature/v2-6-6-incremental-render]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v2-6-6-qa-\${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality-and-invalidation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Cache, invalidation, multi-request and failure tests
+        run: cd animation_engine && python -m pytest tests/test_incremental_render.py tests/test_iterative_edit_engine.py -q
+      - name: All previous engine regressions
+        run: cd animation_engine && python -m pytest -q -m 'not render'
+      - name: Teacher and visual director regressions
+        run: |
+          cd teacher_module && python -m pytest -q
+          cd ../visual_director && python -m pytest -q
+      - run: python -m compileall -q animation_engine/src animation_engine/tools teacher_module/src visual_director/src
+
+  real-two-rounds:
+    needs: quality-and-invalidation
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install real MathTex and neural voice tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+          python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test,speech]'
+      - name: Render genuine baseline classroom video
+        run: |
+          python animation_engine/tools/build_spoken_triangle.py --output perf-evidence/base
+          math-animation render-spoken --spoken perf-evidence/base/spoken_classroom.json --output perf-evidence/initial.mp4 --manifest perf-evidence/initial.json --srt perf-evidence/initial.srt --adaptive --fps 30
+          math-animation edit-start --package perf-evidence/base --movie perf-evidence/initial.mp4 --manifest perf-evidence/initial.json --session perf-evidence/session --fps 30
+      - name: Prepare two consecutive source-verified multi-request batches
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("perf-evidence")
+          def plan(steps):
+              return {
+                  "schema_version":"1.0","model":"teacher-reviewed-fixture",
+                  "requirements":[{"id":f"r{i}","instruction":name,"target":pointer,"operation_ids":[f"p{i}"]}
+                     for i,(pointer,value,name) in enumerate(steps,1)],
+                  "operations":[{"id":f"p{i}","file":"spoken_classroom.json",
+                     "pointer":pointer,"action":"set","value":value}
+                     for i,(pointer,value,name) in enumerate(steps,1)]
+              }
+          first=plan([
+              ("/events/0/spans/0/parts/0/value",
+               "我们先看这道直角三角形题。两条直角边分别长八和六，要求斜边和周长。我们先画图确定各边的位置。",
+               "开场讲得像真正老师，保留数学条件。"),
+              ("/events/0/spans/1/parts/0/value",
+               "先找直角边和斜边，再用勾股定理求斜边，最后求三条边的长度之和。",
+               "解题思路简洁但不跳步。"),
+          ])
+          second=plan([
+              ("/events/1/spans/0/parts/0/value",
+               "现在注意图中的直角顶点，两条直角边互相垂直。连接其余两个顶点的这一条边，才是真正的斜边。",
+               "第二幕更仔细解释直角位置，第一幕不再修改。"),
+          ])
+          for name,obj in [("round1.json",first),("round2.json",second)]:
+              (p/name).write_text(json.dumps(obj,ensure_ascii=False,indent=2),encoding="utf-8")
+          PY
+      - name: Cold first real edited movie
+        run: |
+          START=$SECONDS
+          math-animation edit-apply --session perf-evidence/session --instruction "第一幕讲清楚题意，同时把解题思路改得更自然。" --plan perf-evidence/round1.json
+          echo "$((SECONDS-START))" > perf-evidence/cold_seconds.txt
+          math-animation edit-feedback --session perf-evidence/session --text "第一幕可以了，但直角顶点的讲解还不够清楚。"
+      - name: Cached second real edited movie
+        run: |
+          START=$SECONDS
+          math-animation edit-apply --session perf-evidence/session --instruction "把第二幕的直角顶点讲清楚，第一幕已经满意不要改变。" --plan perf-evidence/round2.json
+          echo "$((SECONDS-START))" > perf-evidence/incremental_seconds.txt
+          math-animation edit-feedback --session perf-evidence/session --text "现在满意，可以结束。" --satisfied
+          math-animation edit-export --session perf-evidence/session --output perf-evidence/video_edit_history.json
+      - name: Audit real video, mathematical sources and cache/speed
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,subprocess
+          root=Path("perf-evidence")
+          session=root/"session"
+          history=json.loads((root/"video_edit_history.json").read_text("utf-8"))
+          report=json.loads((session/"latest_manifest.json").read_text("utf-8"))
+          assert history["current_revision"]==2 and history["current_satisfied"]
+          assert len(history["rounds"])==2
+          assert [len(x["requirements"]) for x in history["rounds"]]==[2,1]
+          assert [x["status"] for x in history["rounds"]]==["needs_revision","accepted"]
+          assert history["rounds"][1]["impact"]["affected_stages"]==["introduce_triangle"]
+          assert history["rounds"][1]["impact"]["reusable_stages_subject_to_cache_validation"]==[
+              "calculate_hypotenuse","calculate_perimeter"
+          ]
+          assert report["voice_status"]=="real_edge_neural_pcm_verified"
+          assert report["subtitle_status"]=="actual_tts_phrase_aligned"
+          assert report["math_caption_renderer"]=="true_manim_mathtex"
+          assert report["fabricated_voice_or_subtitle_count"]==0
+          assert report["voiced_action_count"]==18
+          assert len(report["event_timing"])==11
+          assert report["actual_video_frames"]>5000
+          stats=report["incremental_cache"]
+          assert stats["raw_stage_hit"]==2,stats
+          assert stats["raw_stage_miss"]==1,stats
+          assert stats["speech_pcm_hit"]>5,stats
+          assert stats["subtitle_png_hit"]>5,stats
+          assert sum(bool(x["stage_cache_hit"]) for x in report["stage_render_reports"])==2
+          src=json.loads((session/"versions/0002/package/spoken_classroom.json").read_text("utf-8"))
+          assert src["events"][0]["spans"][0]["parts"][0]["value"].startswith("我们先看这道")
+          assert src["events"][0]["spans"][1]["parts"][0]["value"].startswith("先找直角边")
+          assert src["events"][1]["spans"][0]["parts"][0]["value"].startswith("现在注意图中")
+          streams=json.loads(subprocess.check_output([
+              "ffprobe","-v","error","-show_streams","-of","json",str(session/"latest.mp4")
+          ]))["streams"]
+          assert set(x["codec_type"] for x in streams)>={"audio","video"}
+          assert (session/"latest.srt").stat().st_size>100
+          cold=float((root/"cold_seconds.txt").read_text())
+          hot=float((root/"incremental_seconds.txt").read_text())
+          assert cold>0 and hot>0
+          speedup=cold/hot
+          print("V2_6_6_REAL_INCREMENTAL_PASS",
+                report["actual_video_frames"],"frames",
+                stats["raw_stage_hit"],"stage_hits",
+                stats["speech_pcm_hit"],"speech_hits",
+                stats["subtitle_png_hit"],"caption_hits",
+                "cold_seconds",cold,"incremental_seconds",hot,
+                "speedup",round(speedup,2))
+          (root/"performance.txt").write_text(
+              "Cold first edit: {:.2f}s\nSecond incremental edit: {:.2f}s\nSpeedup: {:.2f}x\n".format(
+                cold,hot,speedup),encoding="utf-8")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v2-6-6-real-incremental-video-history-and-performance
+          path: |
+            perf-evidence/session/latest.mp4
+            perf-evidence/session/latest.srt
+            perf-evidence/session/latest_manifest.json
+            perf-evidence/video_edit_history.json
+            perf-evidence/performance.txt
+          if-no-files-found: warn
