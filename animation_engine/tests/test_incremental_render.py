@@ -291,3 +291,73 @@ def test_cached_mathtex_subtitle_png_decodes_and_rejects_bad_alpha(tmp_path):
     cache.write("subtitle_png",key,{"payload.bin":invalid_bytes.getvalue()})
     assert cache.get_png(key,tmp_path/"invalid.png") is False
     assert cache.stats()["subtitle_png_invalid"]>=1
+
+
+
+def test_verified_h264_stream_copy_preserves_real_frames(tmp_path):
+    """Actual FFmpeg compatibility test, not a fake-video cache test."""
+    import subprocess
+    from animation_engine.unified_classroom_flow import (
+        _concat_verified_clips, _video_frames
+    )
+    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+        pytest.skip("FFmpeg required")
+    clips=[]
+    for i,color in enumerate(("white","black")):
+        path=tmp_path/f"stage_{i}.mp4"
+        subprocess.run([
+            "ffmpeg","-hide_banner","-loglevel","error","-y",
+            "-f","lavfi","-i",
+            f"color=c={color}:s=1280x720:r=30:d=0.7",
+            "-c:v","libx264","-pix_fmt","yuv420p","-r","30",
+            str(path)
+        ],check=True,capture_output=True,text=True)
+        clips.append(path)
+    expected=sum(_video_frames(p,30,min_frames=1) for p in clips)
+    playlist=tmp_path/"segments.txt"
+    playlist.write_text(
+        "".join(f"file '{p.as_posix()}'\n" for p in clips),
+        encoding="utf-8",
+    )
+    target=tmp_path/"final.mp4"
+    frames,mode=_concat_verified_clips(
+        playlist,target,fps=30,expected_frames=expected,
+    )
+    assert mode=="codec_copy_verified"
+    assert frames==expected
+    assert _video_frames(target,30,min_frames=1)==expected
+
+
+def test_incompatible_video_clip_fails_closed_or_reencodes(tmp_path):
+    import subprocess
+    from animation_engine.unified_classroom_flow import _concat_verified_clips
+    if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+        pytest.skip("FFmpeg required")
+    clips=[]
+    for i,color in enumerate(("white","black")):
+        path=tmp_path/f"stage_{i}.mp4"
+        subprocess.run([
+            "ffmpeg","-hide_banner","-loglevel","error","-y",
+            "-f","lavfi","-i",
+            f"color=c={color}:s=1280x720:r=30:d=0.7",
+            "-c:v","libx264","-pix_fmt","yuv420p",
+            "-r","30","-profile:v",("main" if i else "baseline"),
+            str(path)
+        ],check=True,capture_output=True,text=True)
+        clips.append(path)
+    playlist=tmp_path/"segments.txt"
+    playlist.write_text(
+        "".join(f"file '{p.as_posix()}'\n" for p in clips),
+        encoding="utf-8",
+    )
+    # Incompatible profile must not be misrepresented as exact bitstream
+    # copy. Fallback may reject unsafe concat; that is also acceptable.
+    from animation_engine.longboard_plan import LongboardError
+    try:
+        frames,mode=_concat_verified_clips(
+            playlist,tmp_path/"final.mp4",fps=30,expected_frames=42,
+        )
+        assert mode=="reencode_verified_fallback"
+        assert abs(frames-42)<=2
+    except LongboardError:
+        assert not (tmp_path/"latest.mp4").exists()
