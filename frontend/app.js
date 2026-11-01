@@ -5,7 +5,7 @@
   const $ = sel => document.querySelector(sel);
   const state = {
     route:'work', lessons:[], videos:[], selected:new Set(), search:'',
-    lesson:null, script:'', teacher:null, job:null, loading:false, error:'',
+    lesson:null, script:'', teacher:null, curriculum:null, job:null, loading:false, error:'',
     modal:null, notice:'', trash:[], settings:null,
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, s => ({
@@ -46,7 +46,7 @@
     finally {state.loading=false;render();}
   };
   const label = s => ({
-    draft:'草稿',package_needed:'待准备',teacher_review_pending:'待审核教学草稿',script_pending:'待审核',
+    draft:'草稿',package_needed:'待准备',teacher_review_pending:'待审核教学草稿',curriculum_review_pending:'待审核课堂编排',script_pending:'待审核',
     approved:'已审核',ready:'已完成',queued:'排队中',
     running:'制作中',failed:'失败',preview_ready:'可预览',
   }[s]||s||'未开始');
@@ -127,10 +127,12 @@
       '<div class="notice">任务：'+escapeHTML(state.job.phase||label(state.job.status))+
       (state.job.status==='failed'?'<div style="margin-top:12px">'+
       button('重试任务','retry-job')+'</div>':'')+'</div>':'')+
-      ((l.status==='draft'||l.status==='package_needed'||l.status==='teacher_review_pending')?
+      ((l.status==='draft'||l.status==='package_needed'||l.status==='teacher_review_pending'||l.status==='curriculum_review_pending')?
         '<div class="edit-section"><h2>课程资料</h2><div class="actions" style="margin-bottom:19px">'+
         (l.status==='draft'?button('生成教学草稿','generate-teacher','primary'):'')+
+        (l.status==='package_needed'?button('编排完整课堂','generate-curriculum','primary'):'')+
         (l.status==='teacher_review_pending'?button('查看教学草稿','view-teacher','primary'):'')+
+        (l.status==='curriculum_review_pending'?button('审核课堂编排','view-curriculum','primary'):'')+
         '</div><div class="upload"><input type="file" id="package-upload" accept=".zip"/>'+
         button('上传已审核课程包','upload-package')+'</div></div>':'')+
       (l.status==='script_pending'?'<div class="edit-section"><h2>讲稿审核</h2>'+button('查看完整讲稿','open-review','primary')+'</div>':'')+
@@ -152,6 +154,18 @@
     '<input class="input" id="teacher-reviewer" placeholder="填写实际审核人标识"></div>'+
     '<label class="row" style="margin-bottom:22px"><input class="check" type="checkbox" id="teacher-check">已核对数学推导与教学步骤</label>'+
     button('确认教学草稿','approve-teacher','primary')+'</div>';
+  const curriculumView = () => head('课堂编排审核',button('返回课程','back-to-detail'))+
+    '<div class="video-card"><h2>教学事件与板书</h2>'+
+    '<div class="script">'+(state.curriculum?.units||[]).map((u,i)=>
+      '<div style="padding:13px 0;border-bottom:1px solid #f1f1f1"><strong>'+
+      (i+1)+'. '+escapeHTML(u.heading)+'</strong><div>'+
+      escapeHTML(u.detail)+'</div><div class="muted small">'+
+      (u.math||[]).map(x=>escapeHTML(x.latex)).join(' · ')+'</div></div>'
+    ).join('')+'</div>'+
+    '<div class="field" style="margin-top:24px"><label for="curriculum-reviewer">审核人</label>'+
+    '<input class="input" id="curriculum-reviewer" placeholder="填写审核人"></div>'+
+    '<label class="row" style="margin-bottom:22px"><input class="check" type="checkbox" id="curriculum-check">已核对数学、板书与口播</label>'+
+    button('确认课堂编排','approve-curriculum','primary')+'</div>';
   const review = () => head('讲稿审核',button('返回课程','back-to-detail'))+
     '<div class="video-card"><div class="row spread" style="margin-bottom:17px"><h2>完整教师讲稿</h2><span class="muted small">待审核</span></div>'+
     '<div class="script" id="script-content">'+escapeHTML(state.script)+'</div>'+
@@ -188,7 +202,7 @@
     root.innerHTML=nav()+'<main class="main">'+(
       state.route==='work'?work():state.route==='library'?library():
       state.route==='detail'?detail():state.route==='review'?review():
-      state.route==='teacher'?teacherView():
+      state.route==='teacher'?teacherView():state.route==='curriculum'?curriculumView():
       state.route==='trash'?trash():state.route==='login'?login():settings()
     )+'</main>'+modal();
     if(state.route==='work') {
@@ -345,6 +359,28 @@
         state.job=task;
         watch(task.id);
         flash('教学草稿生成任务已提交');
+      });
+    } else if(id==='generate-curriculum'){
+      exec(async()=>{
+        const task=await api('/lessons/'+state.lesson.id+'/curriculum/prepare',
+          options('POST',{}));
+        state.job=task;watch(task.id);
+        flash('课堂编排任务已创建');
+      });
+    } else if(id==='view-curriculum'){
+      exec(async()=>{
+        state.curriculum=await api('/lessons/'+state.lesson.id+'/curriculum');
+        state.route='curriculum';
+      });
+    } else if(id==='approve-curriculum'){
+      const reviewer=$('#curriculum-reviewer')?.value?.trim();
+      if(!reviewer||!$('#curriculum-check')?.checked)
+        return flash('请先检查数学、板书与口播',true);
+      exec(async()=>{
+        await api('/lessons/'+state.lesson.id+'/curriculum/approve',
+          options('POST',{reviewer,confirmed:true}));
+        await selectLesson(state.lesson.id);
+        await refresh();flash('课堂编排已审核，可继续检查完整讲稿');
       });
     } else if(id==='view-teacher'){
       exec(async()=>{
