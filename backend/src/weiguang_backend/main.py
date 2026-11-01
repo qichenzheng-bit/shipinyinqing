@@ -1122,20 +1122,29 @@ def create_app(
 
     @api.get("/settings")
     def settings():
+        with SessionLocal() as db:
+            teacher_assigned=db.get(AiTaskSelection,"teacher") is not None
+            curriculum_assigned=db.get(AiTaskSelection,"curriculum") is not None
+            edit_assigned=db.get(AiTaskSelection,"edit") is not None
         return {"default_fps":60,"default_resolution":"1280x720",
                 "voices":["zh-CN-YunxiNeural","zh-CN-XiaoxiaoNeural"],
                 "max_render_jobs":1,
                 "ai_configured":bool(
-                    os.environ.get("WEIGUANG_EDIT_AI_ENABLED","").lower() in ("1","true")
+                    edit_assigned
+                    or os.environ.get("WEIGUANG_EDIT_AI_ENABLED","").lower() in ("1","true")
                     or os.environ.get("WEIGUANG_EDIT_AI_CONFIG")
                 ),
                 "teacher_ai_configured":bool(
-                    os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() in ("1","true")
+                    teacher_assigned
+                    or os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() in ("1","true")
                     or (os.environ.get("MATH_TEACHER_MODEL")
                         and os.environ.get("MATH_TEACHER_API_KEY"))
-                )}
+                ),
+                "curriculum_ai_configured":curriculum_assigned}
 
     app.include_router(api)
+    from .ai_api import build_ai_router
+    app.include_router(build_ai_router(SessionLocal,auth))
     from fastapi.staticfiles import StaticFiles
     frontend = Path(__file__).resolve().parents[3] / "frontend"
     if frontend.is_dir() and (frontend / "index.html").exists():
