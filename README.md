@@ -24,7 +24,7 @@
 | --- | --- | --- |
 | `teacher_module/` | 数学教师：输入理解、参考解法结构、教学事件/知识点、自然讲稿、结构化数学来源与有限核验 | `src/math_teacher/{pipeline,validator,models,provider}.py`，`prompts/*.md` |
 | `visual_director/` | 教学视觉导演：将教学包转为可验证分镜、布局、板书动作、数学来源与字幕锚点 | `src/visual_director/{director,models,geometry}.py` |
-| `animation_engine/` | 真实 MathTex/Manim、白板布局、分幕与图形、神经语音与字幕、完整讲稿审核、60 FPS 视频生成、微调及缓存 | `src/animation_engine/`，`tools/`，`tests/` |
+| `animation_engine/` | 真实 MathTex/Manim、白板布局、分幕与图形、神经语音与字幕、完整讲稿审核、60 FPS 视频生成、微调及缓存 | `src/animation_engine/`，`tests/`（测试题在 `tests/fixtures/`） |
 | `.github/workflows/system-ci.yml` | 当前统一源码、教学脚本和非渲染回归质量门槛 | GitHub Actions |
 | `README.md` | 项目唯一面向维护者的总说明、使用与状态 | 本文件 |
 
@@ -90,7 +90,8 @@ python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -
 export MATH_TEACHER_API_KEY="your-secret"
 export MATH_TEACHER_MODEL="your-model"
 export MATH_TEACHER_BASE_URL="https://your-provider.example/v1"
-math-teacher run teacher_module/examples/limit_input.json --output teaching_package.json
+# 先准备 input.json，内容为 {"problem":"真实原题","reference_solution":"经过核对的完整参考解析"}
+math-teacher run input.json --output teaching_package.json
 ```
 
 外部 API 必须兼容 Chat Completions JSON 响应；密钥只保留环境变量，禁止写入仓库、教案和导出日志。没有授权、网络或密钥时，用已审核的课程样例进行确定性流程测试。
@@ -98,7 +99,7 @@ math-teacher run teacher_module/examples/limit_input.json --output teaching_pack
 ### 只生成完整自然教师讲稿（**不会渲染视频**）
 
 ```bash
-python animation_engine/tools/build_novel_substitution_integral.py --output lesson-demo
+python animation_engine/tests/fixtures/build_novel_substitution_integral.py --output lesson-demo
 math-animation export-spoken-script \
   --spoken lesson-demo/spoken_classroom.json \
   --output lesson-demo/lesson_script.md
@@ -141,6 +142,13 @@ math-animation edit-export \
 
 `edit-apply` 也可在用户授权下显式使用 `--ai-config`；若没有审核过的 AI 计划或模型配置，不宣称自动完成任意自然语言请求。对外最新成片在 `work/edit-session/latest.mp4`，字幕为 `latest.srt`。
 
+## 测试题与正式系统的隔离
+
+- **正式功能代码**保留在三个模块的 `src/`；以前的独立测试题生成器仅供自动化回归，统一移入 `animation_engine/tests/fixtures/`。
+- 视觉导演共用的大型示例教学包保留为 `visual_director/tests/fixtures/limit_teaching_package.json`，因为多项来源校验、排版与写字动画测试需要复用；该文件**不是系统预装课程内容**。
+- 已废弃的三份历史专项验收脚本以及五份无人使用的示例题/演示 JSON 直接删除；Git 历史仍可追溯。项目无需为了生成正式视频而携带这些测试素材。
+- 回归时继续保留完整测试覆盖；只有从测试目录生成的验收题被允许进入 CI，**不会作为用户真实题目或正式数学教师模板**。
+
 ## 5. 文件保留与维护约定
 
 本轮最终仓库仅有一个**人工阅读的总 Markdown 文档**（根目录本 `README.md`）。原阶段记录、旧规划说明、重复的模块 README 等已从最新版工作树清理；历史内容仍留在 Git 提交历史中，可以追溯或恢复。
@@ -152,7 +160,7 @@ math-animation edit-export \
 - `teacher_module/src/math_teacher/prompts/b_planning.md`
 - `teacher_module/src/math_teacher/prompts/c_narration.md`
 
-原因：教师流水线通过 Python `importlib.resources` **运行时读取**这些文件，且 `teacher_module/pyproject.toml` 已将其声明为包资源。删掉会直接导致 AI 讲稿生成失败。源代码、数据合同、真实题目测试样例、`tests/`、必要的 `tools/` 与项目配置保留；这些都属于系统，不视为垃圾。原有大量按阶段命名的 CI 工作流统一替换为一个有效的 `system-ci.yml`；历史专项测试仍以 Python 测试和 Git 历史保留。
+原因：教师流水线通过 Python `importlib.resources` **运行时读取**这些文件，且 `teacher_module/pyproject.toml` 已将其声明为包资源。删掉会直接导致 AI 讲稿生成失败。源代码、数据合同与 `tests/` 保留；以前散落在生产目录的历史测试题生成器已收拢到 `animation_engine/tests/fixtures/`，共用教学样例收拢到 `visual_director/tests/fixtures/`。已无依赖的过期验收脚本和示例 JSON 已删除，生产目录不再包含独立测试题工具。原有大量按阶段命名的 CI 工作流统一替换为一个有效的 `system-ci.yml`；历史专项测试仍以 Python 测试和 Git 历史保留。
 
 提交新功能时：先检查数学来源与自然教师脚本，执行不渲染回归，只有用户明确要求时才再做真实视频测试。不要把测试数据伪称真实课堂成片。使用独立开发分支、CI、PR 审阅后整合至 `main`。
 
