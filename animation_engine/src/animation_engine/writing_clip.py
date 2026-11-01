@@ -4,6 +4,8 @@ Manim is imported only when the optional render operation is invoked.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import json
 import os
 import shutil
@@ -40,7 +42,7 @@ def render_math_writing_clip(
     output_json: Path,
     pixel_width: int = 1280,
     pixel_height: int = 720,
-    fps: int = 15,
+    fps: int = DEFAULT_VIDEO_FPS,
 ) -> MathWritingClipResult:
     output_mp4, output_json = Path(output_mp4), Path(output_json)
     if output_mp4.resolve() == output_json.resolve():
