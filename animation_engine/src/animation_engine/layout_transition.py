@@ -57,6 +57,8 @@ def render_layout_transition(
             or output_mp4.suffix.lower() != ".mp4"
             or output_json.suffix.lower() != ".json"):
         raise AdaptiveLayoutError("INVALID_OUTPUT")
+    from .safe_output import validate_output_targets, publish_bundle
+    validate_output_targets({output_mp4: ".mp4", output_json: ".json"})
     # Reject impossible event requests before launching an optional TeX compiler.
     from visual_director.models import StoryboardPlan
     event_names = [scene.event_id for scene in StoryboardPlan.model_validate(storyboard).scenes]
@@ -166,14 +168,12 @@ def render_layout_transition(
             tmp_json.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
                                 encoding="utf-8")
             shutil.copyfile(film, tmp_mp4)
-            output_mp4.parent.mkdir(parents=True, exist_ok=True)
-            output_json.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(tmp_mp4, output_mp4)
-            os.replace(tmp_json, output_json)
+            publish_bundle({
+                output_mp4: tmp_mp4, output_json: tmp_json,
+            }, suffixes={output_mp4: ".mp4", output_json: ".json"})
             return manifest
     except Exception as exc:
-        output_mp4.unlink(missing_ok=True)
-        output_json.unlink(missing_ok=True)
+        # A failed replacement must not erase the last successful preview.
         if isinstance(exc, AdaptiveLayoutError):
             raise
         raise AdaptiveLayoutError(
