@@ -10,6 +10,7 @@ import pytest
 from animation_engine.longboard_plan import LongboardError
 from animation_engine.v27_teacher_contract import (
     check_v27_teacher_contract, compile_spoken_script, require_prerender_script,
+    approve_prerender_script, export_spoken_script,
 )
 
 
@@ -176,6 +177,39 @@ def test_question_math_excerpt_must_match_full_authored_math_reading():
     ]
     with pytest.raises(LongboardError, match="V27_QUESTION_MATH_READING_NOT_COMPLETE"):
         check_v27_teacher_contract(flow, events, spec)
+
+
+def test_v27_export_is_not_approval_and_stale_approval_cannot_render(tmp_path):
+    import json
+    flow, events, spec = lesson()
+    reviewed = SimpleNamespace(
+        flow=flow, events=tuple(events), source_sha256="approved",
+    )
+    spoken = tmp_path / "spoken_classroom.json"
+    spoken.write_text(json.dumps({"lesson_contract": spec}), encoding="utf-8")
+    export_spoken_script(
+        reviewed, output_json=tmp_path / "lesson_script.json",
+        output_md=tmp_path / "lesson_script.md",
+        source_document={"lesson_contract": spec}, source_path=spoken,
+    )
+    with pytest.raises(LongboardError, match="V27_SCRIPT_HUMAN_APPROVAL_REQUIRED"):
+        require_prerender_script(reviewed, spoken)
+    with pytest.raises(LongboardError, match="V27_SCRIPT_EXPLICIT_REVIEW_REQUIRED"):
+        approve_prerender_script(
+            reviewed, spoken, reviewer="teacher", confirmed=False,
+        )
+    approval = approve_prerender_script(
+        reviewed, spoken, reviewer="trusted-teacher", confirmed=True,
+    )
+    assert approval["decision"] == "approved"
+    assert require_prerender_script(reviewed, spoken)["schema_version"] == "2.7"
+    approved_script = tmp_path / "lesson_script.json"
+    approved_script.write_text(
+        approved_script.read_text(encoding="utf-8") + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(LongboardError, match="V27_SCRIPT_APPROVAL_STALE_OR_INVALID"):
+        require_prerender_script(reviewed, spoken)
 
 
 def test_prerender_script_rejects_tampered_body_even_with_matching_source_hash(tmp_path):
