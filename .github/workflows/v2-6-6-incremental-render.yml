@@ -82,11 +82,18 @@ jobs:
           math-animation edit-apply --session perf-evidence/session --instruction "第一幕讲清楚题意，同时把解题思路改得更自然。" --plan perf-evidence/round1.json
           echo "$((SECONDS-START))" > perf-evidence/cold_seconds.txt
           math-animation edit-feedback --session perf-evidence/session --text "第一幕可以了，但直角顶点的讲解还不够清楚。"
+          # A fair same-task baseline: copy identical revision-one source and
+          # remove only the cache. Both runs below perform exactly round2.
+          cp -a perf-evidence/session perf-evidence/control-session
+          rm -rf perf-evidence/control-session/render_cache
       - name: Cached second real edited movie
         run: |
           START=$SECONDS
           math-animation edit-apply --session perf-evidence/session --instruction "把第二幕的直角顶点讲清楚，第一幕已经满意不要改变。" --plan perf-evidence/round2.json
           echo "$((SECONDS-START))" > perf-evidence/incremental_seconds.txt
+          START=$SECONDS
+          math-animation edit-apply --session perf-evidence/control-session --instruction "把第二幕的直角顶点讲清楚，第一幕已经满意不要改变。" --plan perf-evidence/round2.json
+          echo "$((SECONDS-START))" > perf-evidence/same_edit_cold_seconds.txt
           math-animation edit-feedback --session perf-evidence/session --text "现在满意，可以结束。" --satisfied
           math-animation edit-export --session perf-evidence/session --output perf-evidence/video_edit_history.json
       - name: Audit real video, mathematical sources and cache/speed
@@ -128,20 +135,32 @@ jobs:
           ]))["streams"]
           assert set(x["codec_type"] for x in streams)>={"audio","video"}
           assert (session/"latest.srt").stat().st_size>100
+          control=json.loads((root/"control-session/latest_manifest.json").read_text("utf-8"))
+          assert control["source_spoken_sha256"]==report["source_spoken_sha256"]
+          assert control["source_flow_sha256"]==report["source_flow_sha256"]
+          assert control["voice_status"]=="real_edge_neural_pcm_verified"
+          assert control["subtitle_status"]=="actual_tts_phrase_aligned"
+          assert control["math_caption_renderer"]=="true_manim_mathtex"
           cold=float((root/"cold_seconds.txt").read_text())
           hot=float((root/"incremental_seconds.txt").read_text())
-          assert cold>0 and hot>0
-          speedup=cold/hot
+          same_task_cold=float((root/"same_edit_cold_seconds.txt").read_text())
+          assert cold>0 and hot>0 and same_task_cold>0
+          speedup=same_task_cold/hot
           print("V2_6_6_REAL_INCREMENTAL_PASS",
                 report["actual_video_frames"],"frames",
                 stats["raw_stage_hit"],"stage_hits",
                 stats["speech_pcm_hit"],"speech_hits",
                 stats["subtitle_png_hit"],"caption_hits",
-                "cold_seconds",cold,"incremental_seconds",hot,
-                "speedup",round(speedup,2))
+                "first_edit_cold_seconds",cold,
+                "same_edit_cold_seconds",same_task_cold,
+                "same_edit_hot_seconds",hot,
+                "same_task_speedup",round(speedup,2),
+                "join_mode",report.get("join_mode"),
+                "timings",report.get("render_timings_seconds"))
           (root/"performance.txt").write_text(
-              "Cold first edit: {:.2f}s\nSecond incremental edit: {:.2f}s\nSpeedup: {:.2f}x\n".format(
-                cold,hot,speedup),encoding="utf-8")
+              "First edit cold: {:.2f}s\nSame edit cold: {:.2f}s\nSame edit hot: {:.2f}s\nSame-task speedup: {:.2f}x\nJoin: {}\nProfile: {}\n".format(
+                cold,same_task_cold,hot,speedup,report.get("join_mode"),
+                report.get("render_timings_seconds")),encoding="utf-8")
           PY
       - uses: actions/upload-artifact@v4
         if: always()
