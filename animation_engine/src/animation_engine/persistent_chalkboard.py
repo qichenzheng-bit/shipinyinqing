@@ -978,7 +978,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                 expected.append(diag)
             expected.extend(
                 ("note" if x["kind"]=="teacher_note" else "math",x["block_id"])
-                for x in event["added_blocks"]
+                for x in event["added_blocks"] if not x.get("carry")
             )
             expected.extend(
                 (a["kind"],a["object_id"])
@@ -1292,6 +1292,11 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             ident=block["block_id"]
                             if ident in active:
                                 raise LongboardError("CHALKBOARD_DUPLICATE_LIVE_OBJECT")
+                            if block.get("carry"):
+                                obj=build_math(block)
+                                self.add(obj)
+                                active[ident]=obj
+                                continue
                             if block["kind"]=="teacher_note":
                                 from manim import ImageMobject
                                 obj=ImageMobject(str(temp/(ident.replace(":","_")+".png")))
