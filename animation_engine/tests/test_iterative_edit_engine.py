@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"fixtures"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 from build_spoken_triangle import export_spoken_triangle
 from animation_engine.iterative_edit_ops import (
     EditEngineError, apply_json_operations, canonical_digest, safe_json_file,
