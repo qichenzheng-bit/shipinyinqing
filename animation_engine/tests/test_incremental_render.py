@@ -364,6 +364,9 @@ def test_cached_mathtex_subtitle_png_decodes_and_rejects_bad_alpha(tmp_path):
     invalid=Image.new("RGBA",(1280,88),(255,255,255,255))
     invalid_bytes=BytesIO()
     invalid.save(invalid_bytes,format="PNG")
+    # Published valid keys are immutable; force corruption first so the
+    # replacement path can still exercise bad-alpha validation.
+    (cache._entry("subtitle_png", key) / "payload.bin").write_bytes(b"damaged")
     cache.write("subtitle_png",key,{"payload.bin":invalid_bytes.getvalue()})
     assert cache.get_png(key,tmp_path/"invalid.png") is False
     assert cache.stats()["subtitle_png_invalid"]>=1
