@@ -288,7 +288,7 @@ API Key 在服务器端使用 Fernet 加密保存在数据库；前端只能看�
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-将命令输出填入 `WEIGUANG_MODEL_MASTER_KEY`，**不要上传这个密钥或将其提交 GitHub**。Docker 的 API 和 Worker 使用同一个主密钥；丢失主密钥会导致已保存的连接无法解密，只能重新录入 API Key。密钥仅在明确删除服务商后从数据库配置中销毁。用户自己填写的私有推理接口仅在明确开启 `WEIGUANG_ALLOW_PRIVATE_MODEL_ENDPOINTS=1` 后允许使用，公网服务不要随意开启，以免扩大 SSRF 风险。
+将命令输出填入 `WEIGUANG_MODEL_MASTER_KEY`，**不要上传这个密钥或将其提交 GitHub**。Docker 的 API 和 Worker 使用同一个主密钥；丢失主密钥会导致已保存的连接无法解密，只能重新录入 API Key。密钥仅在明确删除服务商后从数据库配置中销毁。用户自己填写的私有推理接口仅在明确开启 `WEIGUANG_ALLOW_PRIVATE_MODEL_ENDPOINTS=1` 后允许使用，公网服务不要随意开启，以免扩大 SSRF 风险。在 Windows Docker Desktop 中使用本机 Ollama / LM Studio，默认模板连接 `host.docker.internal` 宿主机地址（须允许对应服务监听该地址）；若不用 Docker，请把地址改为 `localhost`。
 
 任务创建时将服务商、模型 ID 和连接配置版本固定到任务记录，后续修改服务商配置不会悄悄改变已排队任务的模型，而是要求重新提交。原有从环境变量读取数学教师/微调模型的方式仍作为旧配置的兼容后备，不影响未迁移数据。源审核与真人数学复核机制保持不变。
 
