@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from collections import Counter
 import pytest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"fixtures"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 
 from build_persistent_chalkboard_example import build, main as make_source
 from animation_engine.persistent_chalkboard import make_chalkboard_plan
