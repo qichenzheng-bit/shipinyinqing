@@ -187,9 +187,20 @@
     '<div class="setting-row"><span>默认帧率</span><select class="select" id="setting-fps"><option value="60">60 FPS</option><option value="30">30 FPS</option></select></div>'+
     '<div class="setting-row"><span>视频分辨率</span><span class="muted">1280 × 720</span></div>'+
     '<h2 style="margin-top:40px">系统</h2>'+
-    '<div class="setting-row"><span>数学教师模型</span><span class="muted">'+(state.settings?.ai_configured?'已配置':'需要后端配置')+'</span></div>'+
+    '<div class="setting-row"><span>数学教师模型</span><span class="muted">'+(state.settings?.teacher_ai_configured?'已配置':'需要后端配置')+'</span></div>'+
+    '<div class="setting-row"><span>微调模型</span><span class="muted">'+(state.settings?.ai_configured?'已配置':'需要后端配置')+'</span></div>'+
     '<div class="setting-row"><span>任务并发</span><span class="muted">1 个渲染任务</span></div>'+
-    '<div style="margin-top:26px">'+button('保存偏好','save-settings','primary')+'</div></div>';
+    '<div style="margin-top:26px">'+button('保存偏好','save-settings','primary')+'</div>'+
+    '<hr class="hr"/><div class="row spread"><h2 style="margin-bottom:0">项目</h2><div class="actions">'+
+    button('新建','new-project')+button('批量删除','delete-projects','danger')+
+    button('回收站','project-trash')+'</div></div>'+
+    '<div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>选择</th><th>项目</th><th>操作</th></tr></thead><tbody>'+
+    (state.projects.length?state.projects.map(p=>
+      '<tr><td><input class="check project-item" type="checkbox" value="'+escapeHTML(p.id)+'" '+(state.projectSelected.has(p.id)?'checked':'')+'/></td><td>'+escapeHTML(p.title)+'</td>'+
+      '<td><button class="iconbtn" data-rename-project="'+escapeHTML(p.id)+'">编辑</button>'+
+      '<button class="iconbtn" data-delete-project="'+escapeHTML(p.id)+'">删除</button></td></tr>'
+    ).join(''):'<tr><td colspan="3">暂无项目</td></tr>')+
+    '</tbody></table></div></div>';
   const trash = () => head('回收站',button('返回视频库','go-library'))+
     '<div class="table-wrap"><table><thead><tr><th>序号</th><th>视频名称</th><th>操作</th></tr></thead><tbody>'+
     (state.trash.length?state.trash.map((l,i)=>
