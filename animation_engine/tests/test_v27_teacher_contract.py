@@ -122,3 +122,24 @@ def test_complete_script_lists_math_and_spoken_source():
     assert "u=g(x)" in markdown
     assert "最后归纳一下" in markdown
     assert all(e["actions"] for e in result["events"])
+
+
+def test_method_only_knowledge_uses_explicit_reusable_procedure_not_fake_formula():
+    from animation_engine.core_knowledge import checked_core_knowledge
+    units = [
+        {"id": "method", "phase": "knowledge", "heading": "分组讨论法",
+         "math": [{"id": "example", "latex": "x>0", "reason": "例题分情况"}]},
+        {"id": "application", "phase": "calculate", "heading": "处理区间",
+         "math": [{"id": "case", "latex": "x<0", "reason": "例题分情况"}]},
+    ]
+    point = {
+        "event_id": "e_method", "topic_id": "case_split", "title": "分组讨论法",
+        "kind": "method", "formulae": [],
+        "method_description": "依据变量取值范围分情况证明，逐一穷尽可能性",
+        "used_in": ["e_application"],
+    }
+    catalog = {"schema_version": "1.0", "teacher_reviewed": True, "points": [point]}
+    assert checked_core_knowledge(units, catalog) == catalog
+    point["method_description"] = "代入"
+    with pytest.raises(LongboardError, match="CORE_KNOWLEDGE_METHOD_REQUIRED"):
+        checked_core_knowledge(units, catalog)
