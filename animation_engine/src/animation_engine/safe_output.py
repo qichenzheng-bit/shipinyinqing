@@ -43,7 +43,7 @@ def validate_output_targets(
             raise OutputSafetyError("OUTPUT_OVERWRITES_SOURCE: " + str(path))
 
 
-def course_source_files(source: Path):
+def course_source_files(source: Path, *, allow_script_export: bool = False):
     """Treat all authored JSON within a source package as protected.
 
     Known generated movie report filenames are excluded so a user can rerun
@@ -57,7 +57,11 @@ def course_source_files(source: Path):
     return [
         file for file in root.rglob("*.json")
         if file.is_file() and not (
-            file.parent == root and file.name in generated
+            file.parent == root and (
+                file.name in generated or (
+                    allow_script_export and file.name == "lesson_script.json"
+                )
+            )
         )
     ]
 
