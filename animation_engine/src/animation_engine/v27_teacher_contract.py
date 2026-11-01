@@ -226,9 +226,14 @@ def compile_spoken_script(contract, *, source_document: dict | None = None) -> t
                 "spoken_parts": list(span.parts),
                 "spoken_exact": span.tts_text,
             }
+            header_readout = (
+                row is rows[0] and row["phase"] == "observe"
+                and row["heading"] in ("完整读题", "读题", "题目朗读")
+            )
             if span.kind == "math":
-                item["board_math_latex"] = span.math_latex
-            elif span.kind == "note":
+                item["header_math_latex" if header_readout
+                     else "board_math_latex"] = span.math_latex
+            elif span.kind == "note" and not header_readout:
                 item["board_heading"] = row["heading"]
                 item["board_detail"] = row["detail"]
             elif span.kind == "diagram":
@@ -258,6 +263,8 @@ def compile_spoken_script(contract, *, source_document: dict | None = None) -> t
             lines.append(str(i) + ". [" + action["kind"] + "] " + action["object_id"])
             if "board_math_latex" in action:
                 lines.append("   - 板书 MathTex：" + action["board_math_latex"])
+            if "header_math_latex" in action:
+                lines.append("   - 已显示题干，仅朗读：" + action["header_math_latex"])
             if "board_heading" in action:
                 lines.append("   - 板书讲解：" + action["board_heading"] + "；" + action["board_detail"])
             if "diagram_source_id" in action:
