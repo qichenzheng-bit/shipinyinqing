@@ -343,14 +343,15 @@ def create_app(
                     "zh-CN-YunxiNeural","zh-CN-XiaoxiaoNeural"):
                     raise HTTPException(422,"INVALID_VOICE")
             invalidates=any(k in data and getattr(l,k)!=data[k]
-                            for k in ("problem","reference_solution"))
+                            for k in ("problem","reference_solution","voice","fps"))
             for key,value in data.items():setattr(l,key,value)
             if invalidates:
                 l.status="draft"
                 # Old movie is historical and may be downloaded but not falsely
                 # represented as verified for the newly edited source.
                 l.latest_video=None;l.latest_manifest=None;l.session_path=None
-            l.revision+=1
+            if invalidates:
+                l.revision+=1
             db.commit();return describe_lesson(l)
 
     @api.post("/lessons/batch-delete")
@@ -440,8 +441,8 @@ def create_app(
     def render(id: str):
         with SessionLocal() as db:
             l=lesson_get(db,id)
-            if l.status not in ("approved","ready"):
-                raise HTTPException(409,"SCRIPT_MUST_BE_APPROVED")
+            if l.status!="approved":
+                raise HTTPException(409,"SCRIPT_MUST_BE_APPROVED_OR_ALREADY_RENDERED")
             job=job_add(db,l,"render")
             response=describe_job(job)
         dispatch(job.id)
