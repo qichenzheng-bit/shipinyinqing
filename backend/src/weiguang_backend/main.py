@@ -333,6 +333,14 @@ def create_app(
                     )
                 if outcome.get("status")!="preview_ready":
                     raise RuntimeError(outcome.get("error") or "EDIT_NOT_APPROVED")
+                revision=outcome.get("revision")
+                if type(revision) is not int or revision<1:
+                    raise RuntimeError("EDIT_REVISION_NOT_COMMITTED")
+                immutable=session/"versions"/f"{revision:04d}"
+                committed_movie=immutable/"movie.mp4"
+                committed_manifest=immutable/"movie_manifest.json"
+                if not committed_movie.is_file() or not committed_manifest.is_file():
+                    raise RuntimeError("EDIT_COMMITTED_MEDIA_MISSING")
                 with SessionLocal() as db:
                     lesson=lesson_get(db,lesson_id);job=db.get(Job,job_id)
                     record=db.get(EditRecord,edit_id)
@@ -340,8 +348,8 @@ def create_app(
                         raise RuntimeError("STALE_OR_CANCELLED_JOB")
                     lesson.revision+=1
                     lesson.status="ready"
-                    lesson.latest_video=str(session/"latest.mp4")
-                    lesson.latest_manifest=str(session/"latest_manifest.json")
+                    lesson.latest_video=str(committed_movie)
+                    lesson.latest_manifest=str(committed_manifest)
                     record.status="preview_ready"
                     job.status="succeeded";job.phase="完成"
                     db.commit()
