@@ -104,10 +104,19 @@ def check_v27_teacher_contract(flow, events, contract: dict) -> dict:
     if not isinstance(question, list) or not question:
         _error("QUESTION_SEGMENTS")
     originals, readings = [], []
+    full_math_readings = [
+        part["reading"] for span in first["event"].spans
+        for part in span.parts if part["kind"] == "math"
+    ]
     for part in question:
         _check_record(part, {"source_text", "spoken_text"}, "QUESTION_PART_FIELDS")
         originals.append(part["source_text"])
         readings.append(part["spoken_text"])
+        # A LaTeX-bearing source segment must cite the COMPLETE approved
+        # mathematical pronunciation, not a tiny token such as "I 等于".
+        if any(ord(ch) == 92 for ch in part["source_text"]):
+            if part["spoken_text"] not in full_math_readings:
+                _error("QUESTION_MATH_READING_NOT_COMPLETE")
     if "".join(originals) != flow.problem:
         _error("QUESTION_NOT_FULL_SOURCE")
     _in_order(_voice(first), readings, "QUESTION_NOT_FULLY_AUDIBLE")
