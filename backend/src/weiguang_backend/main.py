@@ -14,7 +14,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Literal
 
 from fastapi import (
     APIRouter, Depends, FastAPI, File, HTTPException, Query, Request,
@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .bridge import (
     approve_script, export_script, extract_engine_package,
     initialize_edit, render_package, run_real_edit, prepare_teacher_draft,
-
+    bind_course_voice,
 )
 from .models import Base, EditRecord, EditSessionArchive, Job, Lesson, Project, now
 
@@ -67,7 +67,7 @@ class LessonCreate(BaseModel):
     problem: str=Field(min_length=1,max_length=20000)
     reference_solution: str=Field(min_length=1,max_length=120000)
     project_id: str | None=None
-    voice: str="zh-CN-YunxiNeural"
+    voice: Literal["zh-CN-YunxiNeural", "zh-CN-XiaoxiaoNeural"]="zh-CN-YunxiNeural"
     fps: int=Field(default=60,ge=8,le=60)
 
 
@@ -586,6 +586,15 @@ def create_app(
             raise HTTPException(422,str(exc)[:500]) from exc
         with SessionLocal() as db:
             lesson=lesson_get(db,id)
+            effective_voice=lesson.voice
+        try:
+            outcome["source_spoken_sha256"]=bind_course_voice(
+                root_dir/"package",effective_voice,
+            )
+        except Exception as exc:
+            raise HTTPException(422,str(exc)[:300]) from exc
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
             lesson.status="script_pending"
             db.commit()
         return outcome
@@ -603,8 +612,11 @@ def create_app(
                 payload,lesson_root(id)/"package",
                 problem=problem,reference_solution=reference,
             )
+            info["source_sha256"]=bind_course_voice(
+                lesson_root(id)/"package",l.voice,
+            )
         except Exception as exc:
-            raise HTTPException(422,str(exc)) from exc
+            raise HTTPException(422,str(exc)[:300]) from exc
         with SessionLocal() as db:
             l=lesson_get(db,id);l.status="script_pending"
             db.commit()
