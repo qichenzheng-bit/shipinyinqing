@@ -287,6 +287,13 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
                     raise LongboardError("SPOKEN_DIAGRAM_BEATS_ORDER")
             elif "diagram_phrase_cues" in row and kind != "diagram":
                 raise LongboardError("SPOKEN_DIAGRAM_BEATS_INVALID")
+            if "lesson_contract" in doc and kind == "diagram":
+                # V2.7 has a hard rule: every newly revealed stroke/label
+                # must be anchored to an actually spoken reviewable phrase.
+                if (not diagram_cues or
+                        {x["object_id"] for x in diagram_cues} !=
+                            set(planned["diagram_reveal_ids"])):
+                    raise LongboardError("V27_DIAGRAM_REVEAL_NOT_FULLY_VOICED")
             checked.append(SpokenSpan(kind, ident, tuple(parts), actual, latex,
                                      tuple(dict(c) for c in diagram_cues)))
         if "question_fact_alignment" in recorded:
