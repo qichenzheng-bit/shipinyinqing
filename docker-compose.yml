@@ -26,6 +26,8 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       WEIGUANG_API_TOKEN: ${WEIGUANG_API_TOKEN:?Set WEIGUANG_API_TOKEN}
       WEIGUANG_STORAGE: /data
+      WEIGUANG_TEACHER_ENABLED: ${WEIGUANG_TEACHER_ENABLED:-0}
+      WEIGUANG_EDIT_AI_ENABLED: ${WEIGUANG_EDIT_AI_ENABLED:-0}
     volumes:
       - lessondata:/data
     depends_on:
@@ -43,9 +45,9 @@ services:
       DATABASE_URL: postgresql+psycopg://weiguang:${POSTGRES_PASSWORD}@db:5432/weiguang
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
-      WEIGUANG_API_TOKEN: ${WEIGUANG_API_TOKEN}
       WEIGUANG_STORAGE: /data
-      WEIGUANG_EDIT_AI_CONFIG: ${WEIGUANG_EDIT_AI_CONFIG:-}
+      WEIGUANG_EDIT_AI_CONFIG: /config/edit_ai.json
+      WEIGUANG_EDIT_AI_KEY: ${WEIGUANG_EDIT_AI_KEY:-}
       MATH_TEACHER_API_KEY: ${MATH_TEACHER_API_KEY:-}
       MATH_TEACHER_MODEL: ${MATH_TEACHER_MODEL:-}
       MATH_TEACHER_BASE_URL: ${MATH_TEACHER_BASE_URL:-https://api.openai.com/v1}
@@ -53,6 +55,7 @@ services:
       WEIGUANG_SCRIPT_REVIEWER: ${WEIGUANG_SCRIPT_REVIEWER:-}
     volumes:
       - lessondata:/data
+      - ./config:/config:ro
     depends_on:
       db:
         condition: service_healthy
