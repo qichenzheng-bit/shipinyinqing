@@ -104,7 +104,7 @@ def test_concurrent_same_key_writes_publish_single_valid_cache_entry(tmp_path):
     from concurrent.futures import ThreadPoolExecutor
     cache = ArtifactCache(tmp_path / "resources")
     key = cache.key("speech_pcm", {"content": "same-key", "voice": "verified"})
-    payload = b"same-verified-resource" * 30
+    payload = struct.pack("<h", 1600) * 15000  # Valid non-silent 24 kHz PCM
     # Make every writer repair the same bad entry under contention.
     cache.write("speech_pcm", key, {"payload.bin": payload})
     entry = cache._entry("speech_pcm", key)
