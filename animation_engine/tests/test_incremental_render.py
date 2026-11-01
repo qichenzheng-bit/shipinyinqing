@@ -226,7 +226,7 @@ def test_voice_provider_reuses_verified_pcm_without_second_network_call(
         def __init__(self,text,voice,rate):
             calls.append((text,voice,rate))
         async def save(self,path):
-            Path(path).write_bytes(b"MP3 MOCK: decoded by TEST ONLY")
+            Path(path).write_bytes(b"MP3 MOCK TEST BYTES"*20)
     monkeypatch.setitem(sys.modules,"edge_tts",
                         types.SimpleNamespace(Communicate=DummyVoice))
     monkeypatch.setattr(
