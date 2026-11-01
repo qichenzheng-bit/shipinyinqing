@@ -12,7 +12,7 @@ from animation_engine import build_execution_plan
 from animation_engine.writing_cues import plan_math_writing
 from animation_engine.writing_clip import MathWritingClipError, render_math_writing_clip
 
-FIXTURE = Path(__file__).resolve().parents[2] / "visual_director" / "examples" / "limit_teaching_package.json"
+FIXTURE = Path(__file__).resolve().parents[2] / "visual_director" / "tests" / "fixtures" / "limit_teaching_package.json"
 
 
 @pytest.fixture
