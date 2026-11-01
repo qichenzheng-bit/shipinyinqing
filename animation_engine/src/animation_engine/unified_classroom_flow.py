@@ -455,6 +455,13 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
             or Path(output_mp4).suffix.lower() != ".mp4"
             or Path(output_json).suffix.lower() != ".json"):
         raise LongboardError("FLOW_RENDER_ARGUMENTS")
+    from .safe_output import (
+        validate_output_targets, course_source_files, publish_bundle,
+        ffconcat_file,
+    )
+    targets = {Path(output_mp4): ".mp4", Path(output_json): ".json"}
+    protected = course_source_files(Path(input_file))
+    validate_output_targets(targets, protected=protected)
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         raise LongboardError("FLOW_FFMPEG_UNAVAILABLE")
     flow = checked_flow(input_file)
@@ -528,7 +535,7 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
                 parts.append(wipe)
         playlist = root / "segments.txt"
         playlist.write_text(
-            "".join(f"file '{part.as_posix()}'\n" for part in parts),
+            "".join(ffconcat_file(part) for part in parts),
             encoding="utf-8"
         )
         out = root / "full_classroom.mp4"
@@ -551,13 +558,10 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
             ),
             "join_mode": join_mode,
         }
-        output_mp4 = Path(output_mp4)
-        output_json = Path(output_json)
-        output_mp4.parent.mkdir(parents=True, exist_ok=True)
-        output_json.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(out, output_mp4)
-        output_json.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2)+"\n",
-            encoding="utf-8"
-        )
+        publish_bundle({
+            Path(output_mp4): out,
+            Path(output_json): (
+                json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+            ).encode("utf-8"),
+        }, suffixes=targets, protected=protected)
         return report
