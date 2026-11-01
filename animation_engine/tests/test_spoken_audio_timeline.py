@@ -193,4 +193,4 @@ def test_pcm_compaction_avoids_clip_damage_when_quiet_or_short():
     all_silence=array("h",[0]*sr*2).tobytes()
     assert compact_tts_boundary_silence(all_silence)==all_silence
     with pytest.raises(LongboardError,match="VOICE_INVALID_PCM_FOR_SILENCE_CHECK"):
-        compact_tts_boundary_silence(b"\\x00")
+        compact_tts_boundary_silence(bytes([0]))
