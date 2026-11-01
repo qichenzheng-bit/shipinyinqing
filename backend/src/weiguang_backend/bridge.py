@@ -32,8 +32,6 @@ def extract_engine_package(data: bytes, destination: Path,
     if len(data) > MAX_ARCHIVE_BYTES:
         raise BridgeError("PACKAGE_ARCHIVE_TOO_LARGE")
     destination = Path(destination)
-    if destination.exists():
-        raise BridgeError("PACKAGE_ALREADY_UPLOADED")
     with tempfile.TemporaryDirectory(prefix="wg-package-") as temp:
         staged = Path(temp) / "package"
         staged.mkdir()
@@ -78,7 +76,21 @@ def extract_engine_package(data: bytes, destination: Path,
         if spoken.flow.source_sha256 != flow.source_sha256:
             raise BridgeError("PACKAGE_SPOKEN_FLOW_MISMATCH")
         destination.parent.mkdir(parents=True,exist_ok=True)
-        shutil.copytree(staged,destination)
+        # Validate the entire new course first, then archive and replace.
+        # A source edit must not be permanently blocked by an older package.
+        archived = None
+        if destination.exists():
+            from uuid import uuid4
+            archived = (destination.parent/"previous_packages"/uuid4().hex)
+            archived.parent.mkdir(parents=True,exist_ok=True)
+            os.replace(destination,archived)
+        try:
+            shutil.copytree(staged,destination)
+        except Exception:
+            shutil.rmtree(destination,ignore_errors=True)
+            if archived is not None:
+                os.replace(archived,destination)
+            raise
         return {"events":len(spoken.events),"source_sha256":spoken.source_sha256}
 
 
