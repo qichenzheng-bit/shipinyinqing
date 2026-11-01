@@ -29,7 +29,7 @@ PHASE_NAMES = {
 }
 # Formula characters belong in the mathematically exact MathTex board, not
 # in the CJK teaching-note raster layer or the TTS pronunciation layer.
-NOTE_CHARACTERS = re.compile(r"^[\u3400-\u9fff，。、；：？！—（）《》“”‘’·\s]+$")
+NOTE_CHARACTERS = re.compile(r"^[\u3400-\u9fff0-9，。、；：？！—（）《》“”‘’·\s]+$")
 # Reference-classroom typography: fixed sizes, category-specific colors.
 # Chinese labels are PIL CJK glyphs; maths remains source MathTex.
 BOARD_TEXT_STYLE = {
