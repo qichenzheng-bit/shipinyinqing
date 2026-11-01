@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weiguang-web-backend"
+version = "0.1.0"
+description = "WeiGuang Math private video production web API"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1", "uvicorn>=0.30,<1",
+  "sqlalchemy>=2.0,<3", "psycopg[binary]>=3.2,<4",
+  "celery>=5.4,<6", "redis>=5,<8",
+  "python-multipart>=0.0.12", "pillow>=10",
+  "pydantic>=2.7,<3",
+]
+[project.optional-dependencies]
+test = ["pytest>=8", "httpx>=0.27"]
+[project.scripts]
+weiguang-api = "weiguang_backend.main:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
