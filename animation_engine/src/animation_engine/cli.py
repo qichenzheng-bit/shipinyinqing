@@ -166,6 +166,14 @@ def main(argv: list[str] | None = None) -> int:
     spoken_plan.add_argument("--spoken", type=Path, required=True)
     spoken_plan.add_argument("--output", type=Path, required=True)
     spoken_plan.add_argument("--adaptive", action="store_true")
+    script_export = subparsers.add_parser(
+        "export-spoken-script",
+        help="V2.7 mandatory pre-render complete narration and board writing script")
+    script_export.add_argument("--spoken", type=Path, required=True)
+    script_export.add_argument("--output", type=Path, required=True,
+        help="Human-readable Markdown script; JSON is written beside spoken_classroom.json")
+    script_export.add_argument("--adaptive", action="store_true")
+
     spoken_render = subparsers.add_parser(
         "render-spoken", help="V2.6.4 actual neural narration, MathTex and phrase captions")
     spoken_render.add_argument("--spoken", type=Path, required=True)
@@ -273,6 +281,22 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(result,ensure_ascii=False,indent=2)+"\n",
                 encoding="utf-8",
             )
+            return 0
+        if args.command == "export-spoken-script":
+            from .spoken_classroom import checked_spoken
+            from .v27_teacher_contract import export_spoken_script
+            from .unified_classroom_flow import _load
+            approved = checked_spoken(args.spoken, adaptive=args.adaptive)
+            source_doc = _load(args.spoken)
+            result = export_spoken_script(
+                approved, output_json=args.spoken.parent / "lesson_script.json",
+                output_md=args.output, source_document=source_doc,
+            )
+            print(json.dumps({
+                "script": str(args.output),
+                "machine_readable": str(args.spoken.parent / "lesson_script.json"),
+                "events": len(result["events"]), "acceptance": result["acceptance"],
+            }, ensure_ascii=False))
             return 0
         if args.command == "render-spoken":
             from .spoken_movie import render_spoken_classroom
