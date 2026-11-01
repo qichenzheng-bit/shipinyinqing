@@ -12,7 +12,7 @@ def test_nonconsecutive_sequence_rejected_without_render(tmp_path):
     import json
     from pathlib import Path
     from visual_director.director import build_storyboard
-    source=Path(__file__).resolve().parents[2] / "visual_director/examples/limit_teaching_package.json"
+    source=Path(__file__).resolve().parents[2] / "visual_director/tests/fixtures/limit_teaching_package.json"
     board=build_storyboard(json.loads(source.read_text(encoding="utf-8")))
     path=tmp_path/"sequence.mp4"
     with pytest.raises(AdaptiveLayoutError,match="NONCONSECUTIVE_EVENTS"):
@@ -25,7 +25,7 @@ def test_repeated_ids_rejected_without_render(tmp_path):
     import json
     from pathlib import Path
     from visual_director.director import build_storyboard
-    source=Path(__file__).resolve().parents[2] / "visual_director/examples/limit_teaching_package.json"
+    source=Path(__file__).resolve().parents[2] / "visual_director/tests/fixtures/limit_teaching_package.json"
     board=build_storyboard(json.loads(source.read_text(encoding="utf-8")))
     with pytest.raises(AdaptiveLayoutError,match="SEQUENCE_EVENTS"):
         render_classroom_sequence(board,{},event_ids=["e_read","e_read","e_common"],
