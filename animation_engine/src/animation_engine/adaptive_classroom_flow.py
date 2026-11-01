@@ -7,6 +7,8 @@ frames. Math is NEVER shrunk by scaling a finished full-screen video.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS, transition_frame_count
+
 import hashlib
 import json
 import shutil
@@ -23,7 +25,7 @@ from .persistent_chalkboard import (
     make_chalkboard_plan, render_persistent_chalkboard,
 )
 from .unified_classroom_flow import (
-    TRANSITION_FRAMES, Flow, _command, _load, _render_board_wipe,
+    Flow, _command, _load, _render_board_wipe,
     _video_frames, _concat_verified_clips, checked_flow, plan_flow,
 )
 
@@ -260,11 +262,12 @@ def _wipe_preserving_diagram(prior_mp4: Path, dest: Path,
     strip = scratch / f"adaptive_wipe_{index}"
     strip.mkdir()
     width = DIAGRAM_PANEL["x"] - PANEL_MARGIN
-    for i in range(TRANSITION_FRAMES):
+    wipe_frames = transition_frame_count(fps)
+    for i in range(wipe_frames):
         out = img.copy()
         ImageDraw.Draw(out).rectangle(
             (0, BOARD_START_Y - 4,
-             round(width*(i+1)/TRANSITION_FRAMES), BOARD_BOTTOM_Y+3),
+             round(width*(i+1)/wipe_frames), BOARD_BOTTOM_Y+3),
             fill=(255,255,255),
         )
         out.save(strip / f"frame_{i:03d}.png")
@@ -274,12 +277,12 @@ def _wipe_preserving_diagram(prior_mp4: Path, dest: Path,
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(fps),
         str(dest),
     ], "ADAPTIVE_PRESERVING_WIPE")
-    return _video_frames(dest, fps, min_frames=TRANSITION_FRAMES)
+    return _video_frames(dest, fps, min_frames=wipe_frames)
 
 
 def render_adaptive_flow(input_file: Path | str, *,
                          output_mp4: Path, output_json: Path,
-                         fps: int = 30, narration_schedules=None,
+                         fps: int = DEFAULT_VIDEO_FPS, narration_schedules=None,
                          cache=None) -> dict:
     if (type(fps) is not int or not 8 <= fps <= 60
             or Path(output_mp4).suffix.lower() != ".mp4"
@@ -297,6 +300,7 @@ def render_adaptive_flow(input_file: Path | str, *,
         reports = []
         timings = []
         frame_offset = 0
+        wipe_frames = transition_frame_count(fps)
         for i, (stage, spec) in enumerate(zip(flow.stages, checked.stages)):
             raw = root / f"raw_stage_{i:02d}.mp4"
             raw_manifest = root / f"raw_stage_{i:02d}.json"
@@ -386,13 +390,13 @@ def render_adaptive_flow(input_file: Path | str, *,
                         "action":("preserve_diagram" if keep else "erase_board"),
                         "source_stage":stage.stage_id,
                         "next_stage":flow.stages[i+1].stage_id,
-                        "fps":fps,"frames":TRANSITION_FRAMES,
+                        "fps":fps,"frames":wipe_frames,
                     }) if cache is not None else None
                 )
                 if cache is not None and cache.restore_video(
                         "transition",transition_key,wipe,
-                        fps=fps,expected_frames=TRANSITION_FRAMES):
-                    transition_frames=TRANSITION_FRAMES
+                        fps=fps,expected_frames=wipe_frames):
+                    transition_frames=wipe_frames
                 else:
                     transition_frames=(
                         _wipe_preserving_diagram(clip,wipe,root,fps,i)
