@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .bridge import (
     approve_script, export_script, extract_engine_package,
     initialize_edit, render_package, run_real_edit, prepare_teacher_draft,
+
 )
 from .models import Base, EditRecord, Job, Lesson, Project, now
 
@@ -234,7 +235,32 @@ def create_app(
             previous_revision=lesson.revision
         try:
             folder=lesson_root(lesson_id)
-            if kind=="teacher":
+            if kind=="curriculum":
+                from .compiler import draft_curriculum
+                with SessionLocal() as db:
+                    job=db.get(Job,job_id)
+                    job.phase="编排课堂与教师口播"
+                    lesson=lesson_get(db,lesson_id)
+                    problem,reference=lesson.problem,lesson.reference_solution
+                    db.commit()
+                source=folder/"teacher_draft"/"teaching_package.json"
+                if not source.is_file():
+                    raise RuntimeError("MATH_TEACHER_DRAFT_MISSING")
+                draft_curriculum(
+                    problem,reference,
+                    json.loads(source.read_text(encoding="utf-8")),
+                    folder/"curriculum_candidate.json",
+                )
+                with SessionLocal() as db:
+                    job=db.get(Job,job_id)
+                    lesson=lesson_get(db,lesson_id)
+                    if lesson.revision!=previous_revision or job.status!="running":
+                        raise RuntimeError("STALE_CURRICULUM_JOB")
+                    lesson.status="curriculum_review_pending"
+                    job.status="succeeded"
+                    job.phase="课堂编排待审核"
+                    db.commit()
+            elif kind=="teacher":
                 with SessionLocal() as db:
                     job=db.get(Job,job_id);job.phase="数学教师 A/B/C";db.commit()
                     lesson=lesson_get(db,lesson_id)
@@ -501,6 +527,60 @@ def create_app(
             "note":"Teacher candidate approved, but a complete source-verified "
                    "unified/spoken engine package is still required.",
         }
+
+    @api.post("/lessons/{id}/curriculum/prepare",status_code=202)
+    def curriculum_prepare(id: str):
+        if not (os.environ.get("MATH_TEACHER_MODEL")
+                and os.environ.get("MATH_TEACHER_API_KEY")):
+            raise HTTPException(409,"CURRICULUM_AI_NOT_CONFIGURED")
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
+            if lesson.status!="package_needed":
+                raise HTTPException(409,"TEACHER_REVIEW_REQUIRED")
+            job=job_add(db,lesson,"curriculum")
+            response=describe_job(job)
+        dispatch(job.id)
+        return response
+
+    @api.get("/lessons/{id}/curriculum")
+    def curriculum_candidate(id: str):
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
+            if lesson.status!="curriculum_review_pending":
+                raise HTTPException(409,"CURRICULUM_NOT_READY")
+        candidate=lesson_root(id)/"curriculum_candidate.json"
+        if not candidate.is_file():
+            raise HTTPException(404,"CURRICULUM_CANDIDATE_MISSING")
+        return json.loads(candidate.read_text(encoding="utf-8"))
+
+    @api.post("/lessons/{id}/curriculum/approve")
+    def curriculum_approve(id: str,data: Review):
+        from .compiler import compile_reviewed_curriculum
+        if not data.confirmed:
+            raise HTTPException(422,"COURSE_REVIEW_CONFIRMATION_REQUIRED")
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
+            if lesson.status!="curriculum_review_pending":
+                raise HTTPException(409,"CURRICULUM_NOT_READY")
+            problem,reference=lesson.problem,lesson.reference_solution
+        root_dir=lesson_root(id)
+        candidate=root_dir/"curriculum_candidate.json"
+        if not candidate.is_file():
+            raise HTTPException(404,"CURRICULUM_CANDIDATE_MISSING")
+        try:
+            outcome=compile_reviewed_curriculum(
+                problem=problem,reference_solution=reference,
+                candidate=json.loads(candidate.read_text(encoding="utf-8")),
+                output=root_dir/"package",reviewer=data.reviewer,
+                confirmed=True,
+            )
+        except Exception as exc:
+            raise HTTPException(422,str(exc)[:500]) from exc
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
+            lesson.status="script_pending"
+            db.commit()
+        return outcome
 
     @api.post("/lessons/{id}/package")
     async def upload_package(id: str,file: UploadFile=File(...)):
