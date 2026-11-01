@@ -32,6 +32,16 @@ jobs:
           data=json.loads((root/"lesson_script.json").read_text(encoding="utf-8"))
           assert data["acceptance"]["contract_version"]=="2.7"
           assert data["events"][-1]["phase"]=="summary"
+          assert len(data["events"])==10
+          by_id={e["event_id"]:e for e in data["events"]}
+          assert by_id["e_evaluate"]["actions"][0]["board_math_latex"]==r"I=e^4-e^0"
+          assert by_id["e_conclusion"]["actions"][-1]["board_math_latex"]==r"I=e^4-1"
+          def spoken(event):
+              return "".join(a["spoken_exact"] for a in by_id[event]["actions"])
+          strategy=spoken("e_strategy")
+          assert strategy.index("x 平方对 x 求导") < strategy.index("换元法")
+          assert "为什么考虑换元法呢" not in strategy
+          assert "我们来读一下" not in spoken("e_intro")
           assert (root/"lesson_script.md").stat().st_size>1200
           print("V27_SCRIPT_ONLY_ACCEPTED",len(data["events"]))
           PY
