@@ -1,7 +1,7 @@
 name: V2.7 natural teacher narration and script-only acceptance
 on:
   push:
-    branches: [feature/v27-teacher-script-first-contract]
+    branches: [feature/v27-teacher-script-first-contract, feature/v27-default-60fps]
   workflow_dispatch:
 permissions:
   contents: read
