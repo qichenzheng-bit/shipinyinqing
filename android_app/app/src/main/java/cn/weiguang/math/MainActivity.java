@@ -85,17 +85,8 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(Color.WHITE);
         getWindow().setNavigationBarColor(Color.WHITE);
-        if (Build.VERSION.SDK_INT >= 30) {
-            WindowInsetsController controller = getWindow().getInsetsController();
-            if (controller != null) {
-                controller.setSystemBarsAppearance(
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                    | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                    | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                );
-            }
-        }
+        // Do not request WindowInsetsController before the decor view exists:
+        // on Android 15 PhoneWindow.getInsetsController can throw NPE in onCreate.
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.WHITE);
         if (Build.VERSION.SDK_INT >= 35) {
@@ -107,6 +98,17 @@ public final class MainActivity extends Activity {
             });
         }
         setContentView(root);
+        if (Build.VERSION.SDK_INT >= 30) {
+            root.post(() -> {
+                if (closed) return;
+                WindowInsetsController controller = root.getWindowInsetsController();
+                if (controller != null) {
+                    int light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                            | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                    controller.setSystemBarsAppearance(light, light);
+                }
+            });
+        }
         showLauncher();
         String saved = getPreferences().getString(URL_KEY, "");
         if (!saved.isEmpty()) connect(saved);
