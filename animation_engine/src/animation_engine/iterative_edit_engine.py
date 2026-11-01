@@ -126,8 +126,11 @@ def _copy_current(package: Path, destination: Path) -> None:
     for p in package.rglob("*"):
         if p.is_symlink():
             raise EditEngineError("EDIT_PACKAGE_SYMLINK_NOT_ALLOWED")
+        # The sole Markdown runtime artifact is the reviewed V2.7 script.
+        # Keep rejecting arbitrary Markdown / executable package files.
         if p.is_file() and p.suffix.lower() not in (
-                ".json", ".png", ".jpg", ".jpeg", ".svg"):
+                ".json", ".png", ".jpg", ".jpeg", ".svg"
+        ) and p.relative_to(package).as_posix() != "lesson_script.md":
             raise EditEngineError("EDIT_UNSAFE_PACKAGE_FILE")
     shutil.copytree(package, destination)
 
@@ -193,6 +196,14 @@ def create_session(
             v0.parent.mkdir()
             _copy_current(package, v0 / "package")
             checked = validate_teaching_package(v0 / "package", adaptive=adaptive)
+            from .unified_classroom_flow import _load
+            source = v0 / "package" / "spoken_classroom.json"
+            if "lesson_contract" in _load(source):
+                from .v27_teacher_contract import require_prerender_script
+                from .spoken_classroom import checked_spoken
+                require_prerender_script(
+                    checked_spoken(source, adaptive=adaptive), source
+                )
             report = json.loads(Path(baseline_manifest).read_text(encoding="utf-8"))
             _validated_render(report, checked)
             media_check(Path(baseline_mp4))
@@ -238,6 +249,7 @@ def run_edit(
     agent: Callable[[str, Path, list[dict]], dict], *,
     renderer: Callable[..., dict] = _real_renderer,
     math_reviewer: Callable[[Path, list[str]], bool] | None = None,
+    script_reviewer: Callable[[Path, Path], bool] | None = None,
     media_check: Callable[[Path], Any] = _verified_media,
 ) -> dict:
     """Apply one arbitrary-language/multi-requirement batch to LATEST source.
@@ -294,22 +306,55 @@ def run_edit(
                 ]
             operations = apply_json_operations(folder / "package", plan)
             attempt["operations"] = operations
+            # Applied JSON operations are not yet completed user requests.
+            # Only a committed, verified preview earns "completed".
             attempt["requirements"] = [
-                {**req, "status": "completed"} for req in plan["requirements"]
+                {**req, "status": "pending_validation"}
+                for req in plan["requirements"]
             ]
             changed = sorted({op["file"] for op in operations})
+            checked = validate_teaching_package(
+                folder / "package", adaptive=state["adaptive"]
+            )
             mathematical_sources = [
                 x for x in changed if x not in (
                     "spoken_classroom.json", "adaptive_layout.json"
                 )
             ]
+            # A new mathematical assertion can hide in prose/voice-reading
+            # even when every display MathTex fragment remains unchanged.
+            # Do not attempt unreliable semantic classification here.
+            if any(op["file"] == "spoken_classroom.json"
+                   and op["pointer"] not in ("/voice", "/speech_rate")
+                   for op in operations):
+                mathematical_sources.append("spoken_classroom.json")
             if mathematical_sources:
                 if math_reviewer is None or math_reviewer(
-                        folder / "package", mathematical_sources) is not True:
+                        folder / "package", sorted(set(mathematical_sources))
+                ) is not True:
                     raise EditEngineError("EDIT_MATH_REVIEW_REQUIRED")
-            checked = validate_teaching_package(
-                folder / "package", adaptive=state["adaptive"]
-            )
+            source = folder / "package" / "spoken_classroom.json"
+            from .unified_classroom_flow import _load
+            if "lesson_contract" in _load(source):
+                from .spoken_classroom import checked_spoken
+                from .v27_teacher_contract import (
+                    export_spoken_script, require_prerender_script,
+                )
+                reviewed = checked_spoken(source, adaptive=state["adaptive"])
+                if "spoken_classroom.json" in changed:
+                    # Re-export the complete NEW V2.7 script, but never
+                    # silently treat a machine-generated draft as approved.
+                    if script_reviewer is None:
+                        raise EditEngineError("EDIT_V27_SCRIPT_REVIEW_REQUIRED")
+                    script_json = source.parent / "lesson_script.json"
+                    script_md = source.parent / "lesson_script.md"
+                    export_spoken_script(
+                        reviewed, output_json=script_json, output_md=script_md,
+                        source_document=_load(source),
+                    )
+                    if script_reviewer(script_md, script_json) is not True:
+                        raise EditEngineError("EDIT_V27_SCRIPT_REVIEW_REJECTED")
+                require_prerender_script(reviewed, source)
             from .edit_impact import analyze_impact
             attempt["impact"]=analyze_impact(
                 root / state["latest_package"],
@@ -345,6 +390,10 @@ def run_edit(
             _publish_bundle(version, root)
             attempt["cache_stats"]=actual.get("incremental_cache")
             attempt["render_timings_seconds"]=actual.get("render_timings_seconds")
+            attempt["requirements"] = [
+                {**req, "status": "completed"}
+                for req in attempt["requirements"]
+            ]
             attempt.update({
                 "status": "preview_ready",
                 "result_revision": next_version,
@@ -362,6 +411,10 @@ def run_edit(
             attempt["error"] = (
                 f"{type(exc).__name__}: {str(exc)[:700]}"
             )
+            attempt["requirements"] = [
+                {**req, "status": "failed"}
+                for req in attempt["requirements"]
+            ]
             # In addition to restoring the latest aliases, remove a staged
             # version that was already moved out of attempts before publishing
             # failed; otherwise retrying the same revision would be blocked.
