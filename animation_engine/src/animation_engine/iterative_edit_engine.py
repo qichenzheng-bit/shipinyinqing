@@ -164,12 +164,13 @@ def create_session(
 
 
 def _real_renderer(package: Path, movie: Path, manifest: Path, subtitles: Path,
-                   *, fps: int, adaptive: bool) -> dict:
+                   *, fps: int, adaptive: bool, cache_dir: Path | None=None) -> dict:
     from .spoken_movie import render_spoken_classroom
     return render_spoken_classroom(
         package / "spoken_classroom.json",
         output_mp4=movie, output_json=manifest,
         output_srt=subtitles, fps=fps, adaptive=adaptive,
+        cache_dir=cache_dir,
     )
 
 
@@ -250,12 +251,21 @@ def run_edit(
             checked = validate_teaching_package(
                 folder / "package", adaptive=state["adaptive"]
             )
+            from .edit_impact import analyze_impact
+            attempt["impact"]=analyze_impact(
+                root / state["latest_package"],
+                folder / "package", operations,
+            )
             movie, manifest, subtitles = (
                 folder / _MOVIE, folder / _MANIFEST, folder / _SUBTITLE
             )
+            options={"fps":state["fps"], "adaptive":state["adaptive"]}
+            # Preserve the V2.6.5 extension point: custom rendering agents
+            # are not silently given a new keyword they cannot accept.
+            if renderer is _real_renderer:
+                options["cache_dir"]=root / "render_cache"
             report = renderer(
-                folder / "package", movie, manifest, subtitles,
-                fps=state["fps"], adaptive=state["adaptive"],
+                folder / "package", movie, manifest, subtitles, **options,
             )
             if not movie.is_file() or not manifest.is_file():
                 raise EditEngineError("EDIT_MOVIE_OR_AUDIT_MISSING")
@@ -276,6 +286,8 @@ def run_edit(
             _publish(version / _MOVIE, root / "latest.mp4")
             _publish(version / _MANIFEST, root / "latest_manifest.json")
             _publish(version / _SUBTITLE, root / "latest.srt")
+            attempt["cache_stats"]=actual.get("incremental_cache")
+            attempt["render_timings_seconds"]=actual.get("render_timings_seconds")
             attempt.update({
                 "status": "preview_ready",
                 "result_revision": next_version,
@@ -306,6 +318,8 @@ def run_edit(
             "latest_movie": str(root / "latest.mp4"),
             "revision": state["revision"],
             "requirements": attempt["requirements"],
+            "impact": attempt.get("impact"),
+            "cache_stats": attempt.get("cache_stats"),
             "error": attempt["error"],
         }
 
