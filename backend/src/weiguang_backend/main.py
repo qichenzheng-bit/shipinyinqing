@@ -18,10 +18,13 @@ from typing import Callable
 
 from fastapi import (
     APIRouter, Depends, FastAPI, File, HTTPException, Query, Request,
-    UploadFile,
+    Response, UploadFile,
 )
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+import hashlib
+import hmac
+import urllib.parse
 from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -89,6 +92,10 @@ class Feedback(BaseModel):
     satisfied: bool=False
 
 
+class Login(BaseModel):
+    token: str=Field(min_length=1,max_length=1024)
+
+
 def _trusted(name: str | None):
     if not name:
         return None
@@ -126,16 +133,63 @@ def create_app(
     app.state.root=root
     app.state.SessionLocal=SessionLocal
 
+    def session_secret():
+        key=os.environ.get("WEIGUANG_API_TOKEN","")
+        secret=os.environ.get("WEIGUANG_SESSION_SECRET","")
+        return (secret or hashlib.sha256(("web-session:"+key).encode()).hexdigest()).encode()
+
+    def cookie_valid(cookie: str | None):
+        if not cookie:
+            return False
+        try:
+            stamp,signature=cookie.split(":",1)
+            ts=int(stamp)
+            if abs(time.time()-ts)>12*3600 or ts<=0:
+                return False
+            digest=hmac.new(session_secret(),stamp.encode(),"sha256").hexdigest()
+            return hmac.compare_digest(signature,digest)
+        except (ValueError,OverflowError,AttributeError):
+            return False
+
     def auth(request: Request):
         key=os.environ.get("WEIGUANG_API_TOKEN","")
         if key:
-            import hmac
             supplied=request.headers.get("X-API-Key","")
-            if not hmac.compare_digest(supplied,key):
+            if hmac.compare_digest(supplied,key):
+                return
+            if not cookie_valid(request.cookies.get("wg_session")):
                 raise HTTPException(401,"AUTHENTICATION_REQUIRED")
+            # A same-site cookie protects media <video> and downloads.
+            # Check mutating request origins to block cross-origin cookie use.
+            if request.method not in ("GET","HEAD","OPTIONS"):
+                origin=request.headers.get("origin")
+                if origin and urllib.parse.urlsplit(origin).netloc!=request.headers.get("host"):
+                    raise HTTPException(403,"CROSS_ORIGIN_MUTATION_DENIED")
         elif not (dev and request.client and
                   request.client.host in ("127.0.0.1","::1","localhost","testclient","testserver")):
             raise HTTPException(503,"PUBLIC_SERVER_REQUIRES_API_TOKEN")
+
+    @app.post("/api/v1/auth/login")
+    def login(payload: Login, response: Response):
+        key=os.environ.get("WEIGUANG_API_TOKEN","")
+        if not key:
+            raise HTTPException(503,"SERVER_AUTH_NOT_CONFIGURED")
+        if not hmac.compare_digest(payload.token,key):
+            raise HTTPException(401,"INVALID_CREDENTIALS")
+        stamp=str(int(time.time()))
+        signature=hmac.new(session_secret(),stamp.encode(),"sha256").hexdigest()
+        response.set_cookie(
+            key="wg_session",value=stamp+":"+signature,
+            httponly=True,secure=not dev,samesite="strict",
+            max_age=12*3600,path="/",
+        )
+        return {"status":"signed_in"}
+
+    @app.post("/api/v1/auth/logout")
+    def logout(response: Response):
+        response.delete_cookie("wg_session",path="/")
+        return {"status":"signed_out"}
+
     api=APIRouter(prefix="/api/v1",dependencies=[Depends(auth)])
 
     def lesson_get(db, ident: str, *, include_deleted=False) -> Lesson:
