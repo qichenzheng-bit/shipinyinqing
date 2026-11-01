@@ -26,6 +26,11 @@ jobs:
           (cd backend && python -m pytest -q)
       - name: Validate frontend JavaScript syntax
         run: node --check frontend/app.js
+      - name: Validate Docker Compose with placeholder secrets (no containers)
+        env:
+          POSTGRES_PASSWORD: ci_only_url_safe_password
+          WEIGUANG_API_TOKEN: ci_only_do_not_deploy
+        run: docker compose config --quiet
       - name: Validate single human-facing README and four runtime prompts
         run: |
           python - <<'PY'
