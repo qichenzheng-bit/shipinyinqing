@@ -162,9 +162,12 @@ def test_intro_has_actual_full_triangle_before_teacher_calls_it_drawn(example):
     spoken=get(example)
     first=spoken["events"][0]["spans"][0]["parts"][0]["value"]
     assert "画直角三角形" in first and "连接 B、C" in first
-    assert "标出 B、C" in next(
+    mark_cue=next(
         e for e in spoken["events"] if e["event_id"]=="e_rule"
     )["spans"][0]["parts"][0]["value"]
+    assert any(term in mark_cue for term in ("标出 B、C", "标上 B、C"))
+    # The teacher must describe drawing both legs BEFORE finishing the BC edge.
+    assert first.index("两条直角边") < first.index("连接 B、C")
     assert checked_spoken(example/"spoken_classroom.json",adaptive=True)
 
 
