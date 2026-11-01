@@ -345,8 +345,9 @@ def render_layout_png(
 
     Not yet the final Chinese header, subtitles or an audio-synchronized video.
     """
-    if Path(output_png).resolve() == Path(output_json).resolve():
-        raise AdaptiveLayoutError("INVALID_OUTPUT: preview and manifest overlap")
+    from .safe_output import validate_output_targets, publish_bundle
+    targets = {Path(output_png): ".png", Path(output_json): ".json"}
+    validate_output_targets(targets)
     board = StoryboardPlan.model_validate(storyboard)
     planned = layout_storyboard(board, execution,
                                 pixel_width=pixel_width, pixel_height=pixel_height)
@@ -398,12 +399,12 @@ def render_layout_png(
             temp_manifest = Path(tmp) / "manifest.json"
             temp_manifest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
                                      encoding="utf-8")
-            os.replace(temp_image, output_png)
-            os.replace(temp_manifest, output_json)
+            publish_bundle({
+                output_png: temp_image, output_json: temp_manifest,
+            }, suffixes=targets)
             return payload
     except Exception:
-        Path(output_png).unlink(missing_ok=True)
-        Path(output_json).unlink(missing_ok=True)
+        # Existing successful previews must survive a failed rerender.
         raise
 
 
