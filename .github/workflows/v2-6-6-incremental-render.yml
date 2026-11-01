@@ -116,6 +116,9 @@ jobs:
           assert report["voice_status"]=="real_edge_neural_pcm_verified"
           assert report["subtitle_status"]=="actual_tts_phrase_aligned"
           assert report["math_caption_renderer"]=="true_manim_mathtex"
+          assert report["caption_mux"]["pipeline"]=="frame_exact_sparse_png_final_overlay"
+          assert not report["caption_mux"]["intermediate_ffv1_band_required"]
+          assert not report["incremental_cache"].get("sparse_caption_safe_fallback",0)
           assert report["fabricated_voice_or_subtitle_count"]==0
           assert report["voiced_action_count"]==18
           assert len(report["event_timing"])==11

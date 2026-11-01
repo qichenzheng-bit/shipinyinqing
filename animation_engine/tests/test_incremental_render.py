@@ -481,6 +481,8 @@ def test_source_restored_event_clip_reuses_unchanged_events(tmp_path,monkeypatch
     )
     assert rendered==[1]
     assert len(report["event_timing"])==2
+    assert report["actual_video_frames"]==60
+    assert report["event_count"]==2
     assert [row["event_id"] for row in report["event_timing"]]==[
         "event1","event2"
     ]

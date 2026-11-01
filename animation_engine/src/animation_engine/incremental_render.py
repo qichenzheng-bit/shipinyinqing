@@ -243,6 +243,8 @@ def _rebuild_stage_from_events(
             **manifests[0][0],
             "event_timing":aggregate,
             "actual_preview_duration":frames/fps,
+            "actual_video_frames":frames,
+            "event_count":len(ids),
             "rendered_event_index":None,
             "event_window_entry_verified":False,
             "event_clip_count":len(parts),
