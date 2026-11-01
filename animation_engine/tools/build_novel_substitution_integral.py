@@ -27,7 +27,8 @@ def unit(ident, heading, detail, tex, reason, phase="calculate"):
         "goal": "按定积分换元的数学依据完整计算，并讲清典型错误",
         "pause_seconds": 1.5,
         "write_seconds": .85,
-        "math": [{"id": ident, "latex": tex, "reason": reason}],
+        "math": ([{"id": ident, "latex": tex, "reason": reason}]
+                 if tex is not None else []),
     }
 
 
@@ -50,7 +51,7 @@ UNITS = [
     unit("conclusion", "求解最终结果", "依次代入四和零，取上限值减下限值。",
          r"I=e^4-1", "全题的实际最终结论。", "conclusion"),
     unit("summary", "归纳总结", "记住复合结构和对应导数，尤其避免漏换定积分限。",
-         r"u=x^2,\quad du=2x\,dx", "回顾本题的关键换元关系。", "summary"),
+         None, "本题结果后以简短讲稿回顾方法与易错点。", "summary"),
 ]
 
 KNOWLEDGE_CATALOG = {
@@ -88,7 +89,6 @@ NARRATION = {
     ("e_conclusion", "math"): "因此本题的最终结果是：",
     ("e_summary", "note"):
         "最后归纳一下。这题的关键是认出复合函数和它的内层导数。要熟悉换元法。尤其注意，换元后积分上下限必须同步改。",
-    ("e_summary", "math"): "本题最重要的换元关系是：",
 }
 
 READINGS = {
@@ -100,7 +100,6 @@ READINGS = {
     "m_rewrite": "I 等于从零到四，e 的 u 次幂对 u 积分。",
     "m_primitive": "I 等于 e 的 u 次幂，在零到四两端的差。",
     "m_conclusion": "I 等于 e 的四次方减一。",
-    "m_summary": "u 等于 x 的平方，d u 等于二 x d x。",
 }
 
 
