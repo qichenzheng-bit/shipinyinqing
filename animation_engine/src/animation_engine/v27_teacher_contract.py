@@ -290,7 +290,7 @@ def export_spoken_script(approved, *, output_json: Path, output_md: Path,
     from .safe_output import publish_bundle, course_source_files
     output_json, output_md = Path(output_json), Path(output_md)
     doc, readable = compile_spoken_script(approved, source_document=source_document)
-    protected = (course_source_files(source_path)
+    protected = (course_source_files(source_path, allow_script_export=True)
                  if source_path is not None else [
                      output_json.parent / "spoken_classroom.json",
                      output_md.parent / "spoken_classroom.json",
