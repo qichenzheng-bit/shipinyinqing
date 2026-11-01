@@ -33,7 +33,10 @@ from .bridge import (
     initialize_edit, render_package, run_real_edit, prepare_teacher_draft,
     bind_course_voice,
 )
-from .models import Base, EditRecord, EditSessionArchive, Job, Lesson, Project, now
+from .models import (
+    Base, AiTaskSelection, EditRecord, EditSessionArchive, Job, Lesson, Project, now,
+)
+from .model_hub import pin_job_selection, pinned_client, plan_agent
 
 
 def describe_lesson(lesson: Lesson):
@@ -219,7 +222,9 @@ def create_app(
             raise HTTPException(409,"LESSON_JOB_ALREADY_ACTIVE")
         job=Job(lesson_id=lesson.id,kind=kind,edit_id=edit_id,
                 expected_revision=lesson.revision)
-        db.add(job);db.commit();db.refresh(job)
+        db.add(job);db.flush()
+        pin_job_selection(db,job,kind)
+        db.commit();db.refresh(job)
         return job
 
     def run_job(job_id: str):
@@ -241,6 +246,10 @@ def create_app(
             fps=lesson.fps
             previous_revision=lesson.revision
         try:
+            with SessionLocal() as db:
+                # A queued job is bound to the exact model ID and config revision
+                # active when it was accepted. No surprise model switch on retry.
+                selected_model=pinned_client(db,job_id)
             folder=lesson_root(lesson_id)
             if kind=="curriculum":
                 from .compiler import draft_curriculum
@@ -257,6 +266,7 @@ def create_app(
                     problem,reference,
                     json.loads(source.read_text(encoding="utf-8")),
                     folder/"curriculum_candidate.json",
+                    provider=selected_model,
                 )
                 with SessionLocal() as db:
                     job=db.get(Job,job_id)
@@ -276,6 +286,7 @@ def create_app(
                 draft=prepare_teacher_draft(
                     problem=problem,reference_solution=reference_solution,
                     output=folder/"teacher_draft"/"teaching_package.json",
+                    provider=selected_model,
                 )
                 with SessionLocal() as db:
                     job=db.get(Job,job_id);lesson=lesson_get(db,lesson_id)
@@ -330,11 +341,15 @@ def create_app(
                     session=Path(lesson_get(db,lesson_id).session_path)
                     instruction=record.original_instruction
                     db.commit()
-                config=Path(os.environ.get("WEIGUANG_EDIT_AI_CONFIG",""))
-                if not config.is_file():
-                    raise RuntimeError("EDIT_AI_CONFIGURATION_REQUIRED")
+                if selected_model is not None:
+                    agent=plan_agent(selected_model)
+                else:
+                    config=Path(os.environ.get("WEIGUANG_EDIT_AI_CONFIG",""))
+                    if not config.is_file():
+                        raise RuntimeError("EDIT_AI_CONFIGURATION_REQUIRED")
+                    agent=make_openai_compatible_agent(config)
                 candidate=prepare_edit_review(
-                    session,instruction,agent=make_openai_compatible_agent(config),
+                    session,instruction,agent=agent,
                 )
                 with SessionLocal() as db:
                     job=db.get(Job,job_id)
@@ -369,6 +384,7 @@ def create_app(
                         session,instruction,ai_config=config,
                         math_reviewer=_trusted(os.environ.get("WEIGUANG_MATH_REVIEWER")),
                         script_reviewer=_trusted(os.environ.get("WEIGUANG_SCRIPT_REVIEWER")),
+                        agent=plan_agent(selected_model) if selected_model is not None else None,
                     )
                 if outcome.get("status")!="preview_ready":
                     raise RuntimeError(outcome.get("error") or "EDIT_NOT_APPROVED")
@@ -623,11 +639,12 @@ def create_app(
 
     @api.post("/lessons/{id}/prepare",status_code=202)
     def teacher_prepare(id: str):
-        if (os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() not in ("1","true")
-                and not (os.environ.get("MATH_TEACHER_MODEL")
-                         and os.environ.get("MATH_TEACHER_API_KEY"))):
-            raise HTTPException(409,"MATH_TEACHER_MODEL_OR_KEY_NOT_CONFIGURED")
         with SessionLocal() as db:
+            if (db.get(AiTaskSelection,"teacher") is None
+                    and os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() not in ("1","true")
+                    and not (os.environ.get("MATH_TEACHER_MODEL")
+                             and os.environ.get("MATH_TEACHER_API_KEY"))):
+                raise HTTPException(409,"MATH_TEACHER_MODEL_OR_KEY_NOT_CONFIGURED")
             lesson=lesson_get(db,id)
             if lesson.status not in ("draft","package_needed"):
                 raise HTTPException(409,"TEACHER_SOURCE_ALREADY_PREPARED")
@@ -665,11 +682,12 @@ def create_app(
 
     @api.post("/lessons/{id}/curriculum/prepare",status_code=202)
     def curriculum_prepare(id: str):
-        if (os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() not in ("1","true")
-                and not (os.environ.get("MATH_TEACHER_MODEL")
-                         and os.environ.get("MATH_TEACHER_API_KEY"))):
-            raise HTTPException(409,"CURRICULUM_AI_NOT_CONFIGURED")
         with SessionLocal() as db:
+            if (db.get(AiTaskSelection,"curriculum") is None
+                    and os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() not in ("1","true")
+                    and not (os.environ.get("MATH_TEACHER_MODEL")
+                             and os.environ.get("MATH_TEACHER_API_KEY"))):
+                raise HTTPException(409,"CURRICULUM_AI_NOT_CONFIGURED")
             lesson=lesson_get(db,id)
             if lesson.status!="package_needed":
                 raise HTTPException(409,"TEACHER_REVIEW_REQUIRED")
@@ -903,11 +921,12 @@ def create_app(
 
     @api.post("/videos/{id}/edits",status_code=202)
     def edit_submit(id: str,data: EditRequest):
-        if (edit_runner is None
-                and os.environ.get("WEIGUANG_EDIT_AI_ENABLED","").lower() not in ("1","true")
-                and not os.environ.get("WEIGUANG_EDIT_AI_CONFIG")):
-            raise HTTPException(409,"EDIT_AI_CONFIGURATION_REQUIRED")
         with SessionLocal() as db:
+            if (edit_runner is None
+                    and db.get(AiTaskSelection,"edit") is None
+                    and os.environ.get("WEIGUANG_EDIT_AI_ENABLED","").lower() not in ("1","true")
+                    and not os.environ.get("WEIGUANG_EDIT_AI_CONFIG")):
+                raise HTTPException(409,"EDIT_AI_CONFIGURATION_REQUIRED")
             l=lesson_get(db,id)
             if not l.session_path:
                 raise HTTPException(409,"VIDEO_SESSION_NOT_READY")
