@@ -176,8 +176,8 @@ class ArtifactCache:
             raise ValueError("CACHE_INVALID_KEY")
         return self.root / namespace / key[:2] / key
 
-    def read(self, namespace: str, key: str, *, filenames=("payload.bin",)):
-        """Return verified bytes, or None; malformed cache always misses."""
+    def _read_verified(self, namespace: str, key: str, filenames):
+        """Verify an immutable entry without modifying public hit/miss stats."""
         entry = self._entry(namespace, key)
         try:
             record = json.loads((entry / "record.json").read_text("utf-8"))
@@ -199,12 +199,16 @@ class ArtifactCache:
                         hashlib.sha256(data).hexdigest() != info["sha256"]):
                     raise ValueError("CACHE_CORRUPTED_FILE")
                 files[filename] = data
-            self.counts[namespace + "_hit"] += 1
             return files
         except (OSError, UnicodeError, ValueError, TypeError, KeyError,
                 json.JSONDecodeError):
-            self.counts[namespace + "_miss"] += 1
             return None
+
+    def read(self, namespace: str, key: str, *, filenames=("payload.bin",)):
+        """Return verified bytes, or None; malformed cache always misses."""
+        found = self._read_verified(namespace, key, filenames)
+        self.counts[namespace + ("_hit" if found is not None else "_miss")] += 1
+        return found
 
     def write(self, namespace: str, key: str, files: dict[str, bytes]):
         entry = self._entry(namespace, key)
@@ -234,7 +238,7 @@ class ArtifactCache:
             # processes share a cache. Recheck after acquiring a per-key
             # cross-process lock: first valid publisher wins.
             with _cache_entry_write_lock(entry):
-                if self.read(namespace, key, filenames=tuple(files)) is None:
+                if self._read_verified(namespace, key, tuple(files)) is None:
                     if entry.exists():
                         shutil.rmtree(entry)
                     os.replace(scratch, entry)
