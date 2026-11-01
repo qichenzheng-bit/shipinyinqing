@@ -157,6 +157,19 @@ def _rebuild_stage_from_events(
     ids=list(narration_events)
     if len(ids)<2:
         return None
+    # First render has no event clips: keep the efficient single-Manim-scene
+    # path, then split its VERIFIED result once for future edit rounds.
+    available=sum(
+        cache.read(
+            "event_clip",
+            _event_key(stage,index,eid,fps=fps,layout_hint=layout_hint,
+                       narration_events=narration_events,cache=cache),
+            filenames=("video.mp4","manifest.json"),
+        ) is not None
+        for index,eid in enumerate(ids)
+    )
+    if available==0:
+        return None
     with tempfile.TemporaryDirectory(prefix="chalk-event-merge-") as scratch:
         folder=Path(scratch)
         parts=[]
