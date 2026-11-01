@@ -44,8 +44,8 @@ CATALOG = (
     ("openrouter", "OpenRouter / 聚合模型", "openai_chat", "https://openrouter.ai/api/v1"),
     ("siliconflow", "硅基流动", "openai_chat", "https://api.siliconflow.cn/v1"),
     ("perplexity", "Perplexity", "openai_chat", "https://api.perplexity.ai"),
-    ("ollama", "Ollama 本地模型", "openai_chat", "http://localhost:11434/v1"),
-    ("lmstudio", "LM Studio 本地模型", "openai_chat", "http://localhost:1234/v1"),
+    ("ollama", "Ollama 本地模型", "openai_chat", "http://host.docker.internal:11434/v1"),
+    ("lmstudio", "LM Studio 本地模型", "openai_chat", "http://host.docker.internal:1234/v1"),
     ("custom", "自定义兼容接口", "openai_chat", ""),
 )
 CATALOG_MAP = {key: {"id":key, "label":label, "protocol":protocol, "base_url":url}
