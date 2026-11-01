@@ -18,49 +18,53 @@ from build_math_memory_triangle import export_memory_triangle
 # One complete, natural explanation of every visible teaching note and drawing.
 # No references to the model answer, no empty filler or meaningless microsteps.
 NARRATIVE = {
+    # Every visual instruction starts together with the matching drawing.
+    # Opening: AB, AC, then BC; later: right angle, then vertex labels.
     ("introduce_triangle", "e_intro", "diagram"):
-        "这道题给我们一个直角三角形，两条直角边分别长八和六，要求斜边的长度和周长。我们先把直角三角形画出来，明确每条边的位置。",
+        "先画直角三角形。从 A 点向 B 和 C 分别画出两条直角边，最后连接 B、C，构成三条边。",
     ("introduce_triangle", "e_intro", "note"):
-        "思路是先找清直角边和斜边，利用直角三角形的性质求出第三条边，然后再计算三条边的总长度。",
+        "思路是先求斜边，再求周长。",
     ("introduce_triangle", "e_intro", "math"):
-        "题目给出的两条直角边长度分别为",
+        "两条直角边的长度是：",
     ("introduce_triangle", "e_angle", "diagram"):
-        "注意直角顶点的位置。两条从这个顶点出发的边互相垂直，另一条连接其余两点的边才是斜边。",
+        "在 A 点标出直角，注意这两条边互相垂直。",
     ("introduce_triangle", "e_angle", "math"):
-        "因此，这两条直角边满足垂直关系：",
+        "所以有：",
     ("introduce_triangle", "e_rule", "diagram"):
-        "现在将第三条边补全，在图上标清斜边。我们接着使用直角三角形的勾股定理。",
+        "标出 B、C 两个顶点，它们之间的这条边就是斜边。",
     ("introduce_triangle", "e_rule", "note"):
-        "勾股定理的适用条件是直角三角形。这里不能随便把三条边代入，要确认哪一条是斜边。",
+        "勾股定理用于直角三角形，关键是认准斜边。",
     ("introduce_triangle", "e_rule", "math"):
-        "勾股定理告诉我们，两条直角边的平方和等于斜边的平方，也就是",
+        "对应的公式是：",
     ("introduce_triangle", "e_apply", "math"):
-        "把本题的两条直角边代入，斜边的平方就等于",
+        "代入题目给的边长：",
     ("calculate_hypotenuse", "e_carry", "math"):
-        "沿着刚才建立的勾股定理关系，我们继续计算。已经得到",
+        "把上一页的等式接到计算区：",
     ("calculate_hypotenuse", "e_square_value", "math"):
-        "八的平方是六十四，六的平方是三十六，两者相加为一百，所以",
+        "分别计算两个平方：",
     ("calculate_hypotenuse", "e_hypotenuse", "math"):
-        "三角形的边长必须是正数，因此取算术平方根，求得",
+        "边长取正，因此：",
     ("calculate_perimeter", "e_recap", "math"):
-        "斜边已经求出，这里直接使用刚才算出的结果，不需要重复做一遍平方根计算。",
+        "接着求周长，斜边已经算出：",
     ("calculate_perimeter", "e_legs", "note"):
-        "接下来计算周长。需要三条边的长度，因此先回顾题目最初给出的两条直角边。",
+        "还要用到题目给出的两条直角边。",
     ("calculate_perimeter", "e_legs", "math"):
-        "另外两条边的长度仍然是题目给出的",
+        "它们分别是：",
     ("calculate_perimeter", "e_perimeter", "math"):
-        "三角形的周长是三条边长度的和，我们先写出周长关系式",
+        "按周长定义：",
     ("calculate_perimeter", "e_final", "note"):
-        "最后把已经求出的斜边和题设给出的两条直角边一起相加，检查三条边都被计入。",
+        "现在把三条边的长度相加。",
     ("calculate_perimeter", "e_final", "math"):
-        "因此，周长等于八加六再加十，得到二十四。完整的计算式为",
+        "结果为：",
 }
 MATH_READING = {
     "m_legs": "A B 等于八，A C 等于六。",
     "m_perpendicular": "A B 垂直于 A C。",
     "m_pythagoras": "a 的平方加 b 的平方等于 c 的平方。",
     "m_square": "B C 的平方等于八的平方加六的平方。",
-    "m_square_handoff": "B C 的平方等于八的平方加六的平方。",
+    # The identical MathTex is carried by a verified source handoff;
+    # do not mechanically read the full previously voiced equation again.
+    "m_square_handoff": "这就是上一步的等式。",
     "m_squares": "B C 的平方等于六十四加三十六，等于一百。",
     "m_hypotenuse": "B C 等于十。",
     "m_hypotenuse_recall": "B C 等于十。",

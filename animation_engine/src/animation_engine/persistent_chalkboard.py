@@ -1086,6 +1086,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                     for row in event_rows:
                         start=self.time
                         action_timings=[]
+                        diagram_reveal_timings=[]
                         clips=(narration_events or {}).get(row["event_id"],[])
                         clip_cursor=[0]
                         def perform_sync(kind,ident,paint):
@@ -1164,7 +1165,13 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                     for x in ids
                                 )
                                 if duration is not None and visible:
-                                    each=min(.72,max(.10,duration*.70/visible))
+                                    # Let the actual geometry develop through
+                                    # the spoken drawing beat, rather than
+                                    # finishing it in the first second and
+                                    # holding an unchanged picture for the rest
+                                    # of a long narrated action. Cap each
+                                    # object to avoid unnaturally slow strokes.
+                                    each=min(2.25,max(.12,duration*.70/visible))
                                 else:
                                     each=None
                                 for ident in ids:
@@ -1172,6 +1179,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                         raise LongboardError("DIAGRAM_REVEAL_LIVE")
                                     obj=build_diagram(ident)
                                     mode=diagram.objects[ident]["kind"]
+                                    reveal_start=self.time
                                     if mode in ("line","curve"):
                                         self.play(
                                             Create(obj),run_time=each if each
@@ -1183,6 +1191,12 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                             is not None else .36
                                         )
                                     diagram_active[ident]=obj
+                                    if obj is not None:
+                                        diagram_reveal_timings.append({
+                                            "object_id":ident,
+                                            "start_preview_second":reveal_start,
+                                            "end_preview_second":self.time,
+                                        })
                                 if duration is not None:
                                     remaining=duration-(self.time-before)
                                     if remaining>1e-5:
@@ -1267,6 +1281,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             self.wait(row["pause_seconds"])
                         self.timing.append({
                             "action_timing":action_timings,
+                            "diagram_reveal_timing":diagram_reveal_timings,
                             "event_id":row["event_id"],"page_index":row["page_index"],
                             "erase_before":row["erase_before"],
                             "math_write_count":row["math_write_count"],

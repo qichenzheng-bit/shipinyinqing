@@ -100,6 +100,17 @@ def export_memory_triangle(destination: Path) -> dict:
         }],
     }
     stages = [dict(x) for x in source_stages[:4]]
+    # Draw all THREE sides during the opening voice cue. The original
+    # lesson incorrectly said the triangle was drawn while the diagonal BC
+    # remained absent until the Pythagoras event nearly a minute later.
+    stages[0]["reveal_ids"] = [*stages[0]["reveal_ids"], "BC"]
+    # The later diagram beat now reveals the two vertex labels, not a
+    # missing side already promised by the teacher in the opening.
+    stages[2]["reveal_ids"] = [
+        x for x in stages[2]["reveal_ids"] if x != "BC"
+    ]
+    assert stages[0]["reveal_ids"][-1] == "BC"
+    assert stages[2]["reveal_ids"] == ["label:B", "label:C"]
     graph_pack, graph_board, graph_plan, graph_cues = compile_teaching_units(
         problem=problem, reference_solution=reference,
         units=graph_units, teacher_reviewed=True,

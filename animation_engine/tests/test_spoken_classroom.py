@@ -151,3 +151,31 @@ def test_unapproved_or_malformed_speech_rates_fail_closed(example,rate):
     put(example,data)
     with pytest.raises(LongboardError,match="SPOKEN_RATE_NOT_APPROVED"):
         checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_intro_has_actual_full_triangle_before_teacher_calls_it_drawn(example):
+    source=json.loads((example/"diagram"/"diagram_classroom.json").read_text("utf-8"))
+    cues={e["event_id"]: e["reveal_ids"] for e in source["stages"]}
+    assert {"AB","AC","BC"}.issubset(cues["e_intro"])
+    assert "BC" not in cues["e_rule"]
+    assert cues["e_rule"]==["label:B","label:C"]
+    spoken=get(example)
+    first=spoken["events"][0]["spans"][0]["parts"][0]["value"]
+    assert "画直角三角形" in first and "连接 B、C" in first
+    assert "标出 B、C" in next(
+        e for e in spoken["events"] if e["event_id"]=="e_rule"
+    )["spans"][0]["parts"][0]["value"]
+    assert checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_teaching_preambles_are_short_and_prior_math_is_not_rote_repeated(example):
+    spoken=get(example)
+    spans=[s for e in spoken["events"] for s in e["spans"]]
+    assert all(
+        len(p["value"])<=60
+        for s in spans for p in s["parts"] if p["kind"]=="text"
+    )
+    assert len(next(s for s in spans if s["object_id"]=="m_square_handoff")
+        ["parts"][-1]["reading"])<18
+    assert len(next(s for s in spans if s["object_id"]=="m_hypotenuse_recall")
+        ["parts"][0]["value"])<24
