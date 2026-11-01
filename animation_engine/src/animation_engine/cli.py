@@ -174,6 +174,8 @@ def main(argv: list[str] | None = None) -> int:
     spoken_render.add_argument("--srt", type=Path)
     spoken_render.add_argument("--fps", type=int, default=30)
     spoken_render.add_argument("--adaptive", action="store_true")
+    spoken_render.add_argument("--cache-dir", type=Path,
+        help="Persistent content-addressed TTS, MathTex and stage cache")
 
     # V2.6.5 is a headless engine: no GUI or side-by-side comparison.
     editing_start = subparsers.add_parser(
@@ -278,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.spoken,output_mp4=args.output,
                 output_json=args.manifest,output_srt=args.srt,
                 fps=args.fps,adaptive=args.adaptive,
+                cache_dir=args.cache_dir,
             )
             return 0
         if args.command == "plan-memory":
