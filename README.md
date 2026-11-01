@@ -124,14 +124,21 @@ math-animation render-spoken \
 
 ### 微调 CLI（当前无用户侧 UI）
 
+以下 `approved_reviewers:review_math` 和 `approved_reviewers:approve_v27_script` 是**由维护者自行实现与审计的可信回调占位符**，不是仓库预装的模块。内容性口播修改必须由独立数学审核确认（音色/语速修改除外）；V2.7 课程讲稿有任何变化时，程序会重新导出候选 `lesson_script.json` / `lesson_script.md`，由可信脚本审核者核对后才能正式渲染。审核不通过会保留当前视频，记录失败原因，不会自动批准脚本。示例课程不是自适应布局，所以启动微调时显式带 `--nonadaptive`。
+
+
+
 ```bash
 math-animation edit-start \
   --package lesson-demo --movie lesson-demo/lesson.mp4 \
-  --manifest lesson-demo/manifest.json --session work/edit-session --fps 60
+  --manifest lesson-demo/manifest.json --session work/edit-session --fps 60 \
+  --nonadaptive
 
 math-animation edit-apply \
   --session work/edit-session --instruction-file feedback.txt \
-  --plan reviewed_edit_plan.json
+  --plan reviewed_edit_plan.json \
+  --math-reviewer approved_reviewers:review_math \
+  --script-reviewer approved_reviewers:approve_v27_script
 
 math-animation edit-feedback \
   --session work/edit-session --text "还有一点需要调整"
@@ -203,6 +210,15 @@ math-animation edit-export \
 - 与历史用于计算汇总的 summary 事件区分：只有明确处于结论之后、没有新增运算的独立归纳事件采用新回顾布局。
 - 本次仅进行非渲染回归，不将源码和时间轴测试冒充新的 60 FPS 成片验收。
 
+
+## 二次回归：微调审核与跨平台稳定性
+
+- V2.7 多轮微调保留源审查：每次更改 `spoken_classroom.json` 都生成与修改后来源完全一致的**候选**课程脚本，只有可信 `--script-reviewer` 明确批准后才进入真实渲染；不再使用旧版本脚本，也不绕过预渲染来源核验。未配置审核回调时安全拒绝，旧的 `latest.mp4` 保持不变。
+- 变更口播内容或数学来源需要 `--math-reviewer` 明确通过；仅改声音/语速不强制复核数学。结构/来源合同验证和审核是互补条件，不得把 schema 通过等同于数学内容正确。
+- 微调条目只有在真实媒体验证、版本发布后才标为 `completed`；失败的尝试及其要求记录为 `failed`，仍保留原始用户指令，以保证训练 JSON 准确。
+- 本地系统字体发现支持 Linux Noto、Windows 微软雅黑/黑体/宋体及 macOS 中文系统字体，并将最终实际选中的文件纳入缓存指纹。
+- 持久化渲染缓存按相同键建立跨进程独占发布锁；多个生产任务不能互相删除正在发布的有效缓存。读取过程中若遇到替换窗口，仍采取原有保守的失效回退。
+- 上述变更只接受源码和非渲染回归测试；仍需用户自行对最终真实 MP4 和 Windows 机器环境进行验收。
 
 ## 最终工程加固与整理（2026-11-01）
 
