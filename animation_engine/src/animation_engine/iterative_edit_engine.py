@@ -69,6 +69,20 @@ def _state(root: Path) -> dict:
     data = json.loads(p.read_text(encoding="utf-8"))
     if data.get("schema_version") != "1.0" or data.get("mode") != "iterative_video_edit":
         raise EditEngineError("EDIT_SESSION_SCHEMA")
+    # Restore legacy latest.* aliases from the immutable committed revision.
+    # If a previous process died between replacing three files, the session
+    # revision remains authoritative and none of the mixed aliases survive.
+    committed = Path(root) / "versions" / f"{data['revision']:04d}"
+    for source_name, alias in (
+        (_MOVIE, "latest.mp4"), (_MANIFEST, "latest_manifest.json"),
+        (_SUBTITLE, "latest.srt"),
+    ):
+        source = committed / source_name
+        target = Path(root) / alias
+        if not source.is_file():
+            raise EditEngineError("EDIT_COMMITTED_REVISION_MISSING")
+        if not target.is_file() or file_digest(target) != file_digest(source):
+            _publish(source, target)
     return data
 
 
@@ -125,6 +139,39 @@ def _publish(source: Path, latest: Path):
         temp.unlink(missing_ok=True)
 
 
+def _publish_bundle(version: Path, root: Path) -> None:
+    """Rollback all aliases on ordinary publish errors.
+
+    A crash is repaired by _state from the immutable committed revision;
+    callers must always treat edit_session.json revision as the commit pointer.
+    """
+    import tempfile
+    names = (
+        (_MOVIE, "latest.mp4"),
+        (_MANIFEST, "latest_manifest.json"),
+        (_SUBTITLE, "latest.srt"),
+    )
+    with tempfile.TemporaryDirectory(prefix=".publish-backup-",dir=root) as backup:
+        saved = Path(backup)
+        had = set()
+        for _, target in names:
+            current = root / target
+            if current.is_file():
+                had.add(target)
+                shutil.copyfile(current, saved / target)
+        try:
+            for source, target in names:
+                _publish(version / source, root / target)
+        except Exception:
+            for _, target in names:
+                current = root / target
+                if target in had:
+                    _publish(saved / target, current)
+                else:
+                    current.unlink(missing_ok=True)
+            raise
+
+
 def create_session(
     package: Path, baseline_mp4: Path, baseline_manifest: Path,
     root: Path, *, adaptive: bool = True, fps: int = 30,
@@ -154,9 +201,7 @@ def create_session(
                                 v0 / _SUBTITLE)
             else:
                 (v0 / _SUBTITLE).write_text("", encoding="utf-8")
-            _publish(v0 / _MOVIE, root / "latest.mp4")
-            _publish(v0 / _MANIFEST, root / "latest_manifest.json")
-            _publish(v0 / _SUBTITLE, root / "latest.srt")
+            _publish_bundle(v0, root)
             state = {
                 "schema_version": "1.0", "mode": "iterative_video_edit",
                 "created_at": _now(), "updated_at": _now(),
@@ -295,9 +340,7 @@ def run_edit(
                 raise EditEngineError("EDIT_VERSION_ALREADY_EXISTS")
             version.parent.mkdir(exist_ok=True)
             os.replace(folder, version)
-            _publish(version / _MOVIE, root / "latest.mp4")
-            _publish(version / _MANIFEST, root / "latest_manifest.json")
-            _publish(version / _SUBTITLE, root / "latest.srt")
+            _publish_bundle(version, root)
             attempt["cache_stats"]=actual.get("incremental_cache")
             attempt["render_timings_seconds"]=actual.get("render_timings_seconds")
             attempt.update({
