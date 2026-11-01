@@ -181,13 +181,16 @@ def initialize_edit(
 
 
 def run_real_edit(session: Path, instruction: str, *, ai_config: Path,
-                  math_reviewer=None, script_reviewer=None) -> dict:
+                  math_reviewer=None, script_reviewer=None,
+                  agent=None) -> dict:
     from animation_engine.iterative_ai_adapter import make_openai_compatible_agent
     from animation_engine.iterative_edit_engine import run_edit
-    if not ai_config.is_file():
-        raise BridgeError("EDIT_AI_CONFIGURATION_REQUIRED")
+    if agent is None:
+        if not ai_config.is_file():
+            raise BridgeError("EDIT_AI_CONFIGURATION_REQUIRED")
+        agent=make_openai_compatible_agent(ai_config)
     return run_edit(
-        session,instruction,make_openai_compatible_agent(ai_config),
+        session,instruction,agent,
         math_reviewer=math_reviewer,script_reviewer=script_reviewer,
     )
 
