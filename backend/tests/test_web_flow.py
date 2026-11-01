@@ -198,3 +198,44 @@ def test_multi_delete_is_atomic_and_no_zip_escape(studio):
     rejected=client.post(f"/api/v1/lessons/{third}/package",
         files={"file":("unsafe.zip",payload.getvalue(),"application/zip")})
     assert rejected.status_code==422
+
+
+def test_auth_cookie_stream_compatible_without_browser_header(tmp_path,monkeypatch):
+    monkeypatch.setenv("WEIGUANG_API_TOKEN","test-secret-long-private-token")
+    app=create_app(data_dir=tmp_path/"private",local_dev=True,eager=True)
+    client=TestClient(app)
+    assert client.get("/api/v1/lessons").status_code==401
+    assert client.post("/api/v1/auth/login",
+        json={"token":"wrong"}).status_code==401
+    ok=client.post("/api/v1/auth/login",
+        json={"token":"test-secret-long-private-token"})
+    assert ok.status_code==200
+    cookie=ok.headers.get("set-cookie","")
+    assert "HttpOnly" in cookie and "SameSite=strict" in cookie
+    assert client.get("/api/v1/lessons").status_code==200
+    denied=client.post("/api/v1/projects",json={"title":"cross origin"},
+        headers={"Origin":"https://evil.example"})
+    assert denied.status_code==403
+    client.post("/api/v1/auth/logout")
+    assert client.get("/api/v1/lessons").status_code==401
+
+
+def test_renaming_does_not_invalidate_video_source_and_changed_fps_does(studio):
+    client,source,archive=studio
+    ident=create_verified(studio)
+    l=client.get(f"/api/v1/lessons/{ident}").json()
+    rename=client.patch(f"/api/v1/videos/{ident}",
+        json={"title":"重命名但不修改数学"})
+    assert rename.status_code==200
+    assert rename.json()["revision"]==l["revision"]
+    changed=client.patch(f"/api/v1/lessons/{ident}",
+        json={"fps":30})
+    assert changed.status_code==200
+    assert changed.json()["status"]=="draft"
+    assert changed.json()["revision"]==l["revision"]+1
+    # Older data remains archived, re-upload is not stuck forever.
+    reupload=client.post(f"/api/v1/lessons/{ident}/package",
+        files={"file":("reviewed.zip",archive,"application/zip")})
+    assert reupload.status_code==200,reupload.text
+    archive_dir=Path(client.app.state.root)/"lessons"/ident/"previous_packages"
+    assert archive_dir.exists() and list(archive_dir.iterdir())
