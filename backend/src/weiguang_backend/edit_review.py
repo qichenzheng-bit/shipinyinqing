@@ -59,6 +59,14 @@ def prepare_edit_review(
             revision=state["revision"]
             package=pending/"package"
             _copy_current(session/state["latest_package"], package)
+            # The proposal needs the same authentic previous-audio timeline
+            # and subtitles available to the standard iterative engine.
+            manifest=session/"latest_manifest.json"
+            if manifest.is_file():
+                shutil.copyfile(manifest,pending/"current_timeline.json")
+            subtitles=session/"latest.srt"
+            if subtitles.is_file():
+                shutil.copyfile(subtitles,pending/"current_subtitles.srt")
             plan=agent(instruction,package,state["history"])
             if not isinstance(plan,dict):
                 raise EditEngineError("EDIT_AGENT_DID_NOT_RETURN_PLAN")

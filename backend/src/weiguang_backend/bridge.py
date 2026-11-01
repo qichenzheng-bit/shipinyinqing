@@ -181,13 +181,16 @@ def initialize_edit(
 
 
 def run_real_edit(session: Path, instruction: str, *, ai_config: Path,
-                  math_reviewer=None, script_reviewer=None) -> dict:
+                  math_reviewer=None, script_reviewer=None,
+                  agent=None) -> dict:
     from animation_engine.iterative_ai_adapter import make_openai_compatible_agent
     from animation_engine.iterative_edit_engine import run_edit
-    if not ai_config.is_file():
-        raise BridgeError("EDIT_AI_CONFIGURATION_REQUIRED")
+    if agent is None:
+        if not ai_config.is_file():
+            raise BridgeError("EDIT_AI_CONFIGURATION_REQUIRED")
+        agent=make_openai_compatible_agent(ai_config)
     return run_edit(
-        session,instruction,make_openai_compatible_agent(ai_config),
+        session,instruction,agent,
         math_reviewer=math_reviewer,script_reviewer=script_reviewer,
     )
 
@@ -195,6 +198,7 @@ def run_real_edit(session: Path, instruction: str, *, ai_config: Path,
 
 def prepare_teacher_draft(
     *, problem: str, reference_solution: str, output: Path,
+    provider=None,
 ) -> dict:
     """Run authentic MathTeacher A/B/C; never mislabel it an engine package.
 
@@ -204,7 +208,7 @@ def prepare_teacher_draft(
     from math_teacher.models import TeacherInput
     from math_teacher.pipeline import MathTeacherPipeline
     from math_teacher.provider import OpenAICompatibleJsonModel
-    provider=OpenAICompatibleJsonModel()
+    provider=provider if provider is not None else OpenAICompatibleJsonModel()
     candidate=MathTeacherPipeline(provider).run(
         TeacherInput(problem=problem,reference_solution=reference_solution),
         allow_needs_review=True,

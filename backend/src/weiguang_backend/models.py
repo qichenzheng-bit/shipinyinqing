@@ -83,3 +83,44 @@ class EditSessionArchive(Base):
     session_path: Mapped[str] = mapped_column(Text, nullable=False)
     source_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class AiProvider(Base):
+    """Configurable inference endpoint. The ciphertext never enters API JSON."""
+    __tablename__ = "ai_providers"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    preset: Mapped[str] = mapped_column(String(64), nullable=False)
+    protocol: Mapped[str] = mapped_column(String(40), nullable=False)
+    base_url: Mapped[str] = mapped_column(String(600), nullable=False)
+    encrypted_key: Mapped[str] = mapped_column(Text, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    json_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, onupdate=now,
+    )
+
+
+class AiTaskSelection(Base):
+    """One model library for all pipelines; each task can share or override."""
+    __tablename__ = "ai_task_selections"
+    task: Mapped[str] = mapped_column(String(30), primary_key=True)
+    provider_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("ai_providers.id"), nullable=False,
+    )
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+
+
+class AiJobSelection(Base):
+    """Pin the exact model choice to the queued job without schema migrations."""
+    __tablename__ = "ai_job_selections"
+    job_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("jobs.id"), primary_key=True,
+    )
+    provider_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("ai_providers.id"), nullable=False,
+    )
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    provider_revision: Mapped[int] = mapped_column(Integer, nullable=False)

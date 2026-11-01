@@ -7,6 +7,8 @@
     route:'work', lessons:[], videos:[], projects:[], selected:new Set(), projectSelected:new Set(), search:'',
     lesson:null, script:'', teacher:null, curriculum:null, pendingEdit:null, job:null, loading:false, error:'',
     modal:null, notice:'', trash:[], projectTrash:[], settings:null,
+    ai:{catalog:[],providers:[],bindings:{},status:null,providerId:'',preset:'openai',
+        versions:[],discovery:'',modelId:'',targetTask:'all',testStatus:''},
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, s => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
@@ -62,7 +64,7 @@
     '<a class="brand" href="#" data-route="work" aria-label="微光数学工作台"><img src="./logo.svg" alt="微光数学"/></a>'+
     '<nav class="topnav" aria-label="主导航">'+
     [['work','工作台'],['library','视频库'],['settings','设置']].map(([route,title])=>
-    '<button class="navlink '+(state.route===route?'active':'')+
+    '<button class="navlink '+((state.route===route||(route==='settings'&&state.route==='ai'))?'active':'')+
     '" data-route="'+route+'">'+title+'</button>').join('')+
     '</nav></header>';
   const head=(title,more='')=>'<div class="page-head"><h1>'+title+'</h1><div class="actions">'+more+'</div></div>';
@@ -208,6 +210,7 @@
     '<h2 style="margin-top:40px">系统</h2>'+
     '<div class="setting-row"><span>数学教师模型</span><span class="muted">'+(state.settings?.teacher_ai_configured?'已配置':'需要后端配置')+'</span></div>'+
     '<div class="setting-row"><span>微调模型</span><span class="muted">'+(state.settings?.ai_configured?'已配置':'需要后端配置')+'</span></div>'+
+    '<div class="setting-row"><span>统一 API / 模型版本</span>'+button('管理模型 API','open-ai-settings')+'</div>'+
     '<div class="setting-row"><span>任务并发</span><span class="muted">1 个渲染任务</span></div>'+
     '<div style="margin-top:26px">'+button('保存偏好','save-settings','primary')+'</div>'+
     '<hr class="hr"/><div class="row spread"><h2 style="margin-bottom:0">项目</h2><div class="actions">'+
@@ -220,6 +223,89 @@
       '<button class="iconbtn" data-delete-project="'+escapeHTML(p.id)+'">删除</button></td></tr>'
     ).join(''):'<tr><td colspan="3">暂无项目</td></tr>')+
     '</tbody></table></div></div>';
+  const modelSettings = () => {
+    const current=state.ai.providers.find(x=>x.id===state.ai.providerId);
+    const preset=state.ai.catalog.find(p=>p.id===state.ai.preset)||
+      state.ai.catalog[0]||{id:'custom',label:'自定义',base_url:'',protocol:'openai_chat'};
+    const family=current||preset;
+    const protocols=[
+      ['openai_chat','OpenAI 兼容接口'],
+      ['openai_responses','OpenAI Responses'],
+      ['anthropic_messages','Claude Messages'],
+      ['gemini_generate','Gemini GenerateContent'],
+    ];
+    const tasks=[
+      ['teacher','数学教师 A / B / C'],
+      ['curriculum','课堂编排'],
+      ['edit','视频微调'],
+    ];
+    return head('模型 API',button('返回设置','back-ai-settings'))+
+      '<div class="api-layout"><section class="panel">'+
+      '<h2>服务商连接</h2>'+
+      '<div class="field"><label for="ai-provider-choice">已保存连接</label>'+
+      '<select class="select" id="ai-provider-choice">'+
+      '<option value="">＋ 新建连接</option>'+
+      state.ai.providers.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
+        (state.ai.providerId===p.id?'selected':'')+'>'+escapeHTML(p.name)+'</option>').join('')+
+      '</select></div>'+
+      '<div class="field"><label for="ai-preset">服务商</label>'+
+      '<select class="select" id="ai-preset" '+(current?'disabled':'')+'>'+
+      state.ai.catalog.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
+        ((current?current.preset:state.ai.preset)===p.id?'selected':'')+'>'+
+        escapeHTML(p.label)+'</option>').join('')+'</select></div>'+
+      '<div class="field"><label for="ai-name">连接名称</label>'+
+      '<input class="input" id="ai-name" value="'+escapeHTML(family.name||preset.label)+'" maxlength="120"></div>'+
+      '<div class="field"><label for="ai-protocol">接口协议</label>'+
+      '<select class="select" id="ai-protocol">'+protocols.map(([id,label])=>
+        '<option value="'+id+'" '+(family.protocol===id?'selected':'')+'>'+label+'</option>'
+      ).join('')+'</select></div>'+
+      '<div class="field"><label for="ai-url">API Base URL</label>'+
+      '<input class="input" id="ai-url" spellcheck="false" value="'+
+      escapeHTML(family.base_url||'')+'" placeholder="https://.../v1"></div>'+
+      '<div class="field"><label for="ai-key">API Key</label>'+
+      '<input class="input" type="password" autocomplete="new-password" id="ai-key" '+
+      'placeholder="'+(current?.has_key?'密钥已安全保存；留空则不修改':'仅提交至后端加密保存')+'"></div>'+
+      '<label class="api-check"><input id="ai-json-mode" type="checkbox" '+
+      (current?.json_mode?'checked':'')+'> 启用服务商 JSON 模式（可选）</label>'+
+      '<div class="actions" style="margin-top:20px">'+
+      button('保存连接','ai-save-provider','primary')+
+      (current?button('删除连接','ai-delete-provider','danger'):'')+'</div>'+
+      (state.ai.status&&!state.ai.status.secret_store_ready?
+        '<div class="notice">服务器尚未配置模型密钥加密主钥。</div>':'')+
+      '</section><section class="panel">'+
+      '<h2>模型与版本</h2>'+
+      (current?'<div class="actions" style="margin-bottom:17px">'+
+        button('读取模型列表','ai-discover')+'</div>':
+        '<div class="notice">请先保存一个服务商连接。</div>')+
+      '<div class="field"><label for="ai-versions">服务商返回的模型版本</label>'+
+      '<select class="select" id="ai-versions">'+
+      '<option value="">手动输入模型 ID</option>'+
+      state.ai.versions.map(m=>'<option value="'+escapeHTML(m.id)+'" '+
+        (state.ai.modelId===m.id?'selected':'')+'>'+
+        escapeHTML(m.label===m.id?m.id:m.label+' · '+m.id)+'</option>').join('')+
+      '</select></div>'+
+      '<div class="field"><label for="ai-manual-model">模型 ID / 精确版本</label>'+
+      '<input class="input" id="ai-manual-model" spellcheck="false" maxlength="200" value="'+
+      escapeHTML(state.ai.modelId)+'" placeholder="如服务商控制台中的完整模型 ID"></div>'+
+      (state.ai.discovery?'<div class="muted small api-hint">'+escapeHTML(state.ai.discovery)+'</div>':'')+
+      '<div class="field"><label for="ai-target">应用到</label>'+
+      '<select class="select" id="ai-target">'+
+      [['all','全部三个模块'],...tasks].map(([task,label])=>
+        '<option value="'+task+'" '+(state.ai.targetTask===task?'selected':'')+'>'+
+        label+'</option>').join('')+'</select></div>'+
+      '<div class="actions">'+button('测试模型连接','ai-test')+
+      button('应用模型版本','ai-assign','primary')+'</div>'+
+      (state.ai.testStatus?'<div class="notice">'+escapeHTML(state.ai.testStatus)+'</div>':'')+
+      '<h2 style="margin-top:32px">当前使用</h2>'+
+      tasks.map(([task,label])=>{
+        const selected=state.ai.bindings[task];
+        return '<div class="setting-row api-task-row"><span>'+label+'</span>'+
+          '<span class="muted">'+escapeHTML(selected?
+            selected.provider_name+' / '+selected.model_id:'未设置')+'</span></div>';
+      }).join('')+
+      '</section></div>'+
+      '<div class="muted small api-footnote">模型以当前账号实际开放的版本为准；列表不可用时可以手动输入。只有通过 JSON 输出验证的文本模型适合本系统的数学课程流程。</div>';
+  };
   const trash = () => head('回收站',button('返回视频库','go-library'))+
     '<div class="table-wrap"><table><thead><tr><th>序号</th><th>视频名称</th><th>操作</th></tr></thead><tbody>'+
     (state.trash.length?state.trash.map((l,i)=>
@@ -236,7 +322,7 @@
       state.route==='work'?work():state.route==='library'?library():
       state.route==='detail'?detail():state.route==='review'?review():
       state.route==='teacher'?teacherView():state.route==='curriculum'?curriculumView():
-      state.route==='edit-review'?editReview():
+      state.route==='edit-review'?editReview():state.route==='ai'?modelSettings():
       state.route==='trash'?trash():state.route==='login'?login():settings()
     )+'</main>'+modal();
     if(state.route==='work') {
@@ -249,6 +335,21 @@
       if(prefs.voice)$('#setting-voice').value=prefs.voice;
       if(prefs.fps)$('#setting-fps').value=String(prefs.fps);
     }
+  };
+  const refreshAI = async (selectedId) => {
+    const [catalog,providers,bindings,status]=await Promise.all([
+      api('/ai/catalog'),api('/ai/providers'),api('/ai/selections'),api('/ai/status'),
+    ]);
+    state.ai.catalog=catalog.providers;
+    state.ai.providers=providers;
+    state.ai.bindings=bindings;
+    state.ai.status=status;
+    state.ai.providerId=selectedId!==undefined?selectedId:
+      (providers.some(p=>p.id===state.ai.providerId)?state.ai.providerId:
+       (providers[0]?.id||''));
+    state.ai.versions=[];
+    state.ai.discovery='';
+    state.ai.testStatus='';
   };
   const refresh = async () => {
     [state.lessons,state.videos,state.projects]=await Promise.all([
@@ -343,6 +444,29 @@
       else state.projectSelected.delete(event.target.value);
       render();
     }
+    if(event.target.id==='ai-provider-choice'){
+      state.ai.providerId=event.target.value;
+      state.ai.versions=[];
+      state.ai.modelId='';
+      state.ai.testStatus='';
+      render();
+    }
+    if(event.target.id==='ai-preset'){
+      const item=state.ai.catalog.find(p=>p.id===event.target.value);
+      if(item){
+        state.ai.preset=item.id;
+        $('#ai-name').value=item.label;
+        $('#ai-url').value=item.base_url;
+        $('#ai-protocol').value=item.protocol;
+      }
+    }
+    if(event.target.id==='ai-versions' && event.target.value){
+      state.ai.modelId=event.target.value;
+      $('#ai-manual-model').value=event.target.value;
+    }
+    if(event.target.id==='ai-target'){
+      state.ai.targetTask=event.target.value;
+    }
   });
   document.addEventListener('click',event=>{
     const route=event.target.closest('[data-route]');
@@ -381,7 +505,77 @@
     const action=event.target.closest('[data-action]');
     if(!action)return;
     const id=action.dataset.action;
-    if(id==='new'){state.route='work';render();}
+    if(id==='open-ai-settings'){
+      exec(async()=>{await refreshAI();state.route='ai';});
+    } else if(id==='back-ai-settings'){
+      state.route='settings';exec(async()=>{state.settings=await api('/settings');});
+    } else if(id==='ai-save-provider'){
+      const current=state.ai.providers.find(p=>p.id===state.ai.providerId);
+      const key=$('#ai-key').value;
+      const details={
+        name:$('#ai-name').value.trim(),
+        protocol:$('#ai-protocol').value,
+        base_url:$('#ai-url').value.trim(),
+        json_mode:$('#ai-json-mode').checked,
+      };
+      if(!details.name||!details.base_url)return flash('请输入连接名称与接口地址',true);
+      if(!current&&!key)return flash('请输入 API Key',true);
+      const payload=current?details:{...details,preset:$('#ai-preset').value,api_key:key};
+      if(current&&key)payload.api_key=key;
+      exec(async()=>{
+        const saved=await api(current?'/ai/providers/'+current.id:'/ai/providers',
+          options(current?'PATCH':'POST',payload));
+        await refreshAI(saved.id);
+        flash('服务商连接已保存');
+      });
+    } else if(id==='ai-delete-provider'){
+      const target=state.ai.providerId;
+      if(!target||!window.confirm('删除这个服务商连接？'))return;
+      exec(async()=>{
+        await api('/ai/providers/'+target,{method:'DELETE'});
+        await refreshAI('');
+        state.ai.modelId='';
+        flash('已删除连接');
+      });
+    } else if(id==='ai-discover'){
+      if(!state.ai.providerId)return flash('请先选择服务商',true);
+      exec(async()=>{
+        const result=await api('/ai/providers/'+state.ai.providerId+'/models',
+          options('POST',{}));
+        state.ai.versions=result.models||[];
+        state.ai.discovery=result.notice||(result.source==='live'?
+          '读取到 '+state.ai.versions.length+' 个可用模型。':'可手动填写模型版本。');
+        flash('模型列表已更新');
+      });
+    } else if(id==='ai-test'){
+      const modelId=$('#ai-manual-model')?.value?.trim()||
+        $('#ai-versions')?.value;
+      if(!state.ai.providerId||!modelId)return flash('请选择服务商并填写模型 ID',true);
+      exec(async()=>{
+        const result=await api('/ai/providers/'+state.ai.providerId+'/test',
+          options('POST',{model_id:modelId}));
+        state.ai.modelId=modelId;
+        state.ai.testStatus=result.status==='connected'?
+          '连接成功 · JSON 输出验证通过':'连接尚未通过';
+        flash(state.ai.testStatus);
+      });
+    } else if(id==='ai-assign'){
+      const modelId=$('#ai-manual-model')?.value?.trim()||
+        $('#ai-versions')?.value;
+      if(!state.ai.providerId||!modelId)return flash('请先选择模型的精确版本',true);
+      const tasks=state.ai.targetTask==='all'?
+        ['teacher','curriculum','edit']:[state.ai.targetTask];
+      exec(async()=>{
+        state.ai.bindings=await api('/ai/selections',options('PUT',{
+          bindings:tasks.map(task=>({
+            task,provider_id:state.ai.providerId,model_id:modelId,
+          })),
+        }));
+        state.ai.modelId=modelId;
+        state.settings=await api('/settings');
+        flash('已应用模型版本');
+      });
+    } else if(id==='new'){state.route='work';render();}
     else if(id==='trash'){exec(async()=>{state.trash=await api('/trash');state.route='trash';});}
     else if(id==='new-project'){
       const title=window.prompt('项目名称','');

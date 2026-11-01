@@ -36,10 +36,11 @@ def write_json(path: Path, data: dict):
 def draft_curriculum(
     problem: str, reference_solution: str,
     teacher_package: dict, candidate_path: Path,
+    *, provider=None,
 ) -> dict:
     """Use configured teacher LLM to suggest draft only (no review claim)."""
     from math_teacher.provider import OpenAICompatibleJsonModel
-    provider=OpenAICompatibleJsonModel()
+    provider=provider if provider is not None else OpenAICompatibleJsonModel()
     instructions = """你是考研数学真实课堂视频课程编排者。参考已核验数学教师 A/B/C 的
 源结构，为同一道题生成完整 V2.7 课程候选数据，绝不能替换题目/解法或省略必要步骤。
 返回匹配 CurriculumCandidate 的严格 JSON：

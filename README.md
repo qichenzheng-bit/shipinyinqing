@@ -275,5 +275,22 @@ docker compose ps
 
 启动前检查 FFmpeg、TeX/dvisvgm、Manim、中文字体以及实际 TTS 网络连接。定期备份 `pgdata`、`lessondata`、`redisdata` 数据卷；只保留 MP4 不能恢复审核及微调记录。源码与脚本验证不代替实际数学教师复核。更改 `Lesson` 版本来源后，需要重新审核，旧视频归档但不会冒充新来源的结果。
 
+
+### 统一模型 API（前端配置）
+
+在 `设置 → 管理模型 API` 中连接厂商、填入 API Key，选择准确的模型名称/版本。保存后可以 `读取模型列表`，也可以在不支持列举模型的厂商中直接填写完整 ID；点击 `测试模型连接` 会实际发起一次小型 JSON 生成请求（可能产生少量 API 费用），验证可用于数学教师数据生成。选择 `应用到全部三个模块` 会将**同一服务商与同一精确模型 ID**同时用于数学教师 A/B/C、课堂编排及微调；也支持为三个模块分别选择。
+
+服务商模板包括 OpenAI、Claude、Gemini、DeepSeek、阿里百炼/Qwen、GLM、Kimi、豆包、MiniMax、xAI、OpenRouter、硅基流动、Groq、Mistral、Together、Fireworks、Perplexity，以及自定义 OpenAI Chat Completions 兼容接口和 Ollama/LM Studio。Claude 与 Gemini 使用各自原生协议。模板**不是固定型号列表**：由实际账号及端点动态读取新旧版本，部分供应商未实现 `GET /models` 时明确改为手动输入。并非任何“全网大模型”都提供兼容的文本 JSON API；图像、TTS、仅 Responses/非 Chat 的模型或专有协议需要额外适配，测试未通过前不会被当作可用于数学课程的模型。
+
+API Key 在服务器端使用 Fernet 加密保存在数据库；前端只能看到“已配置”，不能读取原密钥。生产部署请在 `.env` 配置一个**长期固定且保密**的主密钥：
+
+```powershell
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+将命令输出填入 `WEIGUANG_MODEL_MASTER_KEY`，**不要上传这个密钥或将其提交 GitHub**。Docker 的 API 和 Worker 使用同一个主密钥；丢失主密钥会导致已保存的连接无法解密，只能重新录入 API Key。密钥仅在明确删除服务商后从数据库配置中销毁。用户自己填写的私有推理接口仅在明确开启 `WEIGUANG_ALLOW_PRIVATE_MODEL_ENDPOINTS=1` 后允许使用，公网服务不要随意开启，以免扩大 SSRF 风险。在 Windows Docker Desktop 中使用本机 Ollama / LM Studio，默认模板连接 `host.docker.internal` 宿主机地址（须允许对应服务监听该地址）；若不用 Docker，请把地址改为 `localhost`。
+
+任务创建时将服务商、模型 ID 和连接配置版本固定到任务记录，后续修改服务商配置不会悄悄改变已排队任务的模型，而是要求重新提交。原有从环境变量读取数学教师/微调模型的方式仍作为旧配置的兼容后备，不影响未迁移数据。源审核与真人数学复核机制保持不变。
+
 ---
 最后更新：2026-11-01。主线以 GitHub `main` 的实际合并状态和统一质量门禁为准。
