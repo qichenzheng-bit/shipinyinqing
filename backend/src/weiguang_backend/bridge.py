@@ -25,7 +25,8 @@ MAX_UNCOMPRESSED = 180 * 1024 * 1024
 
 
 def extract_engine_package(data: bytes, destination: Path,
-                           *, problem: str, reference_solution: str) -> dict:
+                           *, problem: str, reference_solution: str,
+                           voice: str="zh-CN-YunxiNeural") -> dict:
     """Strictly unpack and verify one authored engine course package."""
     from animation_engine.unified_classroom_flow import canonical_sha, checked_flow
     from animation_engine.spoken_classroom import checked_spoken
@@ -72,6 +73,16 @@ def extract_engine_package(data: bytes, destination: Path,
                 json.loads(flow_path.read_text(encoding="utf-8"))
                 ["reference_solution_sha256"]):
             raise BridgeError("PACKAGE_SOURCE_DOES_NOT_MATCH_LESSON")
+        # The UI's selected voice becomes the actual source voice BEFORE
+        # script export/approval so the TTS does not silently ignore it.
+        from animation_engine.spoken_classroom import VOICES
+        if voice not in VOICES:
+            raise BridgeError("PACKAGE_UNSUPPORTED_VOICE")
+        spoken_doc=json.loads(spoken_path.read_text(encoding="utf-8"))
+        spoken_doc["voice"]=voice
+        spoken_path.write_text(json.dumps(
+            spoken_doc,ensure_ascii=False,indent=2
+        )+"\n",encoding="utf-8")
         spoken = checked_spoken(spoken_path, adaptive=False)
         if spoken.flow.source_sha256 != flow.source_sha256:
             raise BridgeError("PACKAGE_SPOKEN_FLOW_MISMATCH")
