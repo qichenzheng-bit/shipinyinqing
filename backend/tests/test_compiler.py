@@ -90,7 +90,7 @@ def test_reviewed_course_compiles_to_real_source_verified_v27(tmp_path):
 
 def test_reviewed_compiler_rejects_unvalidated_math_without_source(tmp_path):
     source,candidate=curriculum_fixture(tmp_path)
-    candidate["units"][3]["math"][0]["latex"]=r"\\write18{malicious}"
+    candidate["units"][3]["math"][0]["latex"]="\\write18{malicious}"
     with pytest.raises(Exception,match="UNSAFE_TEX"):
         compile_reviewed_curriculum(
             problem=source["problem"],
