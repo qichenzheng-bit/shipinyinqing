@@ -19,6 +19,10 @@
     }
     const response=await fetch('/api/v1'+path,{...options,headers});
     if (!response.ok) {
+      if (response.status===401 && path!=='/auth/login') {
+        state.route='login';
+        render();
+      }
       let message='';
       try {const body=await response.json();message=body.detail || JSON.stringify(body);}
       catch {message='请求失败';}
@@ -139,6 +143,11 @@
     '<input class="input" id="reviewer" placeholder="填写实际审核人标识"></div>'+
     '<label class="row" style="margin-bottom:22px"><input type="checkbox" class="check" id="review-check">确认已经检查讲稿及数学内容</label>'+
     '<div class="actions">'+button('确认通过','approve','primary')+button('返回','back-to-detail')+'</div></div>';
+  const login = () => '<div class="video-card" style="max-width:420px;margin:95px auto">'+
+    '<h1 style="margin-bottom:32px">登录微光数学</h1>'+
+    '<form id="login-form"><div class="field"><label for="login-secret">访问密钥</label>'+
+    '<input class="input" id="login-secret" type="password" autocomplete="current-password" required></div>'+
+    '<button type="submit" class="btn primary" style="width:100%">登录</button></form></div>';
   const settings = () => head('设置')+'<div class="settings-list">'+
     '<h2>视频</h2><div class="setting-row"><span>默认音色</span><select class="select" id="setting-voice">'+
     '<option value="zh-CN-YunxiNeural">云希</option><option value="zh-CN-XiaoxiaoNeural">晓晓</option></select></div>'+
@@ -163,7 +172,7 @@
     root.innerHTML=nav()+'<main class="main">'+(
       state.route==='work'?work():state.route==='library'?library():
       state.route==='detail'?detail():state.route==='review'?review():
-      state.route==='trash'?trash():settings()
+      state.route==='trash'?trash():state.route==='login'?login():settings()
     )+'</main>'+modal();
     if(state.route==='work') {
       const prefs=JSON.parse(localStorage.getItem('wg-prefs')||'{}');
@@ -206,6 +215,18 @@
   };
 
   document.addEventListener('submit', event => {
+    if(event.target.id==='login-form'){
+      event.preventDefault();
+      const token=$('#login-secret').value;
+      exec(async()=>{
+        await api('/auth/login',options('POST',{token}));
+        state.route='work';
+        await refresh();
+        state.settings=await api('/settings');
+        flash('已登录');
+      });
+      return;
+    }
     if(event.target.id!=='create-form')return;
     event.preventDefault();
     const form=new FormData(event.target);
