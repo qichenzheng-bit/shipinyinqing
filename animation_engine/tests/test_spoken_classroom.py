@@ -114,3 +114,40 @@ def test_reject_missing_narration_and_answer_source_language(example,variant,err
     put(example,data)
     with pytest.raises(LongboardError,match=error):
         checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+@pytest.mark.parametrize("voice",["zh-CN-YunxiNeural","zh-CN-XiaoxiaoNeural"])
+def test_both_user_approved_voices_keep_the_same_math_and_narration(example, voice):
+    data=get(example)
+    data["voice"]=voice
+    data["speech_rate"]="+1%"
+    put(example,data)
+    contract=checked_spoken(example/"spoken_classroom.json",adaptive=True)
+    plan=plan_spoken(example/"spoken_classroom.json",adaptive=True)
+    assert contract.voice==plan["voice"]==voice
+    assert contract.speech_rate==plan["speech_rate"]=="+1%"
+    assert plan["math_writes_all_voiced"] and plan["action_count"]==18
+
+
+def test_legacy_missing_rate_defaults_to_approved_five_percent_faster(example):
+    data=get(example)
+    data.pop("speech_rate",None)
+    put(example,data)
+    assert checked_spoken(example/"spoken_classroom.json",adaptive=True).speech_rate=="+1%"
+
+
+@pytest.mark.parametrize("rate",["-4%","+1%","+5%","-30%","+30%"])
+def test_reviewed_speech_rate_is_configurable(example,rate):
+    data=get(example)
+    data["speech_rate"]=rate
+    put(example,data)
+    assert checked_spoken(example/"spoken_classroom.json",adaptive=True).speech_rate==rate
+
+
+@pytest.mark.parametrize("rate",["1%","101%","fast","+31%","-31%","",None,0,True])
+def test_unapproved_or_malformed_speech_rates_fail_closed(example,rate):
+    data=get(example)
+    data["speech_rate"]=rate
+    put(example,data)
+    with pytest.raises(LongboardError,match="SPOKEN_RATE_NOT_APPROVED"):
+        checked_spoken(example/"spoken_classroom.json",adaptive=True)

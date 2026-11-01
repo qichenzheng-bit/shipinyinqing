@@ -255,6 +255,8 @@ def render_spoken_classroom(
             "source_flow_sha256":checked.flow.source_sha256,
             "teacher_reviewed_all_visual_actions":True,
             "voice_status":"real_edge_neural_pcm_verified",
+            "voice":checked.voice,
+            "speech_rate":checked.speech_rate,
             "subtitle_status":"actual_tts_phrase_aligned",
             "math_caption_renderer":"true_manim_mathtex",
             "subtitle_count":len(cues),

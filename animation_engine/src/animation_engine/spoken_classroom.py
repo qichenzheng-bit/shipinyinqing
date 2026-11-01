@@ -22,6 +22,10 @@ ROOT = frozenset({
     "schema_version", "mode", "teacher_reviewed", "source_flow_sha256",
     "voice", "events",
 })
+OPTIONAL_ROOT = frozenset({"speech_rate"})
+# Previously approved Yunxi speech used -4%. +1% is approximately 5.2%
+# faster in the Edge TTS speed setting; exact acoustic duration is measured.
+DEFAULT_SPEECH_RATE = "+1%"
 EVENT = frozenset({
     "stage_id", "event_id", "pedagogical_cue_covered", "spans",
     "question_read_aloud", "question_source_sha256",
@@ -67,6 +71,7 @@ class SpokenContract:
     source_sha256: str
     voice: str
     events: tuple[SpokenEvent, ...]
+    speech_rate: str = DEFAULT_SPEECH_RATE
 
     def grouped(self) -> dict[str, dict[str, SpokenEvent]]:
         result: dict[str, dict[str, SpokenEvent]] = {}
@@ -129,7 +134,7 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
                    measure=None) -> SpokenContract:
     path = Path(input_file).resolve()
     doc = _load(path)
-    if (set(doc) != ROOT or doc["schema_version"] != "1.0"
+    if (set(doc) not in (ROOT, ROOT | OPTIONAL_ROOT) or doc["schema_version"] != "1.0"
             or doc["mode"] != "verified_spoken_classroom"
             or doc["teacher_reviewed"] is not True):
         raise LongboardError("SPOKEN_INVALID_MANIFEST")
@@ -138,6 +143,9 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
         raise LongboardError("SPOKEN_SOURCE_CHANGED")
     if doc["voice"] not in VOICES:
         raise LongboardError("SPOKEN_VOICE_NOT_APPROVED")
+    rate = doc.get("speech_rate", DEFAULT_SPEECH_RATE)
+    if type(rate) is not str or not re.fullmatch(r"[+-](?:[0-9]|[12][0-9]|30)%", rate):
+        raise LongboardError("SPOKEN_RATE_NOT_APPROVED")
     # A positive source-bound statement of which screen objects were
     # actually drawn is stronger than counting formulas in a script.
     required = _expected_actions(flow, measure=measure, adaptive=adaptive)
@@ -215,7 +223,7 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
         validated.append(SpokenEvent(
             recorded["stage_id"], recorded["event_id"], tuple(checked)
         ))
-    return SpokenContract(flow, canonical_sha(doc), doc["voice"], tuple(validated))
+    return SpokenContract(flow, canonical_sha(doc), doc["voice"], tuple(validated), rate)
 
 
 def plan_spoken(input_file: Path | str, *, adaptive=False, measure=None) -> dict:
@@ -225,6 +233,7 @@ def plan_spoken(input_file: Path | str, *, adaptive=False, measure=None) -> dict
         "source_spoken_sha256": checked.source_sha256,
         "source_flow_sha256": checked.flow.source_sha256,
         "voice": checked.voice,
+        "speech_rate": checked.speech_rate,
         "event_count": len(checked.events),
         "action_count": sum(len(x.spans) for x in checked.events),
         "pedagogical_cue_coverage": "teacher_reviewed_all",

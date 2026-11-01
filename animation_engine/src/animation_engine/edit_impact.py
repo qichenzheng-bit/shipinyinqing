@@ -79,6 +79,8 @@ def analyze_impact(before_package: Path, after_package: Path,
         # Replacing the entire voice or moving/adding/removing event blocks
         # requires conservative whole-lesson resynchronization.
         if (before_spoken.get("voice")!=after_spoken.get("voice") or
+                before_spoken.get("speech_rate", "+1%") !=
+                after_spoken.get("speech_rate", "+1%") or
                 len(before_spoken.get("events",[]))!=
                 len(after_spoken.get("events",[]))):
             global_invalidation=True

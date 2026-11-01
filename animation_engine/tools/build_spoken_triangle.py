@@ -109,6 +109,7 @@ def export_spoken_triangle(root: Path):
         "teacher_reviewed":True,
         "source_flow_sha256":flow.source_sha256,
         "voice":"zh-CN-YunxiNeural",
+        "speech_rate":"+1%",
         "events":events,
     }
     (root/"spoken_classroom.json").write_text(

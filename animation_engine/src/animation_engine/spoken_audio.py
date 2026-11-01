@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .longboard_plan import LongboardError
-from .spoken_classroom import SpokenContract
+from .spoken_classroom import SpokenContract, DEFAULT_SPEECH_RATE
 
 SAMPLE_RATE = 24000
 
@@ -90,7 +90,8 @@ def _decode_mp3_to_pcm(mp3: Path, wav: Path) -> bytes:
 
 
 async def _edge_clip(index: int, text: str, voice: str,
-                     root: Path, semaphore, cache=None) -> bytes:
+                     root: Path, semaphore, cache=None,
+                     rate: str=DEFAULT_SPEECH_RATE) -> bytes:
     try:
         import edge_tts
     except ImportError as exc:
@@ -100,7 +101,7 @@ async def _edge_clip(index: int, text: str, voice: str,
     # Key includes voice, actual speed, source text, sample-rate and code/
     # provider versions (the cache itself supplies the runtime signature).
     cache_key=(cache.key("speech_pcm",{
-        "text":text,"voice":voice,"rate":"-4%",
+        "text":text,"voice":voice,"rate":rate,
         "sample_rate":SAMPLE_RATE,"codec":"pcm_s16le_mono",
     }) if cache is not None else None)
     async with semaphore:
@@ -115,7 +116,7 @@ async def _edge_clip(index: int, text: str, voice: str,
             try:
                 await asyncio.wait_for(
                     edge_tts.Communicate(
-                        text, voice=voice, rate="-4%",
+                        text, voice=voice, rate=rate,
                     ).save(str(mp3)),
                     timeout=35,
                 )
@@ -150,11 +151,11 @@ async def synthesize_voiced_spans(contract: SpokenContract, root: Path,
             for part in span.parts:
                 if part["kind"]=="text":
                     for phrase in split_natural_phrases(part["value"]):
-                        requests.append((index,phrase,contract.voice))
+                        requests.append((index,phrase,contract.voice,contract.speech_rate))
                         keys.append((index,"text",phrase,phrase))
                         index+=1
                 else:
-                    requests.append((index,part["reading"],contract.voice))
+                    requests.append((index,part["reading"],contract.voice,contract.speech_rate))
                     keys.append((index,"math",part["latex"],part["reading"]))
                     index+=1
             spans.append((span,keys))
@@ -163,14 +164,14 @@ async def synthesize_voiced_spans(contract: SpokenContract, root: Path,
     # run; different text, voice or actual speech speed must NEVER be reused.
     semaphore=asyncio.Semaphore(4)
     unique={}
-    for i,txt,voice in requests:
-        unique.setdefault((txt,voice),(i,txt,voice))
+    for i,txt,voice,rate in requests:
+        unique.setdefault((txt,voice,rate),(i,txt,voice,rate))
     found=await asyncio.gather(*(
-        _edge_clip(i,txt,voice,root,semaphore,cache=cache)
-        for i,txt,voice in unique.values()
+        _edge_clip(i,txt,voice,root,semaphore,cache=cache,rate=rate)
+        for i,txt,voice,rate in unique.values()
     ))
     by_phrase=dict(zip(unique,found))
-    raw={i:by_phrase[(txt,voice)] for i,txt,voice in requests}
+    raw={i:by_phrase[(txt,voice,rate)] for i,txt,voice,rate in requests}
     if cache is not None:
         cache.counts["speech_same_run_deduplicated"]+=(
             len(requests)-len(unique)

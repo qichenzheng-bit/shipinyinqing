@@ -607,3 +607,52 @@ def test_actual_ffmpeg_event_clip_extraction_uses_compatible_fixed_fps(tmp_path)
         assert _video_frames(dest,30,min_frames=1)==frames
         assert len(restored["event_timing"])==1
         assert restored["event_timing"][0]["event_id"]==eid
+
+
+def test_changing_speech_rate_invalidates_all_stages_and_full_timeline(tmp_path):
+    before,after=_package(tmp_path)
+    path,data=_spoken(after)
+    data["speech_rate"]="-4%"
+    _write(path,data)
+    impact=analyze_impact(before,after,_op("/speech_rate"))
+    assert impact["whole_lesson_invalidation"]
+    assert impact["affected_stages"]==[
+        "introduce_triangle","calculate_hypotenuse","calculate_perimeter"
+    ]
+    assert impact["reusable_stages_subject_to_cache_validation"]==[]
+
+
+def test_voice_cache_is_keyed_by_actual_voice_and_speech_rate(tmp_path,monkeypatch):
+    import types
+    from animation_engine import spoken_audio
+    calls=[]
+    class DummyVoice:
+        def __init__(self,text,voice,rate):
+            calls.append((text,voice,rate))
+        async def save(self,path):
+            Path(path).write_bytes(b"MOCK ONLY MP3 BYTES"*20)
+    monkeypatch.setitem(sys.modules,"edge_tts",
+                        types.SimpleNamespace(Communicate=DummyVoice))
+    monkeypatch.setattr(
+        spoken_audio,"_decode_mp3_to_pcm",
+        lambda mp3,wav: struct.pack("<h",1200)*15000,
+    )
+    cache=ArtifactCache(tmp_path/"cache")
+    root=tmp_path/"clips"
+    root.mkdir()
+    semaphore=asyncio.Semaphore(1)
+    def run(i,voice,rate):
+        return asyncio.run(_edge_clip(
+            i,"求三角形周长","zh-CN-"+voice+"Neural",
+            root,semaphore,cache,rate=rate,
+        ))
+    run(0,"Yunxi","+1%")
+    run(1,"Yunxi","+1%")
+    run(2,"Yunxi","-4%")
+    run(3,"Xiaoxiao","+1%")
+    assert calls==[
+        ("求三角形周长","zh-CN-YunxiNeural","+1%"),
+        ("求三角形周长","zh-CN-YunxiNeural","-4%"),
+        ("求三角形周长","zh-CN-XiaoxiaoNeural","+1%"),
+    ]
+    assert cache.stats()["speech_pcm_hit"]==1
