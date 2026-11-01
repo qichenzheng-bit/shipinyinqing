@@ -86,6 +86,42 @@ def test_render_cache_signature_invalidates_when_tex_or_fonts_change(
         render_cache.engine_signature.cache_clear()
 
 
+def test_windows_cjk_font_discovery_and_cache_fingerprint(tmp_path, monkeypatch):
+    from animation_engine import classroom_compositor, render_cache
+    fonts = tmp_path / "Fonts"
+    fonts.mkdir()
+    yahei = fonts / "msyh.ttc"
+    yahei.write_bytes(b"test-system-font-data")
+    monkeypatch.setenv("WINDIR", str(tmp_path))
+    monkeypatch.setattr(classroom_compositor, "_CJK_FONT_CANDIDATES", ())
+    assert classroom_compositor._cjk_font_path() == yahei
+    assert classroom_compositor._cjk_text_font_family() == "Microsoft YaHei"
+    signature = render_cache._render_environment_fingerprint()
+    assert signature["board_cjk_font"]["sha256"] == render_cache.file_sha(yahei)
+
+
+def test_concurrent_same_key_writes_publish_single_valid_cache_entry(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    cache = ArtifactCache(tmp_path / "resources")
+    key = cache.key("speech_pcm", {"content": "same-key", "voice": "verified"})
+    payload = struct.pack("<h", 1600) * 15000  # Valid non-silent 24 kHz PCM
+    # Make every writer repair the same bad entry under contention.
+    cache.write("speech_pcm", key, {"payload.bin": payload})
+    entry = cache._entry("speech_pcm", key)
+    (entry / "payload.bin").write_bytes(b"corrupted")
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(
+            lambda _: cache.write("speech_pcm", key, {"payload.bin": payload}),
+            range(20),
+        ))
+    assert all(result is None for result in results)
+    assert cache.get_pcm(key) == payload
+    assert json.loads((entry / "record.json").read_text(encoding="utf-8"))[
+        "files"
+    ]["payload.bin"]["bytes"] == len(payload)
+    assert not list(entry.parent.glob(".pending-*"))
+
+
 def test_cache_integrity_and_payload_tampering(tmp_path):
     cache=ArtifactCache(tmp_path/"resources")
     key=cache.key("speech_pcm",{"text":"数学教学","voice":"A","rate":"-4%"})
@@ -328,6 +364,9 @@ def test_cached_mathtex_subtitle_png_decodes_and_rejects_bad_alpha(tmp_path):
     invalid=Image.new("RGBA",(1280,88),(255,255,255,255))
     invalid_bytes=BytesIO()
     invalid.save(invalid_bytes,format="PNG")
+    # Published valid keys are immutable; force corruption first so the
+    # replacement path can still exercise bad-alpha validation.
+    (cache._entry("subtitle_png", key) / "payload.bin").write_bytes(b"damaged")
     cache.write("subtitle_png",key,{"payload.bin":invalid_bytes.getvalue()})
     assert cache.get_png(key,tmp_path/"invalid.png") is False
     assert cache.stats()["subtitle_png_invalid"]>=1
