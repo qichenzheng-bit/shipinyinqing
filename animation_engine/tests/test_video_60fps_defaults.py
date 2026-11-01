@@ -40,6 +40,24 @@ def test_board_wipe_preserves_duration_across_frame_rates():
             transition_frame_count(invalid)
 
 
+def test_all_three_packages_require_supported_python_runtime():
+    import tomllib
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    for module in ("teacher_module", "visual_director", "animation_engine"):
+        config = tomllib.loads(
+            (root / module / "pyproject.toml").read_text(encoding="utf-8")
+        )
+        assert config["project"]["requires-python"] == ">=3.11"
+
+
+def test_persistent_board_wipe_uses_shared_duration_without_rendering():
+    from animation_engine.persistent_chalkboard import render_persistent_chalkboard
+    source = inspect.getsource(render_persistent_chalkboard)
+    assert "run_time=BOARD_WIPE_SECONDS" in source
+    assert "run_time=.75" not in source
+
+
 def test_cli_spoken_render_uses_60fps_without_producing_a_movie(monkeypatch, tmp_path):
     from animation_engine.cli import main
     from animation_engine import spoken_movie

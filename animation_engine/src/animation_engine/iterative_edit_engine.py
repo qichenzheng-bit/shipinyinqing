@@ -418,26 +418,40 @@ def record_feedback(root: Path, feedback: str, *, satisfied: bool = False) -> di
 
 def export_history(root: Path, output: Path) -> dict:
     """The sole outward training-data export is a complete UTF-8 JSON file."""
-    state = _state(Path(root))
-    export = {
-        "schema_version": "1.0", "mode": "iterative_edit_training_export",
-        "created_at": state["created_at"],
-        "exported_at": _now(),
-        "current_revision": state["revision"],
-        "current_satisfied": state["satisfied"],
-        "rounds": state["history"],
-        "notes": {
-            "raw_instructions_preserved": True,
-            "failed_and_rejected_rounds_included": True,
-            "user_feedback_preserved": True,
-            "no_automatic_external_upload": True,
-            "media_not_embedded": True,
-        },
-    }
     output = Path(output)
     if output.suffix.lower() != ".json":
         raise EditEngineError("EDIT_ONLY_JSON_EXPORT")
-    atomic_json(output, export)
+    root = Path(root)
+    # Export the complete history from one committed revision. _state may
+    # repair crash-interrupted latest.* aliases, so it also needs the lock.
+    # Never overwrite the session journal or an immutable video revision.
+    destination = output.resolve()
+    if (destination in {
+                (root / _SESSION).resolve(),
+                (root / "latest_manifest.json").resolve(),
+            }
+            or destination.is_relative_to((root / "versions").resolve())
+            or destination.is_relative_to((root / "attempts").resolve())
+            or destination.is_relative_to((root / "render_cache").resolve())):
+        raise EditEngineError("EDIT_EXPORT_PROTECTED_PATH")
+    with session_lock(root):
+        state = _state(root)
+        export = {
+            "schema_version": "1.0", "mode": "iterative_edit_training_export",
+            "created_at": state["created_at"],
+            "exported_at": _now(),
+            "current_revision": state["revision"],
+            "current_satisfied": state["satisfied"],
+            "rounds": state["history"],
+            "notes": {
+                "raw_instructions_preserved": True,
+                "failed_and_rejected_rounds_included": True,
+                "user_feedback_preserved": True,
+                "no_automatic_external_upload": True,
+                "media_not_embedded": True,
+            },
+        }
+        atomic_json(output, export)
     return export
 
 

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "shipinyinqing-math-teacher"
 version = "0.1.0"
 description = "Standalone postgraduate mathematics teacher lesson-planning module"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["pydantic>=2.7,<3", "sympy>=1.12,<2"]
 
 [project.optional-dependencies]

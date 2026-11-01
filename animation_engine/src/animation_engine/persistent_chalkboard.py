@@ -8,7 +8,7 @@ result may then be explicitly REWRITTEN from the verified original source.
 """
 from __future__ import annotations
 
-from .video_settings import DEFAULT_VIDEO_FPS
+from .video_settings import DEFAULT_VIDEO_FPS, BOARD_WIPE_SECONDS
 
 import json
 import math
@@ -1263,7 +1263,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             self.add(eraser)
                             self.play(
                                 eraser.animate.move_to([erase_target,-.45,0]),
-                                run_time=.75,rate_func=linear
+                                run_time=BOARD_WIPE_SECONDS,rate_func=linear
                             )
                             removing=list(active.values())+(
                                 [] if keep_graph else list(diagram_active.values())
