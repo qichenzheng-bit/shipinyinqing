@@ -127,6 +127,11 @@ def test_full_api_course_review_video_edit_feedback_export(studio):
     assert job["status"]=="succeeded",job
     video=client.get(f"/api/v1/videos/{ident}/stream")
     assert video.status_code==200 and video.content==b"TEST_ONLY_NOT_PLAYABLE_AV"
+    seek=client.get(f"/api/v1/videos/{ident}/stream",headers={
+        "Range":"bytes=0-3",
+    })
+    assert seek.status_code==206,seek.text
+    assert seek.content==b"TEST"
     dl=client.get(f"/api/v1/videos/{ident}/download")
     assert dl.status_code==200
     rename=client.patch(f"/api/v1/videos/{ident}",json={"title":"积分教学修改版"})
