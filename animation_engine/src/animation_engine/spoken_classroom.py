@@ -138,6 +138,13 @@ def _expected_actions(flow: Flow, *, measure=None, adaptive=False) -> list[dict]
                     ident, maths[ident]["latex"] if block["kind"] == "math"
                     else None
                 ))
+            # Reading a source formula already pinned in the header is
+            # an authenticated voice/subtitle action, not a fresh board write.
+            expected.extend(
+                (a["kind"],a["object_id"],
+                 maths[a["object_id"]]["latex"] if a["kind"]=="math" else None)
+                for a in event.get("speech_only_actions", [])
+            )
             if diagram and event["diagram_order"] == "math_then_diagram":
                 expected.append(diagram)
             result.append({
