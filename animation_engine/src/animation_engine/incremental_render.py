@@ -124,6 +124,11 @@ def _cache_full_stage_events(
                     "start_preview_second":a0["start_preview_second"]-offset,
                     "end_preview_second":a0["end_preview_second"]-offset,
                 } for a0 in event["action_timing"]],
+                "diagram_reveal_timing":[{
+                    **d0,
+                    "start_preview_second":d0["start_preview_second"]-offset,
+                    "end_preview_second":d0["end_preview_second"]-offset,
+                } for d0 in event.get("diagram_reveal_timing",[])],
             }
             # Entry state comes from the source-checked full Manim render.
             item={
@@ -234,6 +239,11 @@ def _rebuild_stage_from_events(
                 "start_preview_second":start,
                 "end_preview_second":start+clip_frames/fps,
                 "action_timing":action,
+                "diagram_reveal_timing":[{
+                    **d0,
+                    "start_preview_second":start+d0["start_preview_second"],
+                    "end_preview_second":start+d0["end_preview_second"],
+                } for d0 in event.get("diagram_reveal_timing",[])],
             })
             cursor+=clip_frames
         # Every event must be present in stage order; no math or voice

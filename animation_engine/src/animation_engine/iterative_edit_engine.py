@@ -11,6 +11,8 @@ never pretends that a hard-coded keyword parser understands arbitrary language.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import json
 import os
 import shutil
@@ -37,17 +39,29 @@ def _now() -> str:
 
 @contextmanager
 def session_lock(root: Path):
+    """OS-held lock: automatically released after crashes, unlike O_EXCL files."""
     flag = root / ".edit_lock"
+    fd = os.open(flag, os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        fd = os.open(flag, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError as exc:
-        raise EditEngineError("EDIT_SESSION_LOCKED") from exc
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(f"{os.getpid()}\n")
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                raise EditEngineError("EDIT_SESSION_LOCKED") from exc
+        else:
+            import fcntl
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise EditEngineError("EDIT_SESSION_LOCKED") from exc
+        os.ftruncate(fd, 0)
+        os.write(fd, f"{os.getpid()}\n".encode())
         yield
     finally:
-        flag.unlink(missing_ok=True)
+        os.close(fd)
+        # The lockfile may remain; kernel-held locks never remain after death.
 
 
 def _state(root: Path) -> dict:
@@ -57,6 +71,20 @@ def _state(root: Path) -> dict:
     data = json.loads(p.read_text(encoding="utf-8"))
     if data.get("schema_version") != "1.0" or data.get("mode") != "iterative_video_edit":
         raise EditEngineError("EDIT_SESSION_SCHEMA")
+    # Restore legacy latest.* aliases from the immutable committed revision.
+    # If a previous process died between replacing three files, the session
+    # revision remains authoritative and none of the mixed aliases survive.
+    committed = Path(root) / "versions" / f"{data['revision']:04d}"
+    for source_name, alias in (
+        (_MOVIE, "latest.mp4"), (_MANIFEST, "latest_manifest.json"),
+        (_SUBTITLE, "latest.srt"),
+    ):
+        source = committed / source_name
+        target = Path(root) / alias
+        if not source.is_file():
+            raise EditEngineError("EDIT_COMMITTED_REVISION_MISSING")
+        if not target.is_file() or file_digest(target) != file_digest(source):
+            _publish(source, target)
     return data
 
 
@@ -113,9 +141,42 @@ def _publish(source: Path, latest: Path):
         temp.unlink(missing_ok=True)
 
 
+def _publish_bundle(version: Path, root: Path) -> None:
+    """Rollback all aliases on ordinary publish errors.
+
+    A crash is repaired by _state from the immutable committed revision;
+    callers must always treat edit_session.json revision as the commit pointer.
+    """
+    import tempfile
+    names = (
+        (_MOVIE, "latest.mp4"),
+        (_MANIFEST, "latest_manifest.json"),
+        (_SUBTITLE, "latest.srt"),
+    )
+    with tempfile.TemporaryDirectory(prefix=".publish-backup-",dir=root) as backup:
+        saved = Path(backup)
+        had = set()
+        for _, target in names:
+            current = root / target
+            if current.is_file():
+                had.add(target)
+                shutil.copyfile(current, saved / target)
+        try:
+            for source, target in names:
+                _publish(version / source, root / target)
+        except Exception:
+            for _, target in names:
+                current = root / target
+                if target in had:
+                    _publish(saved / target, current)
+                else:
+                    current.unlink(missing_ok=True)
+            raise
+
+
 def create_session(
     package: Path, baseline_mp4: Path, baseline_manifest: Path,
-    root: Path, *, adaptive: bool = True, fps: int = 30,
+    root: Path, *, adaptive: bool = True, fps: int = DEFAULT_VIDEO_FPS,
     media_check: Callable[[Path], Any] = _verified_media,
 ) -> dict:
     """Initialize on an already verified V2.6.4 lesson, not dummy speech."""
@@ -142,9 +203,7 @@ def create_session(
                                 v0 / _SUBTITLE)
             else:
                 (v0 / _SUBTITLE).write_text("", encoding="utf-8")
-            _publish(v0 / _MOVIE, root / "latest.mp4")
-            _publish(v0 / _MANIFEST, root / "latest_manifest.json")
-            _publish(v0 / _SUBTITLE, root / "latest.srt")
+            _publish_bundle(v0, root)
             state = {
                 "schema_version": "1.0", "mode": "iterative_video_edit",
                 "created_at": _now(), "updated_at": _now(),
@@ -283,9 +342,7 @@ def run_edit(
                 raise EditEngineError("EDIT_VERSION_ALREADY_EXISTS")
             version.parent.mkdir(exist_ok=True)
             os.replace(folder, version)
-            _publish(version / _MOVIE, root / "latest.mp4")
-            _publish(version / _MANIFEST, root / "latest_manifest.json")
-            _publish(version / _SUBTITLE, root / "latest.srt")
+            _publish_bundle(version, root)
             attempt["cache_stats"]=actual.get("incremental_cache")
             attempt["render_timings_seconds"]=actual.get("render_timings_seconds")
             attempt.update({
@@ -305,6 +362,11 @@ def run_edit(
             attempt["error"] = (
                 f"{type(exc).__name__}: {str(exc)[:700]}"
             )
+            # In addition to restoring the latest aliases, remove a staged
+            # version that was already moved out of attempts before publishing
+            # failed; otherwise retrying the same revision would be blocked.
+            if "version" in locals() and version.exists() and state["revision"] < next_version:
+                shutil.rmtree(version, ignore_errors=True)
             # Missing output, bad math or TTS failure must never change the
             # user-visible latest movie.
             shutil.rmtree(folder, ignore_errors=True)

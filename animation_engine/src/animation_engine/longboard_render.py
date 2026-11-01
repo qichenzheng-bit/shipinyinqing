@@ -8,6 +8,8 @@ preview timing, never generated speech or a fake transcript.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import json
 import os
 import shutil
@@ -30,7 +32,7 @@ def render_longboard_movie(
     output_json: Path, policy: dict | None = None,
     classroom_cues: dict | None = None,
     pixel_width: int = 1280, pixel_height: int = 720,
-    fps: int = 30,
+    fps: int = DEFAULT_VIDEO_FPS,
 ) -> dict:
     if type(fps) is not int or not 8 <= fps <= 60:
         raise LongboardError("INVALID_FPS")

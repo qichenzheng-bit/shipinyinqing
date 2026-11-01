@@ -7,6 +7,8 @@ Every fixture here uses real Manim/MathTex, not screenshots of fake equations.
 """
 from __future__ import annotations
 
+from animation_engine.video_settings import DEFAULT_VIDEO_FPS
+
 import argparse
 import json
 import math
@@ -47,7 +49,7 @@ def build(root: Path) -> None:
         raise ValueError("STRESS_INTEGRAL_INDEPENDENT_MATH_FAILED")
     print("V266_CROSS_TOPIC_SOURCE_AND_SYMPY_PASS",len(CASES),"fixtures")
 
-def render(root: Path, *, fps:int=30) -> None:
+def render(root: Path, *, fps: int = DEFAULT_VIDEO_FPS) -> None:
     if not 8<=fps<=60:
         raise ValueError("STRESS_INVALID_FPS")
     flags={
@@ -71,7 +73,7 @@ def render(root: Path, *, fps:int=30) -> None:
             "--manifest",str(p/"movie.json"),"--fps",str(fps))
         print("V266_CROSS_TOPIC_REAL_RENDERED",name)
 
-def audit(root: Path, *, fps:int=30) -> None:
+def audit(root: Path, *, fps: int = DEFAULT_VIDEO_FPS) -> None:
     findings=[]
     for name,(kind,_,special) in CASES.items():
         folder=root/name
@@ -145,7 +147,7 @@ def main() -> None:
     parser=argparse.ArgumentParser()
     parser.add_argument("--stage",choices=("build","render","audit"),required=True)
     parser.add_argument("--root",type=Path,required=True)
-    parser.add_argument("--fps",type=int,default=30)
+    parser.add_argument("--fps",type=int,default=DEFAULT_VIDEO_FPS)
     args=parser.parse_args()
     if args.stage=="build":
         build(args.root)

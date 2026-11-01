@@ -151,3 +151,98 @@ def test_unapproved_or_malformed_speech_rates_fail_closed(example,rate):
     put(example,data)
     with pytest.raises(LongboardError,match="SPOKEN_RATE_NOT_APPROVED"):
         checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_intro_has_actual_full_triangle_before_teacher_calls_it_drawn(example):
+    source=json.loads((example/"diagram"/"diagram_classroom.json").read_text("utf-8"))
+    cues={e["event_id"]: e["reveal_ids"] for e in source["stages"]}
+    assert {"AB","AC","BC"}.issubset(cues["e_intro"])
+    assert "BC" not in cues["e_rule"]
+    assert cues["e_rule"]==["label:B","label:C"]
+    spoken=get(example)
+    first=spoken["events"][0]["spans"][0]["parts"][0]["value"]
+    assert "画直角三角形" in first and "连接 B、C" in first
+    mark_cue=next(
+        e for e in spoken["events"] if e["event_id"]=="e_rule"
+    )["spans"][0]["parts"][0]["value"]
+    assert any(term in mark_cue for term in ("标出 B、C", "标上 B、C"))
+    # The teacher must describe drawing both legs BEFORE finishing the BC edge.
+    assert first.index("两条直角边") < first.index("连接 B、C")
+    assert checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_teaching_preambles_are_short_and_prior_math_is_not_rote_repeated(example):
+    spoken=get(example)
+    spans=[s for e in spoken["events"] for s in e["spans"]]
+    assert all(
+        len(p["value"])<=60
+        for s in spans for p in s["parts"] if p["kind"]=="text"
+    )
+    assert len(next(s for s in spans if s["object_id"]=="m_square_handoff")
+        ["parts"][-1]["reading"])<18
+    assert len(next(s for s in spans if s["object_id"]=="m_hypotenuse_recall")
+        ["parts"][0]["value"])<24
+
+
+@pytest.mark.parametrize("utterance,error", [
+    ("把上一页的等式接到计算区：", "SPOKEN_CLASSROOM_META_LANGUAGE"),
+    ("下面进入下一幕。", "SPOKEN_CLASSROOM_META_LANGUAGE"),
+    ("把这个公式移到板书区。", "SPOKEN_CLASSROOM_META_LANGUAGE"),
+    ("其公式为：", "SPOKEN_STILTED_TRANSITION"),
+    ("对应的公式是：", "SPOKEN_STILTED_TRANSITION"),
+    ("现在展示计算结果。", "SPOKEN_STILTED_TRANSITION"),
+])
+def test_reject_engine_language_and_stilted_transitions(example, utterance, error):
+    data=get(example)
+    # Any topic/scene can contain teacher prose; guard the general contract,
+    # not only the reviewed triangle example.
+    data["events"][0]["spans"][0]["parts"][0]["value"]=utterance
+    put(example,data)
+    with pytest.raises(LongboardError, match=error):
+        checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_approved_narration_uses_maths_not_renderer_as_transition(example):
+    spoken=get(example)
+    utterances=[
+        part["value"] if part["kind"]=="text" else part["reading"]
+        for event in spoken["events"] for span in event["spans"]
+        for part in span["parts"]
+    ]
+    assert not any(x in phrase for phrase in utterances
+                   for x in ["上一页","计算区","下一幕","对应的公式是","其公式为"])
+    carry=next(span for event in spoken["events"] for span in event["spans"]
+               if span["object_id"]=="m_square_handoff")
+    assert "接下来" in carry["parts"][0]["value"]
+    assert "八的平方加六的平方" in carry["parts"][-1]["reading"]
+    recap=next(span for event in spoken["events"] for span in event["spans"]
+               if span["object_id"]=="m_hypotenuse_recall")
+    assert recap["parts"][0]["value"].endswith("，")
+    assert checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_normal_mathematical_interval_word_is_not_interface_meta(example):
+    data=get(example)
+    data["events"][0]["spans"][0]["parts"][0]["value"]="下面计算区间长度。"
+    put(example,data)
+    assert checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_reduced_source_math_caption_is_reviewed_subexpression(example):
+    data=get(example)
+    match=next(s for e in data["events"] for s in e["spans"]
+               if s["object_id"]=="m_square_handoff")
+    assert match["parts"][-1]["spoken_math_latex"]==r"8^2+6^2"
+    match["parts"][-1]["spoken_math_latex"]=r"x=9"
+    put(example,data)
+    with pytest.raises(LongboardError,match="SPOKEN_CAPTION_MATH_NOT_A_REVIEWED_SOURCE_FRAGMENT"):
+        checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_diagram_cues_reject_unsourced_drawing_commands(example):
+    data=get(example)
+    span=data["events"][0]["spans"][0]
+    span["parts"][0]["value"]="现在画出新的三角形，再标出所有顶点。"
+    put(example,data)
+    with pytest.raises(LongboardError,match="SPOKEN_DIAGRAM_BEATS_UNSOURCED"):
+        checked_spoken(example/"spoken_classroom.json",adaptive=True)

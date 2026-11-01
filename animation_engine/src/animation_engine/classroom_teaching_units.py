@@ -96,8 +96,10 @@ def compile_teaching_units(*, problem: str, reference_solution: str,
         # These counts are not animation steps. One pedagogical unit includes
         # as many genuine computation steps as necessary, up to screen-fit.
         steps=unit["math"]
-        if not isinstance(steps,list) or not 1<=len(steps)<=6:
+        if (not isinstance(steps,list) or len(steps)>6 or
+                (not steps and unit["phase"]!="summary")):
             raise LongboardError(f"TEACHING_UNIT_MATH_COVERAGE: {uid}")
+        # A pure spoken summary is a genuine event: it introduces no new maths.
         # Formula count is NOT a proxy for teaching quality: a meaningful
         # insight can be one line, while a difficult derivation needs many.
         # The authored goal + per-line reasoning remain mandatory. A separate

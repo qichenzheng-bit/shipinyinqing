@@ -18,49 +18,73 @@ from build_math_memory_triangle import export_memory_triangle
 # One complete, natural explanation of every visible teaching note and drawing.
 # No references to the model answer, no empty filler or meaningless microsteps.
 NARRATIVE = {
+    # Spoken connectors follow mathematical reasoning, never a software page.
     ("introduce_triangle", "e_intro", "diagram"):
-        "这道题给我们一个直角三角形，两条直角边分别长八和六，要求斜边的长度和周长。我们先把直角三角形画出来，明确每条边的位置。",
+        "题目给出直角三角形，A 角是直角，AB 长八、AC 长六，求斜边和周长。先画直角三角形的两条直角边，再连接 B、C。",
     ("introduce_triangle", "e_intro", "note"):
-        "思路是先找清直角边和斜边，利用直角三角形的性质求出第三条边，然后再计算三条边的总长度。",
+        "两条直角边已经知道了。要算周长，先得求出斜边。",
     ("introduce_triangle", "e_intro", "math"):
-        "题目给出的两条直角边长度分别为",
+        "题目给出的两个长度是：",
     ("introduce_triangle", "e_angle", "diagram"):
-        "注意直角顶点的位置。两条从这个顶点出发的边互相垂直，另一条连接其余两点的边才是斜边。",
+        "在 A 角这里标出直角，说明这两条边互相垂直。",
     ("introduce_triangle", "e_angle", "math"):
-        "因此，这两条直角边满足垂直关系：",
+        "所以我们知道，",
     ("introduce_triangle", "e_rule", "diagram"):
-        "现在将第三条边补全，在图上标清斜边。我们接着使用直角三角形的勾股定理。",
+        "再标上 B、C。注意看，BC 正对着直角，就是斜边。",
     ("introduce_triangle", "e_rule", "note"):
-        "勾股定理的适用条件是直角三角形。这里不能随便把三条边代入，要确认哪一条是斜边。",
+        "既然是直角三角形，求斜边就可以用勾股定理。",
     ("introduce_triangle", "e_rule", "math"):
-        "勾股定理告诉我们，两条直角边的平方和等于斜边的平方，也就是",
+        "先把勾股定理写出来：",
     ("introduce_triangle", "e_apply", "math"):
-        "把本题的两条直角边代入，斜边的平方就等于",
+        "把两条直角边的长度代进去：",
     ("calculate_hypotenuse", "e_carry", "math"):
-        "沿着刚才建立的勾股定理关系，我们继续计算。已经得到",
+        "等式已经列好了，接下来往下算：",
     ("calculate_hypotenuse", "e_square_value", "math"):
-        "八的平方是六十四，六的平方是三十六，两者相加为一百，所以",
+        "把这两个平方算一下：",
     ("calculate_hypotenuse", "e_hypotenuse", "math"):
-        "三角形的边长必须是正数，因此取算术平方根，求得",
+        "因为边长要取正值，所以：",
     ("calculate_perimeter", "e_recap", "math"):
-        "斜边已经求出，这里直接使用刚才算出的结果，不需要重复做一遍平方根计算。",
+        "好，斜边算出来了，",
     ("calculate_perimeter", "e_legs", "note"):
-        "接下来计算周长。需要三条边的长度，因此先回顾题目最初给出的两条直角边。",
+        "另外两条边的长度，题目已经告诉我们了。",
     ("calculate_perimeter", "e_legs", "math"):
-        "另外两条边的长度仍然是题目给出的",
+        "分别是：",
     ("calculate_perimeter", "e_perimeter", "math"):
-        "三角形的周长是三条边长度的和，我们先写出周长关系式",
+        "三角形的周长，就是三条边长相加：",
     ("calculate_perimeter", "e_final", "note"):
-        "最后把已经求出的斜边和题设给出的两条直角边一起相加，检查三条边都被计入。",
+        "所以，把刚才求出的三条边长加起来就行。",
     ("calculate_perimeter", "e_final", "math"):
-        "因此，周长等于八加六再加十，得到二十四。完整的计算式为",
+        "这个三角形的周长就是：",
+}
+# Each visible stroke/label is anchored to a specific true TTS phrase.
+# It is not enough to bind all strokes to the same broad teaching event.
+DIAGRAM_PHRASE_CUES = {
+    ("introduce_triangle", "e_intro"): [
+        {"object_id":"A","phrase":"题目给出直角三角形，"},
+        {"object_id":"B","phrase":"题目给出直角三角形，"},
+        {"object_id":"C","phrase":"题目给出直角三角形，"},
+        {"object_id":"AB","phrase":"先画直角三角形的两条直角边，"},
+        {"object_id":"AC","phrase":"先画直角三角形的两条直角边，"},
+        {"object_id":"BC","phrase":"再连接 B、C。"},
+    ],
+    ("introduce_triangle", "e_angle"): [
+        {"object_id":"right_1","phrase":"在 A 角这里标出直角，"},
+        {"object_id":"right_2","phrase":"在 A 角这里标出直角，"},
+        {"object_id":"label:A","phrase":"在 A 角这里标出直角，"},
+    ],
+    ("introduce_triangle", "e_rule"): [
+        {"object_id":"label:B","phrase":"再标上 B、C。"},
+        {"object_id":"label:C","phrase":"再标上 B、C。"},
+    ],
 }
 MATH_READING = {
     "m_legs": "A B 等于八，A C 等于六。",
     "m_perpendicular": "A B 垂直于 A C。",
     "m_pythagoras": "a 的平方加 b 的平方等于 c 的平方。",
     "m_square": "B C 的平方等于八的平方加六的平方。",
-    "m_square_handoff": "B C 的平方等于八的平方加六的平方。",
+    # The identical MathTex is carried by a verified source handoff;
+    # do not mechanically read the full previously voiced equation again.
+    "m_square_handoff": "先看八的平方加六的平方。",
     "m_squares": "B C 的平方等于六十四加三十六，等于一百。",
     "m_hypotenuse": "B C 等于十。",
     "m_hypotenuse_recall": "B C 等于十。",
@@ -89,11 +113,14 @@ def export_spoken_triangle(root: Path):
                     raise ValueError("SPOKEN_MATH_PRONUNCIATION_NOT_AUTHORED: "+obj)
                 parts=[
                     {"kind":"text","value":text},
-                    {"kind":"math","latex":latex,"reading":reading},
+                    {"kind":"math","latex":latex,"reading":reading, **({"spoken_math_latex":r"8^2+6^2"} if obj=="m_square_handoff" else {})},
                 ]
             else:
                 parts=[{"kind":"text","value":text}]
-            spans.append({"kind":kind,"object_id":obj,"parts":parts})
+            item={"kind":kind,"object_id":obj,"parts":parts}
+            if kind=="diagram" and (stage_id,eid) in DIAGRAM_PHRASE_CUES:
+                item["diagram_phrase_cues"]=DIAGRAM_PHRASE_CUES[(stage_id,eid)]
+            spans.append(item)
         events.append({
             "stage_id":stage_id,"event_id":eid,
             "pedagogical_cue_covered":True,

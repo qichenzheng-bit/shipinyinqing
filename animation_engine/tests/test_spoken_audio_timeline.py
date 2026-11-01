@@ -138,3 +138,18 @@ def test_true_caption_band_codec_preserves_silence_and_segment_count(tmp_path):
             {("math",r"BC=10"):png},
             tmp_path/"overlap.mkv",fps=30,frames=45
         )
+
+
+def test_no_math_or_text_phrase_is_arbitrarily_cut_midexpression():
+    text="因此先完成变量替换然后根据新上下限积分"
+    fragments=split_natural_phrases(text,limit=16)
+    assert "".join(fragments)==text
+    assert len(fragments)>=2
+    with pytest.raises(LongboardError,match="VOICE_UNSAFE_LONG_CLAUSE"):
+        split_natural_phrases("单个连续数学符号无法安全按照固定字符数拆断",limit=8)
+
+
+def test_long_caption_relation_break_preserves_latex_braces():
+    from animation_engine.spoken_captions import _safe_math_caption_break
+    assert _safe_math_caption_break(r"I=\int_0^1 e^u\,du")==(r"I=",r"\int_0^1 e^u\,du")
+    assert _safe_math_caption_break(r"\frac{1+2}{x^2}") is None

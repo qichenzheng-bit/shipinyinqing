@@ -5,6 +5,8 @@ Video is a preview (not audio aligned), and the top question is compositor
 generated with genuine MathTex and a separate CJK text font.
 """
 from __future__ import annotations
+
+from .video_settings import DEFAULT_VIDEO_FPS
 import json
 import os
 import shutil
@@ -21,7 +23,7 @@ from .layout_transition import render_layout_transition
 def render_classroom_transition(
     storyboard, execution, *, from_event_id: str, to_event_id: str,
     output_mp4: Path, output_json: Path,
-    pixel_width: int = 1280, pixel_height: int = 720, fps: int = 15,
+    pixel_width: int = 1280, pixel_height: int = 720, fps: int = DEFAULT_VIDEO_FPS,
 ) -> dict:
     output_mp4, output_json = Path(output_mp4), Path(output_json)
     if output_mp4.resolve() == output_json.resolve() or (

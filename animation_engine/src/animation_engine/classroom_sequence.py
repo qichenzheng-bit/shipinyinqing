@@ -6,6 +6,8 @@ Manim MathTex MP4 with the verified fixed original question composited on top.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import hashlib
 import json
 import os
@@ -21,7 +23,7 @@ from .classroom_transition import render_classroom_transition
 
 def render_classroom_sequence(
     storyboard, execution, *, event_ids: list[str],
-    output_mp4: Path, output_json: Path, fps: int = 30,
+    output_mp4: Path, output_json: Path, fps: int = DEFAULT_VIDEO_FPS,
 ) -> dict:
     board = StoryboardPlan.model_validate(storyboard)
     names = [s.event_id for s in board.scenes]

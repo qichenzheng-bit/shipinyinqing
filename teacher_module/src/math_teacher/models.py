@@ -103,7 +103,7 @@ class PlannedEvent(StrictModel):
     event_id: str
     event_type: Literal[
         "read_question", "orient", "knowledge", "application", "derivation",
-        "proof", "branch", "subgoal", "conclusion"
+        "proof", "branch", "subgoal", "conclusion", "recap"
     ]
     source_step_ids: list[str]
     knowledge_binding_ids: list[str]

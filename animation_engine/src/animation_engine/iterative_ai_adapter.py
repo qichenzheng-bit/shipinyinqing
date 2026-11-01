@@ -14,9 +14,20 @@ import json
 import os
 from pathlib import Path
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 from .iterative_edit_ops import EditEngineError
+
+
+class _RejectCredentialRedirects(HTTPRedirectHandler):
+    """Never forward a model API bearer token to a redirected endpoint."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def urlopen(req, timeout):
+    """Compatibility injection seam, with secure no-redirect default."""
+    return build_opener(_RejectCredentialRedirects()).open(req, timeout=timeout)
 
 
 _SYSTEM = """You are editing the SOURCE of a mathematical classroom video, not

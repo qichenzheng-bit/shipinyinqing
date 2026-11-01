@@ -105,7 +105,6 @@ def test_flow_does_not_fabricate_a_new_area_integral(project):
     ("nonadjacent","FLOW_HANDOFF_NONADJACENT"),
     ("duplicate_handoff","FLOW_DUPLICATE_HANDOFF"),
     ("fake_first_handoff","FLOW_FIRST_STAGE_CANNOT_HANDOFF"),
-    ("skip_stage","FLOW_BAD_STAGE_COUNT"),
 ])
 def test_flow_fails_closed_on_unreviewed_math_or_order(project,change,error):
     bad=read(project)
@@ -126,10 +125,18 @@ def test_flow_fails_closed_on_unreviewed_math_or_order(project,change,error):
     elif change=="nonadjacent": bridge["from_stage"]="other"
     elif change=="duplicate_handoff": b["handoff"].append(dict(bridge))
     elif change=="fake_first_handoff": a["handoff"]=[dict(bridge)]
-    elif change=="skip_stage": bad["stages"].pop()
     write(project,bad)
     with pytest.raises(LongboardError,match=error):
         checked_flow(project/"unified_flow.json")
+
+
+def test_single_engine_source_flow_is_valid_without_fake_second_engine(project):
+    payload=read(project)
+    payload["stages"].pop()
+    write(project,payload)
+    verified=checked_flow(project/"unified_flow.json")
+    assert len(verified.stages)==1
+    assert verified.stages[0].engine=="diagram"
 
 
 def test_source_package_mutation_must_be_rejected(project):
@@ -175,7 +182,7 @@ def test_plan_source_digest_and_source_file_roundtrip(project):
     assert not any("audio" in e for e in a["events"])
 
 
-def test_18_frame_board_wipe_is_valid_but_full_stage_cannot_be_short(monkeypatch):
+def test_60fps_36_frame_wipe_is_valid_but_full_stage_cannot_be_short(monkeypatch):
     import subprocess
     from animation_engine.unified_classroom_flow import (
         _video_frames, TRANSITION_FRAMES
@@ -186,15 +193,18 @@ def test_18_frame_board_wipe_is_valid_but_full_stage_cannot_be_short(monkeypatch
             command, 0,
             json.dumps({"streams":[{
                 "width":1280,"height":720,
-                "r_frame_rate":"30/1",
-                "nb_read_frames":str(TRANSITION_FRAMES)
+                "r_frame_rate":"60/1",
+                "nb_read_frames":str(
+                    TRANSITION_FRAMES if "board_wipe.mp4" in " ".join(command)
+                    else 19
+                )
             }]}),
             ""
         )
 
     monkeypatch.setattr(subprocess, "run", fake_ffprobe)
-    assert TRANSITION_FRAMES == 18
-    assert _video_frames(Path("board_wipe.mp4"),30,
-                         min_frames=TRANSITION_FRAMES)==18
+    assert TRANSITION_FRAMES == 36
+    assert _video_frames(Path("board_wipe.mp4"),60,
+                         min_frames=TRANSITION_FRAMES)==36
     with pytest.raises(LongboardError,match="FLOW_VIDEO_TOO_SHORT"):
-        _video_frames(Path("instruction_stage.mp4"),30)
+        _video_frames(Path("instruction_stage.mp4"),60)

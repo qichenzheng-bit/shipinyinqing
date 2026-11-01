@@ -11,6 +11,8 @@ intra-page layout, 2.6.3 advanced memory, or fabricated voice/subtitles.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS, transition_frame_count
+
 import hashlib
 import json
 import shutil
@@ -56,7 +58,7 @@ STAGE_FIELDS = frozenset({
 HANDOFF_FIELDS = frozenset({
     "from_stage", "from_object_id", "to_object_id",
 })
-TRANSITION_FRAMES = 18  # 0.6s at 30 fps; not an abrupt cut or a black frame.
+TRANSITION_FRAMES = transition_frame_count(DEFAULT_VIDEO_FPS)  # default 36 frames; runtime duration stays 0.6s
 
 
 def canonical_sha(value: Any) -> str:
@@ -118,7 +120,7 @@ def checked_flow(input_file: Path | str) -> Flow:
             or len(source["reference_solution_sha256"]) != 64):
         raise LongboardError("FLOW_INVALID_MANIFEST")
     rows = source["stages"]
-    if not isinstance(rows, list) or not 2 <= len(rows) <= 10:
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 64:
         raise LongboardError("FLOW_BAD_STAGE_COUNT")
     stages = []
     names = set()
@@ -255,8 +257,6 @@ def checked_flow(input_file: Path | str) -> Flow:
         ))
         previous_math = maths
         previous_written = written
-    if len({st.engine for st in stages}) < 2:
-        raise LongboardError("FLOW_REQUIRES_DIFFERENT_ENGINES")
     return Flow(source["lesson_id"], source["problem"], canonical_sha(source),
                 tuple(stages))
 
@@ -432,9 +432,10 @@ def _render_board_wipe(prior_mp4: Path, dest: Path, scratch: Path,
         raise LongboardError("FLOW_WIPE_FRAME_SIZE")
     pattern = scratch / f"wipe_{index}"
     pattern.mkdir()
-    for i in range(TRANSITION_FRAMES):
+    wipe_frames = transition_frame_count(fps)
+    for i in range(wipe_frames):
         out = img.copy()
-        width = round(1280 * (i+1) / TRANSITION_FRAMES)
+        width = round(1280 * (i+1) / wipe_frames)
         draw = ImageDraw.Draw(out)
         draw.rectangle([0, BOARD_START_Y-4, width, BOARD_BOTTOM_Y+3],
                        fill=(255,255,255))
@@ -443,13 +444,12 @@ def _render_board_wipe(prior_mp4: Path, dest: Path, scratch: Path,
               "-framerate", str(fps), "-i", str(pattern / "frame_%03d.png"),
               "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(fps),
               str(dest)], "FLOW_WIPE_ENCODE")
-    # Transitions are intentionally 18 frames (0.6s), unlike complete
-    # instructional scene clips which must contain at least 20 frames.
-    return _video_frames(dest, fps, min_frames=TRANSITION_FRAMES)
+    # Keep the real-time 0.6s wipe at both 30 and 60 FPS.
+    return _video_frames(dest, fps, min_frames=wipe_frames)
 
 
 def render_flow(input_file: Path | str, *, output_mp4: Path,
-                output_json: Path, fps: int = 30,
+                output_json: Path, fps: int = DEFAULT_VIDEO_FPS,
                 narration_schedules=None, cache=None) -> dict:
     if (type(fps) is not int or not 8 <= fps <= 60
             or Path(output_mp4).suffix.lower() != ".mp4"
@@ -465,6 +465,7 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
         timings = []
         stage_reports = []
         frame_offset = 0
+        wipe_frames = transition_frame_count(fps)
         for i, stage in enumerate(flow.stages):
             part_video = root / f"stage_{i:02d}.mp4"
             part_json = root / f"stage_{i:02d}.json"
@@ -510,13 +511,13 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
                         "source_clip":file_sha(part_video),
                         "action":"ordinary_chalkboard_wipe",
                         "next_stage":flow.stages[i+1].stage_id,
-                        "fps":fps,"frames":TRANSITION_FRAMES,
+                        "fps":fps,"frames":wipe_frames,
                     }) if cache is not None else None
                 )
                 if cache is not None and cache.restore_video(
                         "transition",transition_key,wipe,
-                        fps=fps,expected_frames=TRANSITION_FRAMES):
-                    transition_frames=TRANSITION_FRAMES
+                        fps=fps,expected_frames=wipe_frames):
+                    transition_frames=wipe_frames
                 else:
                     transition_frames=_render_board_wipe(
                         part_video,wipe,root,fps,i

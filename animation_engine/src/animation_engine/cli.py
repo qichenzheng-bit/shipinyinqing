@@ -1,6 +1,8 @@
 """CLI: deterministic plan output and optional actual MathTex PNG preview."""
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import argparse
 import json
 import sys
@@ -36,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     writing.add_argument("--manifest", type=Path, required=True)
     writing.add_argument("--pixel-width", type=int, default=1280)
     writing.add_argument("--pixel-height", type=int, default=720)
-    writing.add_argument("--fps", type=int, default=15)
+    writing.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
 
     layout = subparsers.add_parser("layout-board",
         help="2.3 measured adaptive layout: JSON plan or real MathTex board PNG")
@@ -54,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     transition.add_argument("--to-event-id", required=True)
     transition.add_argument("--output", type=Path, required=True)
     transition.add_argument("--manifest", type=Path, required=True)
-    transition.add_argument("--fps", type=int, default=15)
+    transition.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
 
     classroom = subparsers.add_parser("preview-classroom",
         help="2.3 authentic mathematical question and board PNG")
@@ -72,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     classroom_movie.add_argument("--to-event-id", required=True)
     classroom_movie.add_argument("--output", type=Path, required=True)
     classroom_movie.add_argument("--manifest", type=Path, required=True)
-    classroom_movie.add_argument("--fps", type=int, default=30)
+    classroom_movie.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
 
     sequence = subparsers.add_parser("render-classroom-sequence",
         help="Real MathTex multi-scene classroom preview, no inferred speech timing")
@@ -81,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     sequence.add_argument("--event-ids", nargs="+", required=True)
     sequence.add_argument("--output", type=Path, required=True)
     sequence.add_argument("--manifest", type=Path, required=True)
-    sequence.add_argument("--fps", type=int, default=30)
+    sequence.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
 
     longboard_plan = subparsers.add_parser(
         "plan-longboard", help="2.4 true-size long lesson: plan scroll/cut/retained context")
@@ -122,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     longboard_render.add_argument("--manifest", type=Path, required=True)
     longboard_render.add_argument("--pixel-width", type=int, default=1280)
     longboard_render.add_argument("--pixel-height", type=int, default=720)
-    longboard_render.add_argument("--fps", type=int, default=30)
+    longboard_render.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
 
     flow_plan = subparsers.add_parser(
         "plan-flow", help="V2.6.1 source-verified mixed classroom stages")
@@ -135,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     flow_render.add_argument("--flow",type=Path,required=True)
     flow_render.add_argument("--output",type=Path,required=True)
     flow_render.add_argument("--manifest",type=Path,required=True)
-    flow_render.add_argument("--fps",type=int,default=30)
+    flow_render.add_argument("--fps",type=int,default=DEFAULT_VIDEO_FPS)
 
     adaptive_plan = subparsers.add_parser(
         "plan-adaptive-flow", help="V2.6.2 teacher-reviewed diagram lifecycle and native board layout")
@@ -146,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     adaptive_render.add_argument("--layout", type=Path, required=True)
     adaptive_render.add_argument("--output", type=Path, required=True)
     adaptive_render.add_argument("--manifest", type=Path, required=True)
-    adaptive_render.add_argument("--fps", type=int, default=30)
+    adaptive_render.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
 
     memory_plan = subparsers.add_parser(
         "plan-memory", help="V2.6.3 reviewed mathematical facts and scoped non-adjacent recalls")
@@ -158,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     memory_render.add_argument("--memory", type=Path, required=True)
     memory_render.add_argument("--output", type=Path, required=True)
     memory_render.add_argument("--manifest", type=Path, required=True)
-    memory_render.add_argument("--fps", type=int, default=30)
+    memory_render.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
     memory_render.add_argument("--adaptive", action="store_true")
 
     spoken_plan = subparsers.add_parser(
@@ -166,13 +168,21 @@ def main(argv: list[str] | None = None) -> int:
     spoken_plan.add_argument("--spoken", type=Path, required=True)
     spoken_plan.add_argument("--output", type=Path, required=True)
     spoken_plan.add_argument("--adaptive", action="store_true")
+    script_export = subparsers.add_parser(
+        "export-spoken-script",
+        help="V2.7 mandatory pre-render complete narration and board writing script")
+    script_export.add_argument("--spoken", type=Path, required=True)
+    script_export.add_argument("--output", type=Path, required=True,
+        help="Human-readable Markdown script; JSON is written beside spoken_classroom.json")
+    script_export.add_argument("--adaptive", action="store_true")
+
     spoken_render = subparsers.add_parser(
         "render-spoken", help="V2.6.4 actual neural narration, MathTex and phrase captions")
     spoken_render.add_argument("--spoken", type=Path, required=True)
     spoken_render.add_argument("--output", type=Path, required=True)
     spoken_render.add_argument("--manifest", type=Path, required=True)
     spoken_render.add_argument("--srt", type=Path)
-    spoken_render.add_argument("--fps", type=int, default=30)
+    spoken_render.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
     spoken_render.add_argument("--adaptive", action="store_true")
     spoken_render.add_argument("--cache-dir", type=Path,
         help="Persistent content-addressed TTS, MathTex and stage cache")
@@ -184,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     editing_start.add_argument("--movie", type=Path, required=True)
     editing_start.add_argument("--manifest", type=Path, required=True)
     editing_start.add_argument("--session", type=Path, required=True)
-    editing_start.add_argument("--fps", type=int, default=30)
+    editing_start.add_argument("--fps", type=int, default=DEFAULT_VIDEO_FPS)
     editing_start.add_argument("--nonadaptive", action="store_true")
 
     editing_apply = subparsers.add_parser(
@@ -273,6 +283,22 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(result,ensure_ascii=False,indent=2)+"\n",
                 encoding="utf-8",
             )
+            return 0
+        if args.command == "export-spoken-script":
+            from .spoken_classroom import checked_spoken
+            from .v27_teacher_contract import export_spoken_script
+            from .unified_classroom_flow import _load
+            approved = checked_spoken(args.spoken, adaptive=args.adaptive)
+            source_doc = _load(args.spoken)
+            result = export_spoken_script(
+                approved, output_json=args.spoken.parent / "lesson_script.json",
+                output_md=args.output, source_document=source_doc,
+            )
+            print(json.dumps({
+                "script": str(args.output),
+                "machine_readable": str(args.spoken.parent / "lesson_script.json"),
+                "events": len(result["events"]), "acceptance": result["acceptance"],
+            }, ensure_ascii=False))
             return 0
         if args.command == "render-spoken":
             from .spoken_movie import render_spoken_classroom

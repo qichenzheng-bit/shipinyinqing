@@ -5,6 +5,8 @@ the same; only pixel positions may move, then new objects are written.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import json
 import os
 import shutil
@@ -45,7 +47,7 @@ def render_layout_transition(
     storyboard: Any, execution: Any, *,
     from_event_id: str, to_event_id: str,
     output_mp4: Path, output_json: Path,
-    pixel_width: int = 1280, pixel_height: int = 720, fps: int = 15,
+    pixel_width: int = 1280, pixel_height: int = 720, fps: int = DEFAULT_VIDEO_FPS,
 ) -> dict:
     if (pixel_width < 320 or pixel_height < 180
             or not 8 <= fps <= 60):

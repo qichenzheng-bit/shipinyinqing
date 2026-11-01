@@ -8,6 +8,8 @@ result may then be explicitly REWRITTEN from the verified original source.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import json
 import math
 import shutil
@@ -879,7 +881,7 @@ def _event_entry_contract(layout: dict, index: int) -> dict:
 
 
 def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
-                                 output_mp4:Path,output_json:Path,fps:int=30,
+                                 output_mp4:Path,output_json:Path,fps: int = DEFAULT_VIDEO_FPS,
                                  computation_manifest=None,matrix_manifest=None,
                                  proof_manifest=None,diagram_manifest=None,
                                  layout_hint=None,narration_events=None,
@@ -1086,6 +1088,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                     for row in event_rows:
                         start=self.time
                         action_timings=[]
+                        diagram_reveal_timings=[]
                         clips=(narration_events or {}).get(row["event_id"],[])
                         clip_cursor=[0]
                         def perform_sync(kind,ident,paint):
@@ -1164,25 +1167,57 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                     for x in ids
                                 )
                                 if duration is not None and visible:
-                                    each=min(.72,max(.10,duration*.70/visible))
+                                    # Let the actual geometry develop through
+                                    # the spoken drawing beat, rather than
+                                    # finishing it in the first second and
+                                    # holding an unchanged picture for the rest
+                                    # of a long narrated action. Cap each
+                                    # object to avoid unnaturally slow strokes.
+                                    each=min(2.25,max(.12,duration*.70/visible))
                                 else:
                                     each=None
+                                beat_map = {
+                                    beat["object_id"]: beat
+                                    for beat in (speech or {}).get("diagram_beats", [])
+                                }
                                 for ident in ids:
                                     if ident in diagram_active:
                                         raise LongboardError("DIAGRAM_REVEAL_LIVE")
                                     obj=build_diagram(ident)
                                     mode=diagram.objects[ident]["kind"]
+                                    if obj is not None and beat_map:
+                                        if ident not in beat_map:
+                                            raise LongboardError("CHALKBOARD_DIAGRAM_BEAT_MISSING")
+                                        beat=beat_map[ident]
+                                        target_start=before+beat["start_offset"]
+                                        if self.time > target_start + 2/fps:
+                                            raise LongboardError("CHALKBOARD_DIAGRAM_BEAT_ORDER")
+                                        if target_start > self.time:
+                                            self.wait(target_start-self.time)
+                                        window=beat["end_offset"]-beat["start_offset"]
+                                        if window <= 0:
+                                            raise LongboardError("CHALKBOARD_DIAGRAM_BEAT_WINDOW")
+                                        draw_time=min(2.25,max(.08,window*.82))
+                                    else:
+                                        draw_time=each
+                                    reveal_start=self.time
                                     if mode in ("line","curve"):
                                         self.play(
-                                            Create(obj),run_time=each if each
+                                            Create(obj),run_time=draw_time if draw_time
                                             is not None else .72
                                         )
                                     elif obj is not None:
                                         self.play(
-                                            FadeIn(obj),run_time=each if each
+                                            FadeIn(obj),run_time=draw_time if draw_time
                                             is not None else .36
                                         )
                                     diagram_active[ident]=obj
+                                    if obj is not None:
+                                        diagram_reveal_timings.append({
+                                            "object_id":ident,
+                                            "start_preview_second":reveal_start,
+                                            "end_preview_second":self.time,
+                                        })
                                 if duration is not None:
                                     remaining=duration-(self.time-before)
                                     if remaining>1e-5:
@@ -1267,6 +1302,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             self.wait(row["pause_seconds"])
                         self.timing.append({
                             "action_timing":action_timings,
+                            "diagram_reveal_timing":diagram_reveal_timings,
                             "event_id":row["event_id"],"page_index":row["page_index"],
                             "erase_before":row["erase_before"],
                             "math_write_count":row["math_write_count"],

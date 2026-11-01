@@ -5,12 +5,33 @@ never a phonetic 'ai ke si' or unrendered TeX string on the screen.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import shutil
 import tempfile
 from pathlib import Path
 
 from .longboard_plan import LongboardError
 from .mathtex_renderer import validate_math_latex
+
+
+def _safe_math_caption_break(tex: str) -> tuple[str, str] | None:
+    """Prefer a top-level relation break; never split LaTeX brace groups."""
+    depth = 0
+    positions = []
+    for i, ch in enumerate(tex):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        elif ch == "=" and depth == 0 and 0 < i < len(tex) - 1:
+            positions.append(i)
+    if not positions:
+        return None
+    point = min(positions, key=lambda i: abs(i-len(tex)/2))
+    return tex[:point+1], tex[point+1:]
+
+
 
 
 def render_caption_png(kind: str, display: str, output: Path) -> None:
@@ -22,7 +43,7 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
         raise LongboardError("CAPTION_PHONETIC_OR_RAW_TEX")
     try:
         from manim import (
-            Scene, Text, MathTex, RoundedRectangle, VGroup,
+            Scene, Text, MathTex, RoundedRectangle, VGroup, DOWN,
             WHITE, BLACK, tempconfig
         )
     except ImportError as exc:
@@ -35,7 +56,7 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
         with tempconfig({
             "pixel_width":1280,"pixel_height":720,
             "frame_width":1280/90,"frame_height":8,
-            "frame_rate":30, "background_color":"#FFFFFF",
+            "frame_rate":DEFAULT_VIDEO_FPS, "background_color":"#FFFFFF",
             "transparent":True, "format":"png",
             "save_last_frame":True,"media_dir":str(root),
             "output_file":"source_math_subtitle",
@@ -50,12 +71,34 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
                             display,font="Noto Sans CJK SC",
                             color="#111827",font_size=23,
                         )
-                    if glyph.width>12.6 or glyph.height>.47:
-                        raise LongboardError("CAPTION_LINE_TOO_LONG")
+                    plate_height = .56
+                    if kind == "math":
+                        if glyph.width > 12.6:
+                            pieces = _safe_math_caption_break(display)
+                            if pieces is None:
+                                raise LongboardError("CAPTION_MATH_NEEDS_REVIEWED_BREAK")
+                            glyph = VGroup(*(
+                                MathTex(part, color=BLACK)
+                                for part in pieces
+                            )).arrange(DOWN,buff=.08)
+                            glyph.scale(min(.44,12.4/glyph.width,.70/glyph.height))
+                            plate_height = .84
+                        # Integral bounds, radicals and tall fractions are
+                        # naturally higher than ordinary Chinese text. Give
+                        # them the 88-pixel safe band instead of rejecting
+                        # correct source MathTex or truncating the symbols.
+                        if glyph.height > .47:
+                            plate_height = .84
+                            if glyph.height > .70:
+                                glyph.scale(.70 / glyph.height)
+                    if glyph.width>12.6 or glyph.height>(.73 if plate_height>.56 else .47):
+                        raise LongboardError(
+                            f"CAPTION_LINE_TOO_LONG:{kind}:{glyph.width:.3f}x{glyph.height:.3f}"
+                        )
                     glyph.move_to([0,-3.53,0])
                     plate=RoundedRectangle(
                         width=max(1.0,glyph.width+.36),
-                        height=.56,corner_radius=.09,
+                        height=plate_height,corner_radius=.09,
                         fill_color=WHITE,fill_opacity=.97,
                         stroke_color="#CBD5E1",stroke_width=.35,
                     ).move_to([0,-3.53,0])

@@ -38,6 +38,7 @@ class VoicedSpan:
     chunks: tuple[VoiceChunk, ...]
     frames: int
     math_start_frame: int | None
+    diagram_beats: tuple[dict, ...] = ()
 
     def duration(self, fps: int) -> float:
         return self.frames / fps
@@ -58,8 +59,25 @@ def split_natural_phrases(text: str, *, limit: int = 23) -> list[str]:
         else:
             # Never silently omit pedagogical words. Reviewers can write
             # smaller punctuation-delimited clauses for better cadence.
-            for i in range(0,len(clause),limit):
-                result.append(clause[i:i+limit])
+            # Never cut a mathematical expression or Chinese word simply
+            # because a character quota was reached. Use an explicit semantic
+            # connector; otherwise ask the author to punctuate the clause.
+            remaining = clause
+            while len(remaining) > limit:
+                points = [
+                    m.start() for m in re.finditer(
+                        r"(?=因此|所以|于是|接下来|然后|首先|同时|最后|注意|另外|我们|这时)",
+                        remaining,
+                    )
+                    if 4 <= m.start() <= limit
+                ]
+                if not points:
+                    raise LongboardError("VOICE_UNSAFE_LONG_CLAUSE: add a natural pause")
+                cut = max(points)
+                result.append(remaining[:cut])
+                remaining = remaining[cut:]
+            if remaining:
+                result.append(remaining)
     if "".join(result) != text:
         raise LongboardError("VOICE_PHRASE_SOURCE_MUTATED")
     return result
@@ -156,7 +174,7 @@ async def synthesize_voiced_spans(contract: SpokenContract, root: Path,
                         index+=1
                 else:
                     requests.append((index,part["reading"],contract.voice,contract.speech_rate))
-                    keys.append((index,"math",part["latex"],part["reading"]))
+                    keys.append((index,"math",part.get("spoken_math_latex",part["latex"]),part["reading"]))
                     index+=1
             spans.append((span,keys))
         skeleton.append((event,spans))
@@ -200,8 +218,32 @@ async def synthesize_voiced_spans(contract: SpokenContract, root: Path,
                 raise LongboardError("VOICE_ACTION_TOO_LONG_SPLIT_THE_TEACHING_UNIT")
             if span.kind=="math" and start_math is None:
                 raise LongboardError("VOICE_MATH_NOT_SPOKEN")
+            beats = []
+            if span.diagram_phrase_cues:
+                phrases = {}
+                cursor = 0
+                for chunk in built:
+                    if chunk.kind == "text":
+                        phrases.setdefault(chunk.display, []).append(
+                            (cursor, cursor + chunk.frames)
+                        )
+                    cursor += chunk.frames
+                grouped = {}
+                for cue in span.diagram_phrase_cues:
+                    grouped.setdefault(cue["phrase"], []).append(cue["object_id"])
+                for phrase, ids in grouped.items():
+                    if len(phrases.get(phrase, [])) != 1:
+                        raise LongboardError("VOICE_DIAGRAM_PHRASE_NOT_UNIQUE")
+                    start, end = phrases[phrase][0]
+                    for i, ident in enumerate(ids):
+                        a = start + (end - start) * i // len(ids)
+                        b = start + (end - start) * (i + 1) // len(ids)
+                        if b - a < 3:
+                            raise LongboardError("VOICE_DIAGRAM_BEAT_TOO_SHORT")
+                        beats.append({"object_id": ident, "start_frame": a, "end_frame": b})
+                beats.sort(key=lambda b: b["start_frame"])
             collected.append(VoicedSpan(
-                span.kind,span.object_id,tuple(built),total,start_math
+                span.kind,span.object_id,tuple(built),total,start_math,tuple(beats)
             ))
         result.setdefault(event.stage_id,{})[event.event_id]=tuple(collected)
     return result
@@ -220,6 +262,12 @@ def build_render_schedules(voiced: dict, *, fps: int) -> dict:
                 }
                 if span.kind=="math":
                     data["math_start_delay"]=span.math_start_frame/fps
+                if span.kind=="diagram" and span.diagram_beats:
+                    data["diagram_beats"] = [{
+                        "object_id": b["object_id"],
+                        "start_offset": b["start_frame"] / fps,
+                        "end_offset": b["end_frame"] / fps,
+                    } for b in span.diagram_beats]
                 scripts.append(data)
             schedules[stage][eid]=scripts
     return schedules
