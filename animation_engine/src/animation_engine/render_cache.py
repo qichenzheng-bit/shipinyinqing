@@ -13,6 +13,7 @@ import json
 import os
 import platform
 import shutil
+import subprocess
 import tempfile
 import time
 from collections import Counter
@@ -39,6 +40,70 @@ def file_sha(path: Path) -> str:
     return h.hexdigest()
 
 
+def _binary_version(tool: str, flag: str) -> str:
+    """A missing/broken rendering binary must never share a verified cache key."""
+    executable = shutil.which(tool)
+    if not executable:
+        return "not-installed"
+    try:
+        result = subprocess.run(
+            [executable, flag], capture_output=True, text=True,
+            timeout=4, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unavailable"
+    lines = (result.stdout or result.stderr).splitlines()
+    if result.returncode != 0 or not lines:
+        return "unavailable"
+    return lines[0].strip()[:200]
+
+
+def _font_fingerprint(path: str | None) -> dict:
+    if not path:
+        return {"status": "missing"}
+    source = Path(path)
+    if not source.is_file():
+        return {"status": "missing"}
+    return {
+        "path": str(source.resolve()),
+        "sha256": file_sha(source),
+    }
+
+
+def _render_environment_fingerprint() -> dict:
+    """Include the actual font and media/TeX tools used by the renderer.
+
+    Python dependencies and project sources alone do not detect changing
+    system fonts, an upgraded LaTeX distribution or FFmpeg installation.
+    The probes read environment metadata only; they never render a video.
+    """
+    from .classroom_compositor import _CJK_FONT_CANDIDATES
+    board_font = next(
+        (path for path in _CJK_FONT_CANDIDATES if Path(path).is_file()),
+        None,
+    )
+    manim_font = None
+    fc_match = shutil.which("fc-match")
+    if fc_match:
+        try:
+            matched = subprocess.run(
+                [fc_match, "-f", "%{file}\\n", "Noto Sans CJK SC"],
+                capture_output=True, text=True, timeout=4, check=False,
+            )
+            if matched.returncode == 0:
+                manim_font = next(iter(matched.stdout.splitlines()), None)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return {
+        "latex": _binary_version("latex", "--version"),
+        "dvisvgm": _binary_version("dvisvgm", "--version"),
+        "ffmpeg": _binary_version("ffmpeg", "-version"),
+        "ffprobe": _binary_version("ffprobe", "-version"),
+        "board_cjk_font": _font_fingerprint(board_font),
+        "manim_cjk_font": _font_fingerprint(manim_font),
+    }
+
+
 @lru_cache(maxsize=1)
 def engine_signature() -> str:
     """Invalidate after source/runtime changes, including fonts/TeX version
@@ -57,6 +122,7 @@ def engine_signature() -> str:
         "schema": CACHE_SCHEMA, "source": codes,
         "packages": packages, "python": platform.python_version(),
         "platform": platform.platform(),
+        "render_environment": _render_environment_fingerprint(),
     })
 
 
