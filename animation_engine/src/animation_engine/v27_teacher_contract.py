@@ -280,12 +280,25 @@ def compile_spoken_script(contract, *, source_document: dict | None = None) -> t
 
 
 def export_spoken_script(approved, *, output_json: Path, output_md: Path,
-                         source_document: dict | None = None) -> dict:
+                         source_document: dict | None = None,
+                         source_path: Path | None = None) -> dict:
+    """Write machine and readable source scripts as one rollback-safe bundle.
+
+    This is script *export*, not human approval. Never overwrite the authored
+    spoken source or one output with the other.
+    """
+    from .safe_output import publish_bundle, course_source_files
+    output_json, output_md = Path(output_json), Path(output_md)
     doc, readable = compile_spoken_script(approved, source_document=source_document)
-    for dest in (output_json, output_md):
-        Path(dest).parent.mkdir(parents=True, exist_ok=True)
-    Path(output_json).write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    Path(output_md).write_text(readable, encoding="utf-8")
+    protected = (course_source_files(source_path)
+                 if source_path is not None else [
+                     output_json.parent / "spoken_classroom.json",
+                     output_md.parent / "spoken_classroom.json",
+                 ])
+    publish_bundle({
+        output_json: (json.dumps(doc, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        output_md: readable.encode("utf-8"),
+    }, suffixes={output_json: ".json", output_md: ".md"}, protected=protected)
     return doc
 
 
