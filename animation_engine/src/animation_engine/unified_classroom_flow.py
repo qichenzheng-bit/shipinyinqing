@@ -504,9 +504,26 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
             frame_offset += frames
             if i != len(flow.stages)-1:
                 wipe = root / f"wipe_{i:02d}.mp4"
-                frame_offset += _render_board_wipe(
-                    part_video, wipe, root, fps, i
+                from .render_cache import file_sha
+                transition_key=(
+                    cache.key("transition",{
+                        "source_clip":file_sha(part_video),
+                        "action":"ordinary_chalkboard_wipe",
+                        "next_stage":flow.stages[i+1].stage_id,
+                        "fps":fps,"frames":TRANSITION_FRAMES,
+                    }) if cache is not None else None
                 )
+                if cache is not None and cache.restore_video(
+                        "transition",transition_key,wipe,
+                        fps=fps,expected_frames=TRANSITION_FRAMES):
+                    transition_frames=TRANSITION_FRAMES
+                else:
+                    transition_frames=_render_board_wipe(
+                        part_video,wipe,root,fps,i
+                    )
+                    if cache is not None:
+                        cache.store_video("transition",transition_key,wipe)
+                frame_offset+=transition_frames
                 parts.append(wipe)
         playlist = root / "segments.txt"
         playlist.write_text(

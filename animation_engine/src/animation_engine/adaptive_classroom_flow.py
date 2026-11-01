@@ -325,8 +325,25 @@ def render_adaptive_flow(input_file: Path | str, *,
                 panels[stage.stage_id] = panel_path
             elif spec.action in ("hold", "restore"):
                 clip = root / f"composed_stage_{i:02d}.mp4"
-                _with_diagram(raw, panels[spec.source_stage_id],
-                              clip, fps, raw_frames)
+                from .render_cache import file_sha
+                panel=panels[spec.source_stage_id]
+                composed_key=(
+                    cache.key("composed_stage",{
+                        "stage":stage.stage_id,
+                        "raw_video":file_sha(raw),
+                        "diagram_panel":file_sha(panel),
+                        "action":spec.action,
+                        "layout":spec.layout,
+                        "source_stage":spec.source_stage_id,
+                        "fps":fps,"frames":raw_frames,
+                    }) if cache is not None else None
+                )
+                if not (cache is not None and cache.restore_video(
+                        "composed_stage",composed_key,clip,
+                        fps=fps,expected_frames=raw_frames)):
+                    _with_diagram(raw,panel,clip,fps,raw_frames)
+                    if cache is not None:
+                        cache.store_video("composed_stage",composed_key,clip)
             start = frame_offset
             parts.append(clip)
             for event in rendered["event_timing"]:
@@ -362,11 +379,27 @@ def render_adaptive_flow(input_file: Path | str, *,
                     and next_spec.source_stage_id == spec.source_stage_id
                     and spec.action in ("create", "hold", "restore")
                 )
-                transition_frames = (
-                    _wipe_preserving_diagram(clip, wipe, root, fps, i)
-                    if keep else
-                    _render_board_wipe(clip, wipe, root, fps, i)
+                from .render_cache import file_sha
+                transition_key=(
+                    cache.key("transition",{
+                        "source_clip":file_sha(clip),
+                        "action":("preserve_diagram" if keep else "erase_board"),
+                        "source_stage":stage.stage_id,
+                        "next_stage":flow.stages[i+1].stage_id,
+                        "fps":fps,"frames":TRANSITION_FRAMES,
+                    }) if cache is not None else None
                 )
+                if cache is not None and cache.restore_video(
+                        "transition",transition_key,wipe,
+                        fps=fps,expected_frames=TRANSITION_FRAMES):
+                    transition_frames=TRANSITION_FRAMES
+                else:
+                    transition_frames=(
+                        _wipe_preserving_diagram(clip,wipe,root,fps,i)
+                        if keep else _render_board_wipe(clip,wipe,root,fps,i)
+                    )
+                    if cache is not None:
+                        cache.store_video("transition",transition_key,wipe)
                 parts.append(wipe)
                 frame_offset += transition_frames
         playlist = root / "segments.txt"

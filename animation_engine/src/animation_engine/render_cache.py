@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 CACHE_SCHEMA = "v2.6.6.1"
-NAMESPACES = frozenset({"speech_pcm", "subtitle_png", "raw_stage"})
+NAMESPACES = frozenset({"speech_pcm", "subtitle_png", "raw_stage", "composed_stage", "transition"})
 
 
 def digest(data: Any) -> str:
@@ -218,6 +218,34 @@ class ArtifactCache:
             "video.mp4": video.read_bytes(),
             "manifest.json": manifest.read_bytes(),
         })
+
+    def restore_video(self, namespace: str, key: str,
+                      destination: Path, *, fps: int,
+                      expected_frames: int) -> bool:
+        """Restore a composite or wipe clip only after real frame/fps checks."""
+        if namespace not in ("composed_stage", "transition"):
+            raise ValueError("CACHE_VIDEO_NAMESPACE")
+        found=self.read(namespace,key,filenames=("video.mp4",))
+        if not found:
+            return False
+        destination=Path(destination)
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        try:
+            destination.write_bytes(found["video.mp4"])
+            from .unified_classroom_flow import _video_frames
+            count=_video_frames(destination,fps,min_frames=1)
+            if count!=expected_frames:
+                raise ValueError("CACHE_VIDEO_FRAME_COUNT_MISMATCH")
+            return True
+        except (OSError,ValueError,KeyError,TypeError):
+            destination.unlink(missing_ok=True)
+            self.counts[namespace+"_invalid"]+=1
+            return False
+
+    def store_video(self, namespace: str, key: str, video: Path) -> None:
+        if namespace not in ("composed_stage", "transition"):
+            raise ValueError("CACHE_VIDEO_NAMESPACE")
+        self.write(namespace,key,{"video.mp4":Path(video).read_bytes()})
 
     def stats(self) -> dict:
         return {k: int(v) for k,v in sorted(self.counts.items())}

@@ -361,3 +361,38 @@ def test_incompatible_video_clip_fails_closed_or_reencodes(tmp_path):
         assert abs(frames-42)<=2
     except LongboardError:
         assert not (tmp_path/"latest.mp4").exists()
+
+
+def test_composed_stage_and_transition_cache_verify_frames(tmp_path,monkeypatch):
+    """Only identical verified pixel-composites and wipes are reusable."""
+    from animation_engine import unified_classroom_flow
+    cache=ArtifactCache(tmp_path/"cache")
+    source=tmp_path/"trusted_video.mp4"
+    source.write_bytes(b"MOCK-VIDEO-FRAMES-ONLY")
+    monkeypatch.setattr(
+        unified_classroom_flow,"_video_frames",
+        lambda video,fps,*,min_frames=20:21,
+    )
+    for namespace in ("composed_stage","transition"):
+        key=cache.key(namespace,{
+            "source_hash":"a"*64,"fps":30,
+            "source_panel_hash":"b"*64
+        })
+        cache.store_video(namespace,key,source)
+        dest=tmp_path/f"{namespace}.mp4"
+        assert cache.restore_video(
+            namespace,key,dest,fps=30,expected_frames=21
+        )
+        assert dest.read_bytes()==source.read_bytes()
+        assert not cache.restore_video(
+            namespace,key,dest,fps=30,expected_frames=22
+        )
+        assert not dest.exists()
+        assert cache.stats()[namespace+"_invalid"]>=1
+        different=cache.key(namespace,{
+            "source_hash":"a"*64,"fps":30,
+            "source_panel_hash":"DIFFERENT"
+        })
+        assert not cache.restore_video(
+            namespace,different,dest,fps=30,expected_frames=21
+        )
