@@ -360,6 +360,11 @@ def run_edit(
             attempt["error"] = (
                 f"{type(exc).__name__}: {str(exc)[:700]}"
             )
+            # In addition to restoring the latest aliases, remove a staged
+            # version that was already moved out of attempts before publishing
+            # failed; otherwise retrying the same revision would be blocked.
+            if "version" in locals() and version.exists() and state["revision"] < next_version:
+                shutil.rmtree(version, ignore_errors=True)
             # Missing output, bad math or TTS failure must never change the
             # user-visible latest movie.
             shutil.rmtree(folder, ignore_errors=True)

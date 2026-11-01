@@ -31,6 +31,7 @@ EVENT = frozenset({
     "question_read_aloud", "question_source_sha256",
 })
 SPAN = frozenset({"kind", "object_id", "parts"})
+EVENT_WITH_FACTS = EVENT | {"question_fact_alignment"}
 SPAN_WITH_DIAGRAM_CUES = SPAN | {"diagram_phrase_cues"}
 TEXT_PART = frozenset({"kind", "value"})
 MATH_PART = frozenset({"kind", "latex", "reading"})
@@ -171,7 +172,7 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
         raise LongboardError("SPOKEN_EVENT_COVERAGE")
     validated = []
     for index,(recorded, planned) in enumerate(zip(doc["events"], required)):
-        if not isinstance(recorded, dict) or set(recorded) != EVENT:
+        if not isinstance(recorded, dict) or set(recorded) not in (EVENT, EVENT_WITH_FACTS):
             raise LongboardError("SPOKEN_EVENT_FIELDS")
         if (recorded["stage_id"], recorded["event_id"]) != (
                 planned["stage_id"], planned["event_id"]):
@@ -288,6 +289,24 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
                 raise LongboardError("SPOKEN_DIAGRAM_BEATS_INVALID")
             checked.append(SpokenSpan(kind, ident, tuple(parts), actual, latex,
                                      tuple(dict(c) for c in diagram_cues)))
+        if "question_fact_alignment" in recorded:
+            facts = recorded["question_fact_alignment"]
+            if index != 0 or not isinstance(facts, list) or not facts:
+                raise LongboardError("SPOKEN_QUESTION_FACTS_NOT_OPENING")
+            voice_actual = " ".join(span.tts_text for span in checked)
+            visited = set()
+            for fact in facts:
+                if (not isinstance(fact, dict) or
+                        set(fact) != {"source_excerpt", "spoken_excerpt"} or
+                        not isinstance(fact["source_excerpt"], str) or
+                        not isinstance(fact["spoken_excerpt"], str) or
+                        not fact["source_excerpt"] or
+                        not fact["spoken_excerpt"] or
+                        fact["source_excerpt"] not in flow.problem or
+                        fact["spoken_excerpt"] not in voice_actual or
+                        fact["source_excerpt"] in visited):
+                    raise LongboardError("SPOKEN_QUESTION_FACT_NOT_AUDIBLE_OR_SOURCED")
+                visited.add(fact["source_excerpt"])
         validated.append(SpokenEvent(
             recorded["stage_id"], recorded["event_id"], tuple(checked)
         ))

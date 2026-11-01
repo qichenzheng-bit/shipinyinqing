@@ -107,6 +107,11 @@ def build(root: Path):
                 parts.append({"kind": "math", "latex": tex, "reading": READINGS[obj]})
             spans.append({"kind": kind, "object_id": obj, "parts": parts})
         events.append({
+            **({"question_fact_alignment": [
+                {"source_excerpt":r"\int_0^1", "spoken_excerpt":"零到一的定积分"},
+                {"source_excerpt":r"2x", "spoken_excerpt":"二乘 x"},
+                {"source_excerpt":r"e^{x^2}", "spoken_excerpt":"e 的 x 平方次幂"},
+            ]} if not events else {}),
             "stage_id": "integration",
             "event_id": plan["event_id"],
             "pedagogical_cue_covered": True,
