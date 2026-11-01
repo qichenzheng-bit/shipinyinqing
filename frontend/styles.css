@@ -79,3 +79,17 @@ th:first-child,td:first-child{width:52px;text-align:center}
 .modal p{color:#6b6b6b;line-height:1.6;margin-bottom:28px}
 .skel{background:#f5f5f5;border-radius:8px}
 @media(max-width:850px){.topbar{padding:12px 18px;height:auto;align-items:flex-start;flex-wrap:wrap}.brand img{width:170px}.navlink{padding:9px 12px}.main{padding:30px 18px 70px}.work-grid{grid-template-columns:1fr;gap:22px}.cols{grid-template-columns:1fr}.toolbar,.page-head{align-items:flex-start;flex-wrap:wrap}.links{gap:3px}td,th{padding:13px 8px}.hide-small{display:none}.setting-row{grid-template-columns:1fr;gap:10px}.video-card{width:100%}}
+
+/* Same restrained monochrome surface as lessons, library and settings. */
+.api-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+.api-layout .panel{padding:29px}
+.api-layout .field{margin-bottom:18px}
+.api-layout .select,.api-layout .input{max-width:none}
+.api-layout .actions{gap:9px}
+.api-check{display:flex;gap:10px;align-items:center;color:#555;font-size:13px;margin-top:12px}
+.api-check input{accent-color:#191919;width:16px;height:16px}
+.api-hint{line-height:1.7;margin:-4px 0 18px}
+.api-task-row{grid-template-columns:145px minmax(0,1fr);gap:10px;padding:13px 0}
+.api-task-row span:last-child{overflow-wrap:anywhere}
+.api-footnote{margin-top:20px;line-height:1.8}
+@media(max-width:900px){.api-layout{grid-template-columns:1fr}.api-layout .panel{padding:23px}}
