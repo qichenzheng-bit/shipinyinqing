@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"fixtures"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 from build_multipart_integral_lesson import build_variant as integral
 from build_matrix_classroom_lesson import build_variant as matrix
 from build_proof_classroom_lesson import build_variant as proof
