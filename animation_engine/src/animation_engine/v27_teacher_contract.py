@@ -289,4 +289,10 @@ def require_prerender_script(contract, path: Path) -> dict:
         _error("SCRIPT_CHANGED_AFTER_APPROVAL")
     if document.get("acceptance", {}).get("contract_version") != "2.7":
         _error("SCRIPT_NOT_V27_ACCEPTED")
+    from .unified_classroom_flow import _load
+    authoritative, _ = compile_spoken_script(
+        contract, source_document=_load(path)
+    )
+    if document != authoritative:
+        _error("SCRIPT_CONTENT_TAMPERED_OR_INCOMPLETE")
     return document
