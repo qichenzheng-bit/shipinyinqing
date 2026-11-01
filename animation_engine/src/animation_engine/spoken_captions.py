@@ -41,7 +41,7 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
         raise LongboardError("CAPTION_PHONETIC_OR_RAW_TEX")
     try:
         from manim import (
-            Scene, Text, MathTex, RoundedRectangle, VGroup,
+            Scene, Text, MathTex, RoundedRectangle, VGroup, DOWN,
             WHITE, BLACK, tempconfig
         )
     except ImportError as exc:
@@ -77,7 +77,7 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
                         glyph = VGroup(*(
                             MathTex(part, color=BLACK)
                             for part in pieces
-                        )).arrange(direction=[0,-1,0],buff=.08)
+                        )).arrange(DOWN,buff=.08)
                         glyph.scale(min(.44,12.4/glyph.width,.70/glyph.height))
                         plate_height = .84
                     if glyph.width>12.6 or glyph.height>(.73 if plate_height>.56 else .47):

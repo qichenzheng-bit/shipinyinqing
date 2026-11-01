@@ -237,3 +237,12 @@ def test_reduced_source_math_caption_is_reviewed_subexpression(example):
     put(example,data)
     with pytest.raises(LongboardError,match="SPOKEN_CAPTION_MATH_NOT_A_REVIEWED_SOURCE_FRAGMENT"):
         checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_diagram_cues_reject_unsourced_drawing_commands(example):
+    data=get(example)
+    span=data["events"][0]["spans"][0]
+    span["parts"][0]["value"]="现在画出新的三角形，再标出所有顶点。"
+    put(example,data)
+    with pytest.raises(LongboardError,match="SPOKEN_DIAGRAM_BEATS_UNSOURCED"):
+        checked_spoken(example/"spoken_classroom.json",adaptive=True)
