@@ -11,7 +11,7 @@ from .longboard_plan import LongboardError
 from .mathtex_renderer import validate_math_latex
 
 
-_KINDS=frozenset({"principle","theorem","definition","formula","property"})
+_KINDS=frozenset({"principle","theorem","definition","formula","property","method"})
 _OPERATION_ONLY=("本题","先把","把括号","通分","代入","合并","计算括号","提取公因式",
                  "展开平方","整理同类项","下一步","再算")
 
@@ -37,9 +37,21 @@ def checked_core_knowledge(units: list[dict], catalog: dict) -> dict:
         raise LongboardError("CORE_KNOWLEDGE_COVERAGE")
     seen=set()
     for item in points:
-        if (not isinstance(item,dict) or set(item)!={
-                "event_id","topic_id","title","kind","formulae","used_in"}):
+        base_fields={"event_id","topic_id","title","kind","formulae","used_in"}
+        if (not isinstance(item,dict)
+                or set(item) not in (base_fields, base_fields | {"method_description"})):
             raise LongboardError("CORE_KNOWLEDGE_FIELDS")
+        # Method-only knowledge may be explained with a reusable verbal
+        # procedure instead of a made-up universal formula. The separate
+        # application step must still be source-backed and actually spoken.
+        method_description=item.get("method_description")
+        if item["kind"]=="method":
+            if (not isinstance(method_description,str)
+                    or len(method_description.strip())<8
+                    or any(term in method_description for term in _OPERATION_ONLY)):
+                raise LongboardError("CORE_KNOWLEDGE_METHOD_REQUIRED")
+        elif method_description is not None:
+            raise LongboardError("CORE_KNOWLEDGE_METHOD_KIND")
         eid=item["event_id"]
         if type(eid) is not str or eid not in targets or eid in seen:
             raise LongboardError("CORE_KNOWLEDGE_EVENT_NOT_DECLARED")
@@ -53,9 +65,10 @@ def checked_core_knowledge(units: list[dict], catalog: dict) -> dict:
                 or any(term in title for term in _OPERATION_ONLY)):
             raise LongboardError("CORE_KNOWLEDGE_NOT_TRANSFERABLE: "+eid)
         listed=item["formulae"]
-        if (not isinstance(listed,list) or not listed
-                or any(not isinstance(f,dict) or set(f)!={"object_id","latex"}
-                       for f in listed)):
+        if (not isinstance(listed,list) or
+                (not listed and item["kind"]!="method") or
+                any(not isinstance(f,dict) or set(f)!={"object_id","latex"}
+                    for f in listed)):
             raise LongboardError("CORE_KNOWLEDGE_FORMULA_REQUIRED")
         source=by_event[eid]["math"]
         expected=["m_"+obj["id"] for obj in source]
