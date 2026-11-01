@@ -104,6 +104,10 @@ def check_v27_teacher_contract(flow, events, contract: dict) -> dict:
     if not isinstance(question, list) or not question:
         _error("QUESTION_SEGMENTS")
     originals, readings = [], []
+    if (any(not isinstance(part,dict) or
+            set(part) != {"source_text","spoken_text"} for part in question)
+            or "".join(part["source_text"] for part in question) != flow.problem):
+        _error("QUESTION_NOT_FULL_SOURCE")
     full_math_readings = [
         part["reading"] for span in first["event"].spans
         for part in span.parts if part["kind"] == "math"
