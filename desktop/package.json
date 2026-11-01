@@ -1,0 +1,128 @@
+{
+  "name": "weiguang-math-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "微光数学 Windows 桌面工作台（前端与本地 Docker 视频服务）",
+  "productName": "微光数学",
+  "main": "main.cjs",
+  "author": "WeiGuang Math",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
+    "build:windows": "electron-builder --win nsis portable --x64"
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "cn.weiguang.math",
+    "productName": "微光数学",
+    "executableName": "WeiGuangMath",
+    "copyright": "Copyright © 2026 WeiGuang Math",
+    "asar": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "url_policy.cjs",
+      "launcher.html",
+      "launcher.js",
+      "launcher.css",
+      "brand.svg",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "service/backend",
+        "filter": [
+          "Dockerfile",
+          "pyproject.toml",
+          "src/**/*"
+        ]
+      },
+      {
+        "from": "../animation_engine",
+        "to": "service/animation_engine",
+        "filter": [
+          "pyproject.toml",
+          "src/**/*"
+        ]
+      },
+      {
+        "from": "../teacher_module",
+        "to": "service/teacher_module",
+        "filter": [
+          "pyproject.toml",
+          "src/**/*"
+        ]
+      },
+      {
+        "from": "../visual_director",
+        "to": "service/visual_director",
+        "filter": [
+          "pyproject.toml",
+          "src/**/*"
+        ]
+      },
+      {
+        "from": "../frontend",
+        "to": "service/frontend",
+        "filter": [
+          "index.html",
+          "app.js",
+          "styles.css",
+          "logo.svg"
+        ]
+      },
+      {
+        "from": "../config",
+        "to": "service/config",
+        "filter": [
+          "edit_ai.example.json"
+        ]
+      },
+      {
+        "from": "../",
+        "to": "service",
+        "filter": [
+          "docker-compose.yml"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/app.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "微光数学",
+      "artifactName": "WeiGuang-Math-Setup-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "WeiGuang-Math-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}
