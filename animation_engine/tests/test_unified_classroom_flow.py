@@ -194,7 +194,10 @@ def test_60fps_36_frame_wipe_is_valid_but_full_stage_cannot_be_short(monkeypatch
             json.dumps({"streams":[{
                 "width":1280,"height":720,
                 "r_frame_rate":"60/1",
-                "nb_read_frames":str(TRANSITION_FRAMES)
+                "nb_read_frames":str(
+                    TRANSITION_FRAMES if "board_wipe.mp4" in " ".join(command)
+                    else 19
+                )
             }]}),
             ""
         )
