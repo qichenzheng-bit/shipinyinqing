@@ -179,7 +179,7 @@ def main():
             page.get_by_role("button",name="读取模型列表").click()
             page.locator("#ai-versions").select_option("demo-math-model-2026-11")
             page.get_by_role("button",name="测试模型连接").click()
-            page.get_by_text("连接成功 · JSON 输出验证通过",exact=True).wait_for()
+            page.locator(".api-layout .notice").filter(has_text="连接成功 · JSON 输出验证通过").wait_for()
             page.get_by_role("button",name="应用模型版本").click()
             page.locator("#ai-manual-model").wait_for()
             assert page.locator("#ai-key").input_value()==""
