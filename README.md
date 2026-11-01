@@ -106,6 +106,17 @@ math-animation export-spoken-script \
 # 同目录生成经源校验的 lesson_script.json
 ```
 
+**导出不是审核批准。** 在明确人工核对完整题干、数学、板书与逐句口播后，使用如下不渲染命令记录自我声明式审核（`--reviewer` 填实际审核人标识）：
+
+```bash
+math-animation approve-spoken-script \
+  --spoken lesson-demo/spoken_classroom.json \
+  --reviewer "reviewed-by-teacher" --confirm-reviewed
+# 记录 lesson-demo/lesson_script_approval.json，绑定脚本文件字节摘要与口播来源
+```
+
+脚本后续有任何改动，旧审批摘要不匹配，正式渲染将拒绝。此记录是显式人工确认痕迹，不构成可验证的数字签名。微调时已有可信 `--script-reviewer` 回调会自动按审核结果记录批准/拒绝，不能由 AI 的自述代替。
+
 此例题为 `I=∫₀² 2x e^(x²) dx=e⁴−1`：先观察 `x²` 与 `2x` 的导数关系，才引出换元法；保留 `I=e⁴-e⁰` 中间过程、积分限风险提示及结论后总结。请勿把这一道题的讲法强套到矩阵、证明、极限等其他题型。
 
 ### 未来被明确要求制作真实视频时
@@ -120,7 +131,13 @@ math-animation render-spoken \
   --fps 60
 ```
 
-**本次代码整理没有调用该命令，也没有进行真实 TTS 或 MP4 渲染。** 如果输入包含 V2.7 合同，必须先完成上面的脚本导出。使用 `--fps 30` 可主动复现历史 FPS；已经产生的旧 MP4 和已有微调会话不会自动转码或改变 FPS。
+**本次代码整理没有调用该命令，也没有进行真实 TTS 或 MP4 渲染。** 如果输入包含 V2.7 合同，必须先完成上面的脚本导出和独立审核批准（仅导出不能放行渲染）。使用 `--fps 30` 可主动复现历史 FPS；已经产生的旧 MP4 和已有微调会话不会自动转码或改变 FPS。
+
+### Windows PowerShell 提示
+
+以上 `math-animation` 命令在 Windows PowerShell 中可以直接运行；跨行命令请写在同一行，或把 Bash 的行尾反斜杠 `\\` 换为 PowerShell 续行符反引号。安装外部的 Windows 版 FFmpeg/ffprobe、LaTeX/dvisvgm、Manim 及中文字体后，请确认可从终端直接调用。全量非渲染回归可分别进入三个模块目录运行 `python -m pytest -q`，动画引擎目录使用 `python -m pytest -q -m "not render"`。当前未替你实际在 Windows 上运行测试。
+
+本次工程加固额外防止 MP4/JSON/SRT 和源文件的输出路径碰撞，旧媒体文件在渲染失败时保持不变；课程题干可连续包含多个中文和经过来源验证的 MathTex 数学片段。FFconcat 对含空格和单引号的项目文件路径安全转义。
 
 ### 微调 CLI（当前无用户侧 UI）
 

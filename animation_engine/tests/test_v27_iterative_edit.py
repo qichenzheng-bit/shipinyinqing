@@ -13,7 +13,7 @@ from animation_engine.iterative_edit_engine import (
 )
 from animation_engine.spoken_classroom import checked_spoken
 from animation_engine.v27_teacher_contract import (
-    export_spoken_script, require_prerender_script,
+    export_spoken_script, require_prerender_script, approve_prerender_script,
 )
 
 
@@ -55,6 +55,10 @@ def _session(tmp_path):
         output_json=package / "lesson_script.json",
         output_md=package / "lesson_script.md",
         source_document=json.loads(source.read_text(encoding="utf-8")),
+    )
+    approve_prerender_script(
+        checked_spoken(source, adaptive=False), source,
+        reviewer="trusted-test-teacher", confirmed=True,
     )
     movie = tmp_path / "baseline.mp4"
     movie.write_bytes(b"NONRENDER-BASELINE")
@@ -156,6 +160,33 @@ def test_v27_script_reviewer_rejection_keeps_previous_video(tmp_path):
     assert result["revision"] == 0
     assert (root / "latest.mp4").read_bytes() == initial
     assert all(r["status"] == "failed" for r in result["requirements"])
+
+
+def test_ai_plan_cannot_forge_v27_script_approval(tmp_path):
+    root = _session(tmp_path)
+    previous_movie = (root / "latest.mp4").read_bytes()
+    for artifact in ("lesson_script.json", "lesson_script_approval.json"):
+        plan = {
+            "schema_version": "1.0", "model": "test-agent",
+            "requirements": [{
+                "id": "r", "instruction": "tamper review",
+                "target": artifact, "operation_ids": ["o"],
+            }],
+            "operations": [{
+                "id": "o", "file": artifact,
+                "pointer": "/decision", "action": "set", "value": "approved",
+            }],
+        }
+        result = run_edit(
+            root, "tamper review", lambda *args: plan,
+            renderer=_fake_renderer, media_check=_fake_media,
+            math_reviewer=lambda *args: True,
+            script_reviewer=lambda *args: True,
+        )
+        assert result["status"] == "failed"
+        assert "EDIT_IMMUTABLE_REVIEW_ARTIFACT" in result["error"]
+        assert result["revision"] == 0
+        assert (root / "latest.mp4").read_bytes() == previous_movie
 
 
 def test_v27_voice_only_edit_bypasses_math_but_requires_script_review(tmp_path):

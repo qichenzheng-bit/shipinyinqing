@@ -176,6 +176,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Human-readable Markdown script; JSON is written beside spoken_classroom.json")
     script_export.add_argument("--adaptive", action="store_true")
 
+    script_approval = subparsers.add_parser(
+        "approve-spoken-script",
+        help="Explicitly attest review of source-exact V2.7 script before rendering",
+    )
+    script_approval.add_argument("--spoken", type=Path, required=True)
+    script_approval.add_argument("--reviewer", type=str, required=True)
+    script_approval.add_argument("--confirm-reviewed", action="store_true", required=True)
+    script_approval.add_argument("--adaptive", action="store_true")
+
     spoken_render = subparsers.add_parser(
         "render-spoken", help="V2.6.4 actual neural narration, MathTex and phrase captions")
     spoken_render.add_argument("--spoken", type=Path, required=True)
@@ -304,11 +313,28 @@ def main(argv: list[str] | None = None) -> int:
             result = export_spoken_script(
                 approved, output_json=args.spoken.parent / "lesson_script.json",
                 output_md=args.output, source_document=source_doc,
+                source_path=args.spoken,
             )
             print(json.dumps({
                 "script": str(args.output),
                 "machine_readable": str(args.spoken.parent / "lesson_script.json"),
                 "events": len(result["events"]), "acceptance": result["acceptance"],
+            }, ensure_ascii=False))
+            return 0
+        if args.command == "approve-spoken-script":
+            from .spoken_classroom import checked_spoken
+            from .v27_teacher_contract import approve_prerender_script
+            source = args.spoken.resolve()
+            reviewed = checked_spoken(source, adaptive=args.adaptive)
+            approval = approve_prerender_script(
+                reviewed, source, reviewer=args.reviewer,
+                confirmed=args.confirm_reviewed,
+            )
+            print(json.dumps({
+                "approval": str(source.parent / "lesson_script_approval.json"),
+                "source_sha256": approval["source_spoken_sha256"],
+                "script_sha256": approval["script_sha256"],
+                "reviewer": approval["reviewer"],
             }, ensure_ascii=False))
             return 0
         if args.command == "render-spoken":

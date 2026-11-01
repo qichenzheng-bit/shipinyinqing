@@ -141,7 +141,7 @@ def test_single_engine_source_flow_is_valid_without_fake_second_engine(project):
 
 def test_source_package_mutation_must_be_rejected(project):
     stage=project/"calculation"/"teaching_package.json"
-    p=json.loads(stage.read_text())
+    p=json.loads(stage.read_text(encoding="utf-8"))
     p["source"]["reference_solution"]="made up"
     stage.write_text(json.dumps(p),encoding="utf-8")
     with pytest.raises(LongboardError,match="FLOW_PACKAGE_SOURCE_HASH"):
@@ -162,8 +162,8 @@ def test_multiple_engines_within_a_single_stage_are_rejected(project):
 
 def test_teacher_knowledge_is_a_real_mathematical_rule(project):
     from animation_engine.core_knowledge import checked_core_knowledge
-    raw=json.loads((project/"graph"/"teaching_units.json").read_text())
-    catalog=json.loads((project/"graph"/"core_knowledge.json").read_text())
+    raw=json.loads((project/"graph"/"teaching_units.json").read_text(encoding="utf-8"))
+    catalog=json.loads((project/"graph"/"core_knowledge.json").read_text(encoding="utf-8"))
     checked_core_knowledge(raw["units"],catalog)
     assert catalog["points"][0]["formulae"][0]["latex"]==(
         r"S=\int_a^b\!\left[f(x)-g(x)\right]\,dx"

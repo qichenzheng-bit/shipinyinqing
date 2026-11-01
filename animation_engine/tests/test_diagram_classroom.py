@@ -206,9 +206,9 @@ def test_mutual_exclusion_of_matrix_proof_and_diagram_contract():
 def test_diagram_source_export_is_complete_and_reproducible(tmp_path,variant):
     path=tmp_path/variant
     export_variant(path,variant)
-    manifest=json.loads((path/"diagram_classroom.json").read_text())
-    execution=json.loads((path/"execution.json").read_text())
-    storyboard=json.loads((path/"storyboard.json").read_text())
+    manifest=json.loads((path/"diagram_classroom.json").read_text(encoding="utf-8"))
+    execution=json.loads((path/"execution.json").read_text(encoding="utf-8"))
+    storyboard=json.loads((path/"storyboard.json").read_text(encoding="utf-8"))
     contract=checked_diagram_classroom(manifest,storyboard,execution)
     assert len(contract.ordered_ids)>=5
     assert manifest["teacher_reviewed"] is True

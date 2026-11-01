@@ -288,6 +288,13 @@ def render_adaptive_flow(input_file: Path | str, *,
             or Path(output_mp4).suffix.lower() != ".mp4"
             or Path(output_json).suffix.lower() != ".json"):
         raise LongboardError("ADAPTIVE_RENDER_ARGUMENTS")
+    from .safe_output import (
+        validate_output_targets, course_source_files, publish_bundle,
+        ffconcat_file,
+    )
+    targets = {Path(output_mp4): ".mp4", Path(output_json): ".json"}
+    protected = course_source_files(Path(input_file))
+    validate_output_targets(targets, protected=protected)
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         raise LongboardError("ADAPTIVE_FFMPEG_UNAVAILABLE")
     checked = checked_adaptive_flow(input_file)
@@ -408,7 +415,7 @@ def render_adaptive_flow(input_file: Path | str, *,
                 frame_offset += transition_frames
         playlist = root / "segments.txt"
         playlist.write_text(
-            "".join(f"file '{v.as_posix()}'\n" for v in parts),
+            "".join(ffconcat_file(v) for v in parts),
             encoding="utf-8",
         )
         movie = root / "adaptive_full.mp4"
@@ -439,13 +446,10 @@ def render_adaptive_flow(input_file: Path | str, *,
             ),
             "join_mode": join_mode,
         }
-        target = Path(output_mp4)
-        manifest = Path(output_json)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        manifest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(movie, target)
-        manifest.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        publish_bundle({
+            Path(output_mp4): movie,
+            Path(output_json): (
+                json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+            ).encode("utf-8"),
+        }, suffixes=targets, protected=protected)
         return report

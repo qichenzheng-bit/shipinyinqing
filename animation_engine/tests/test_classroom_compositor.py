@@ -26,6 +26,38 @@ def test_mixed_language_refused():
         _source_parts(r"计算\write18{x}")
 
 
+def test_mixed_chinese_math_question_keeps_all_source_and_two_mathtex_parts():
+    from animation_engine.header_raster import source_header_segments
+    question = "若 " + r"\sin x>0" + "，求 " + r"\cos x" + " 的取值范围。"
+    parts = source_header_segments(question)
+    assert "".join(p["value"] for p in parts) == question
+    assert [p["value"] for p in parts if p["kind"] == "math"] == [
+        r"\sin x>0", r"\cos x",
+    ]
+    assert parts[0]["kind"] == "text"
+    assert parts[-1]["kind"] == "text"
+
+
+@pytest.mark.parametrize("question", [
+    "计算" + r"\write18{x}" + "的值",
+    "求" + r"\frac{x}{2" + "。",
+])
+def test_mixed_question_does_not_silently_accept_unsafe_math(question):
+    from animation_engine.header_raster import source_header_segments
+    with pytest.raises(AdaptiveLayoutError, match="UNSAFE_TEX"):
+        source_header_segments(question)
+
+
+def test_mixed_source_includes_plain_ascii_variables_and_values():
+    from animation_engine.header_raster import source_header_segments
+    question = "已知 x>0，求 y^2+1 的范围。"
+    segments = source_header_segments(question)
+    assert [s["value"] for s in segments if s["kind"] == "math"] == [
+        "x>0", "y^2+1",
+    ]
+    assert "".join(s["value"] for s in segments) == question
+
+
 @pytest.mark.render
 def test_real_question_mathtex_and_board(tmp_path):
     pytest.importorskip("manim")
