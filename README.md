@@ -2,7 +2,7 @@
 
 微光数学是一套用于**考研数学教学视频**的工具：数学教师生成可审查的教学草稿，课堂编排模块将题解映射为板书/口播动作，动画引擎以 Manim、LaTeX、TTS 和 FFmpeg 制作视频。完整视频流程不跳过数学来源核验和教师人工审查。
 
-本仓库同时提供白底、黑字的 Web 工作台、FastAPI 后端和 **Windows 桌面 App**。Windows 图标沿用现有“翻开的书 + 暖金色星芒”，桌面安装包可创建开始菜单和桌面快捷方式；右上角教学视频水印仍使用适合白色板书的透明标志。
+本仓库同时提供白底、黑字的 Web 工作台、FastAPI 后端、**Windows 桌面 App** 和 **Android 手机 App**。Windows 图标沿用现有“翻开的书 + 暖金色星芒”，桌面安装包可创建开始菜单和桌面快捷方式；右上角教学视频水印仍使用适合白色板书的透明标志。
 
 ## 1. 选择运行方式
 
@@ -10,6 +10,7 @@
 |---|---|---|
 | **Windows Setup.exe** | 下载安装后从桌面直接打开工作台 | Windows 10/11 x64；本地生产需要 Docker Desktop + WSL2 |
 | **Windows Portable.exe** | 免安装的便携桌面客户端 | 与安装版相同的后端条件；不自带 Docker |
+| **Android APK** | 手机端创建、审核、播放、下载、微调 | Android 10+；需可访问的微光数学 HTTPS 服务器 |
 | **Web 工作台** | 浏览器访问本机或已部署服务器 | 服务端 FastAPI、数据库、Redis、Celery/视频引擎 |
 | **Python CLI** | 开发与验收视频引擎、细粒度调试 | Python 3.11+、相应媒体工具和模型资源 |
 
@@ -37,6 +38,27 @@ Windows 本地模式首次运行：
 已有华为云或其他服务器的用户可选择「连接服务器」，填写 `https://你的域名`，在原网页登录。为了保护密钥，不允许通过公共 HTTP 地址连接，**不应把未配置 TLS 的内部服务直接暴露公网**。
 
 Windows 安装包目前未配置代码签名证书；Windows SmartScreen 可能显示未知发布者提示。若准备公开发行，请配置真实签名证书、版本升级策略及安全审计，不能绕过安全检查。
+
+### Android 手机 App（安卓 10+）
+
+Android 端与 Windows/Web **共享同一数学教师、课堂编排、审核、微调和数据 API**，不是另起一套视频渲染器。应用图标采用与已有 Logo 一致的深石墨色底、暖金星芒和展开书页；手机页面使用相同黑白视觉和适合触控的响应式布局。
+
+最新测试 APK 在 [WeiGuang Math Android APK 工作流](.github/workflows/android-apk.yml) 的成功运行中，下载附件 `WeiGuang-Math-Android-installable-APK`，将 `app-debug.apk` 发送到 Android 手机并安装即可。**这是适合私下验收的测试签名 APK**，非 Play 商店正式签名包。它不会内置服务器或模型密钥，升级、公开发行需要配置持久的正式 Android 签名密钥与发布流水线。
+
+首次启动在原生页面填入 **HTTPS 服务器地址**，例如 `https://math.example.com`，验证 `/health` 后进入同源工作台。之后自动记住地址。手机不能直接启动 Windows 的 Docker Desktop，也不会在设备上运行 Manim/LaTeX、TTS 或 Celery：视频任务在你已部署的华为云或其他后端服务器执行。
+
+Android 端支持题目增删改查、课程人工审核、服务商及模型版本配置、任务进度查看、在线播放 MP4、上传 ZIP 课程包、自然语言微调、项目管理和批量删除。MP4 和“全部微调历史 JSON”通过后端登录态下载到手机的 `下载/微光数学` 文件夹。
+
+安全与隐私：只连接用户明确选择的 HTTPS 服务端，验证有效 TLS 证书；拒绝公网 HTTP、站外导航或混合内容。视频与 JSON 下载只允许当前微光数学域名下受审的下载接口；系统文件选择器仅在上传时使用。App 不内置模型 API Key、数据库密码、Docker，也不请求相机、定位、录音或外部存储权限，模型密钥仍在后端加密存储。
+
+GitHub CI 会运行 Java URL 安全测试、原生 APK 构建、Android 模拟器启动以及手机视口浏览器页面测试；这些测试**不代表**已用你的实际服务器和真实题目完成过音画验收。
+
+开发者用 Android Studio 打开 `android_app/`，或在安装 Android SDK 35、JDK 17、Gradle 8.10.2 的环境运行：
+
+```bash
+gradle -p android_app testDebugUnitTest lintDebug assembleDebug
+# APK 位于 android_app/app/build/outputs/apk/debug/app-debug.apk
+```
 
 ### 开发者运行桌面项目
 
