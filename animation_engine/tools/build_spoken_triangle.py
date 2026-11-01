@@ -60,6 +60,9 @@ NARRATIVE = {
 # It is not enough to bind all strokes to the same broad teaching event.
 DIAGRAM_PHRASE_CUES = {
     ("introduce_triangle", "e_intro"): [
+        {"object_id":"A","phrase":"题目给出直角三角形，"},
+        {"object_id":"B","phrase":"题目给出直角三角形，"},
+        {"object_id":"C","phrase":"题目给出直角三角形，"},
         {"object_id":"AB","phrase":"先画直角三角形的两条直角边，"},
         {"object_id":"AC","phrase":"先画直角三角形的两条直角边，"},
         {"object_id":"BC","phrase":"再连接 B、C。"},

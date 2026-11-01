@@ -36,7 +36,7 @@ UNITS = [
     unit("substitution", "选择新的积分变量", "令指数中的平方为新的变量，同时变换微分。",
          r"u=x^2,\quad du=2x\,dx", "复合函数求导与微分关系。"),
     unit("bounds", "同步更换积分上下限", "定积分换元时上下限也要随变量改变。",
-         r"x=0\Rightarrow u=0,\quad x=1\Rightarrow u=1", "换元端点对应关系。"),
+         r"x=0\Longrightarrow u=0,\quad x=1\Longrightarrow u=1", "换元端点对应关系。"),
     unit("rewrite", "写出换元后的积分", "被积函数与微分已变换完整，得到基本指数积分。",
          r"I=\int_0^1 e^u\,du", "换元后的积分完全等价。"),
     unit("primitive", "使用指数函数原函数", "指数函数的原函数仍是自身，保留上下限。",
