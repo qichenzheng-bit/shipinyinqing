@@ -11,7 +11,7 @@ from animation_engine.render_contract import select_math_render_request
 from animation_engine.math_preview import MathPreviewError, render_math_preview
 
 manim = pytest.importorskip("manim")
-SAMPLE = Path(__file__).resolve().parents[2] / "visual_director" / "examples" / "limit_teaching_package.json"
+SAMPLE = Path(__file__).resolve().parents[2] / "visual_director" / "tests" / "fixtures" / "limit_teaching_package.json"
 
 
 @pytest.fixture
