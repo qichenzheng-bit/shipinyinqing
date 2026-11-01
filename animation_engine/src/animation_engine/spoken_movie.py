@@ -254,6 +254,15 @@ def render_spoken_classroom(
                 "-t",f"{duration:.5f}",
                 "-movflags","+faststart",str(final),
             ],"SPOKEN_VOICED_CAPTION_MUX_FAILED")
+        # Branding is laid over the already source-verified classroom,
+        # never injected into MathTex or narration/subtitle source.
+        from .brand_watermark import overlay_branding
+        branded = root / "weiguang_branded.mp4"
+        brand_audit = overlay_branding(
+            final, branded, fps=fps, frames=rendered["actual_video_frames"],
+            runner=_run,
+        )
+        final = branded
         verified=_audio_video_verified(
             final,fps=fps,expected_frames=rendered["actual_video_frames"],
         )
@@ -274,6 +283,7 @@ def render_spoken_classroom(
             "math_caption_renderer":"true_manim_mathtex",
             "subtitle_count":len(cues),
             "audio_verification":verified,
+            "brand_watermark":brand_audit,
             "fabricated_voice_or_subtitle_count":0,
             "source_narration_action_count":planned["action_count"],
             "voiced_action_count":sum(
