@@ -134,6 +134,10 @@ def _expected_actions(flow: Flow, *, measure=None, adaptive=False) -> list[dict]
             if diagram and event["diagram_order"] == "diagram_then_math":
                 expected.append(diagram)
             for block in event["added_blocks"]:
+                # An established result carried onto a fresh page is
+                # visible ink, not a second narrated mathematical write.
+                if block.get("carry"):
+                    continue
                 ident = block["block_id"]
                 expected.append((
                     "note" if block["kind"] == "teacher_note" else "math",
