@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import time
 from collections import Counter
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -77,11 +78,9 @@ def _render_environment_fingerprint() -> dict:
     system fonts, an upgraded LaTeX distribution or FFmpeg installation.
     The probes read environment metadata only; they never render a video.
     """
-    from .classroom_compositor import _CJK_FONT_CANDIDATES
-    board_font = next(
-        (path for path in _CJK_FONT_CANDIDATES if Path(path).is_file()),
-        None,
-    )
+    from .classroom_compositor import _cjk_font_path
+    selected_font = _cjk_font_path()
+    board_font = str(selected_font) if selected_font is not None else None
     manim_font = None
     fc_match = shutil.which("fc-match")
     if fc_match:
@@ -124,6 +123,35 @@ def engine_signature() -> str:
         "platform": platform.platform(),
         "render_environment": _render_environment_fingerprint(),
     })
+
+
+@contextmanager
+def _cache_entry_write_lock(entry: Path):
+    """Cross-process lock for publishing an immutable content-addressed entry.
+
+    A reader never trusts an in-progress cache: it may record a miss and
+    recompute, but concurrent writers cannot delete each other's publication.
+    """
+    lock_file = entry.with_name(entry.name + ".lock")
+    fd = os.open(lock_file, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 
 class ArtifactCache:
@@ -202,11 +230,14 @@ class ArtifactCache:
                 "key": key, "namespace": namespace,
                 "files": details,
             }, sort_keys=True), encoding="utf-8")
-            # Atomic directory rename. For a corrupted prior entry, replace
-            # it under the session's render lock, never return it as valid.
-            if entry.exists():
-                shutil.rmtree(entry)
-            os.replace(scratch, entry)
+            # The session render lock is not enough when independent CLI
+            # processes share a cache. Recheck after acquiring a per-key
+            # cross-process lock: first valid publisher wins.
+            with _cache_entry_write_lock(entry):
+                if self.read(namespace, key, filenames=tuple(files)) is None:
+                    if entry.exists():
+                        shutil.rmtree(entry)
+                    os.replace(scratch, entry)
         finally:
             if scratch.exists():
                 shutil.rmtree(scratch)
