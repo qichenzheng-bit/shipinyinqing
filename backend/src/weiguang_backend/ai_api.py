@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select
 
-from .models import AiProvider, AiTaskSelection
+from .models import AiProvider, AiTaskSelection, now
 from .model_hub import (
     CATALOG_MAP, PROTOCOLS, TASKS, HubClient, ModelHubError,
     encrypt_key, public_provider, public_selection, require_master_key,
@@ -59,7 +59,7 @@ def build_ai_router(SessionLocal,auth):
 
     def provider_get(db,identifier):
         provider=db.get(AiProvider,identifier)
-        if provider is None:
+        if provider is None or provider.deleted_at is not None:
             raise HTTPException(404,"MODEL_PROVIDER_NOT_FOUND")
         return provider
 
@@ -86,7 +86,9 @@ def build_ai_router(SessionLocal,auth):
     def providers():
         with SessionLocal() as db:
             rows=db.scalars(
-                select(AiProvider).order_by(AiProvider.created_at)
+                select(AiProvider).where(
+                    AiProvider.deleted_at.is_(None)
+                ).order_by(AiProvider.created_at)
             )
             return [public_provider(x) for x in rows]
 
@@ -142,7 +144,9 @@ def build_ai_router(SessionLocal,auth):
             )).first()
             if bound:
                 raise HTTPException(409,"MODEL_PROVIDER_IN_USE_CLEAR_SELECTION_FIRST")
-            db.delete(provider_get(db,id))
+            row=provider_get(db,id)
+            row.deleted_at=now()
+            row.revision+=1
             db.commit()
             return {"deleted":id}
 
@@ -177,7 +181,8 @@ def build_ai_router(SessionLocal,auth):
             raise HTTPException(422,"MODEL_SELECTION_TASK_DUPLICATE")
         with SessionLocal() as db:
             for binding in payload.bindings:
-                if db.get(AiProvider,binding.provider_id) is None:
+                if (db.get(AiProvider,binding.provider_id) is None
+                        or db.get(AiProvider,binding.provider_id).deleted_at is not None):
                     raise HTTPException(404,"MODEL_PROVIDER_NOT_FOUND")
                 if not binding.model_id.strip():
                     raise HTTPException(422,"MODEL_VERSION_REQUIRED")
