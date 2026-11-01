@@ -90,14 +90,24 @@ def _decode_mp3_to_pcm(mp3: Path, wav: Path) -> bytes:
 
 
 async def _edge_clip(index: int, text: str, voice: str,
-                     root: Path, semaphore) -> bytes:
+                     root: Path, semaphore, cache=None) -> bytes:
     try:
         import edge_tts
     except ImportError as exc:
         raise LongboardError(
             "VOICE_TTS_PROVIDER_MISSING: pip install edge-tts"
         ) from exc
+    # Key includes voice, actual speed, source text, sample-rate and code/
+    # provider versions (the cache itself supplies the runtime signature).
+    cache_key=(cache.key("speech_pcm",{
+        "text":text,"voice":voice,"rate":"-4%",
+        "sample_rate":SAMPLE_RATE,"codec":"pcm_s16le_mono",
+    }) if cache is not None else None)
     async with semaphore:
+        if cache is not None:
+            previous=cache.get_pcm(cache_key)
+            if previous is not None:
+                return previous
         mp3=root/f"spoken_{index:04d}.mp3"
         wav=root/f"spoken_{index:04d}.wav"
         last=None
@@ -111,7 +121,10 @@ async def _edge_clip(index: int, text: str, voice: str,
                 )
                 if not mp3.is_file() or mp3.stat().st_size < 200:
                     raise LongboardError("VOICE_PROVIDER_RETURNED_NO_AUDIO")
-                return _decode_mp3_to_pcm(mp3,wav)
+                pcm=_decode_mp3_to_pcm(mp3,wav)
+                if cache is not None:
+                    cache.write("speech_pcm",cache_key,{"payload.bin":pcm})
+                return pcm
             except Exception as exc:
                 last=exc
                 if attempt == 0:
@@ -122,7 +135,7 @@ async def _edge_clip(index: int, text: str, voice: str,
 
 
 async def synthesize_voiced_spans(contract: SpokenContract, root: Path,
-                                  *, fps: int) -> dict:
+                                  *, fps: int, cache=None) -> dict:
     if type(fps) is not int or fps < 8 or fps > 60:
         raise LongboardError("VOICE_FPS_INVALID")
     root=Path(root)
@@ -146,11 +159,22 @@ async def synthesize_voiced_spans(contract: SpokenContract, root: Path,
                     index+=1
             spans.append((span,keys))
         skeleton.append((event,spans))
+    # Identical clauses share one provider invocation, even within the same
+    # run; different text, voice or actual speech speed must NEVER be reused.
     semaphore=asyncio.Semaphore(4)
-    raw=await asyncio.gather(*(
-        _edge_clip(i,txt,voice,root,semaphore)
-        for i,txt,voice in requests
+    unique={}
+    for i,txt,voice in requests:
+        unique.setdefault((txt,voice),(i,txt,voice))
+    found=await asyncio.gather(*(
+        _edge_clip(i,txt,voice,root,semaphore,cache=cache)
+        for i,txt,voice in unique.values()
     ))
+    by_phrase=dict(zip(unique,found))
+    raw={i:by_phrase[(txt,voice)] for i,txt,voice in requests}
+    if cache is not None:
+        cache.counts["speech_same_run_deduplicated"]+=(
+            len(requests)-len(unique)
+        )
     result={}
     for event,spans in skeleton:
         collected=[]
