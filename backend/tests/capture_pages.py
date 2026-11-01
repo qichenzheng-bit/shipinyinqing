@@ -23,7 +23,7 @@ from build_novel_substitution_integral import build
 from test_compiler import curriculum_fixture
 
 from weiguang_backend.main import create_app
-from weiguang_backend.models import Lesson
+from weiguang_backend.models import Lesson, EditRecord
 
 PORT=8942
 BASE=f"http://127.0.0.1:{PORT}"
@@ -71,6 +71,28 @@ def seed(app,base):
         # screenshots; this byte sequence is not reported as a real MP4.
         video.write_bytes(b"UI_SCREENSHOT_FIXTURE_NOT_PLAYABLE")
         ready.latest_video=str(video)
+        review_folder=base/"lessons"/ready.id/"edit_review_ui"
+        (review_folder/"package").mkdir(parents=True,exist_ok=True)
+        (review_folder/"review.json").write_text(
+            json.dumps({
+                "schema_version":"1.0","status":"pending",
+                "instruction":"结尾总结再简洁一点",
+                "source_revision":0,
+                "plan":{"requirements":[{
+                    "id":"r1","instruction":"结尾总结再简洁一点",
+                    "target":"归纳总结","operation_ids":["o1"],
+                }]},
+            },ensure_ascii=False),encoding="utf-8",
+        )
+        (review_folder/"package"/"lesson_script.md").write_text(
+            "本轮口播先归纳核心公式，再提醒容易混淆的知识点。",
+            encoding="utf-8",
+        )
+        db.add(EditRecord(
+            lesson_id=ready.id,original_instruction="结尾总结再简洁一点",
+            status="review_pending",source_revision=0,
+            review_path=str(review_folder),
+        ))
         output=base/"lessons"/review.id/"package"
         import shutil
         shutil.copytree(fixture,output)
@@ -114,6 +136,11 @@ def main():
             page.get_by_text("定积分与换元法",exact=True).click()
             page.get_by_role("heading",name="定积分与换元法").wait_for()
             page.screenshot(path=str(shots/"03-video-detail.png"),full_page=True)
+            page.get_by_role("button",name="审核修改").click()
+            page.get_by_role("heading",name="微调审核").wait_for()
+            page.screenshot(path=str(shots/"12-edit-review.png"),full_page=True)
+            page.get_by_role("button",name="退回修改").click()
+            page.get_by_role("heading",name="定积分与换元法").wait_for()
             page.get_by_role("button",name="视频库").click()
             page.get_by_text("极限与泰勒展开（审核演示）",exact=True).click()
             page.get_by_role("button",name="查看完整讲稿").click()
