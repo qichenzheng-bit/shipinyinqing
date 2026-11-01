@@ -468,8 +468,13 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         # Summary is a compact visual review. Only refer to *already shown*
         # knowledge and risk notes, never fabricate a new result or reread
         # the full explanation. Keep the actual answer in the conclusion.
+        recap_only=(
+            cue["phase"]=="summary" and not newids
+            and any(previous["phase"]=="conclusion"
+                    for _,_,previous in sequence[:index])
+        )
         recap_references=[]
-        if cue["phase"] == "summary":
+        if recap_only:
             prior_knowledge=[]
             prior_pitfalls=[]
             for earlier_index,earlier in enumerate(events):
@@ -501,7 +506,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         note_width=(DIAGRAM_LEFT_WIDTH if diagram_column else
                     KNOWLEDGE_WIDTH if paired else BOARD_WIDTH)
         lines=_note_lines(cue["detail"],note_width) if note_needed else []
-        if cue["phase"]=="summary" and recap_references:
+        if recap_only and recap_references:
             # The teacher comments briefly; the reviewed source objects
             # below carry the educational substance without long text.
             lines=[]
@@ -617,7 +622,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                         )
                     additions.append({"kind":"math","block_id":mid,**item})
                     y+=item["h"]+BOARD_ROW_GAP
-            if cue["phase"]=="summary" and recap_references:
+            if recap_only and recap_references:
                 for phase,source_cue,source_note,source_math in recap_references:
                     caption=(
                         "核心知识："+source_cue["heading"]
@@ -705,7 +710,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         carry_rows=[]
         diagram_carry_ids=[]
         if next_y>BOARD_BOTTOM_Y or (
-                cue["phase"]=="summary" and bool(active)
+                recap_only and bool(active)
             ):
             if not active:
                 raise LongboardError(
@@ -730,7 +735,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             # Copying results follows a real classroom's new page and never
             # implies calculating them before the original teacher event.
             carryids=(
-                [] if cue["phase"]=="summary" else
+                [] if recap_only else
                 proof.carry_at(scene.event_id,written)
                 if proof is not None
                 else computation.carry_at(scene.event_id,written)
@@ -774,7 +779,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                     )
                 # Optional historical result carry may be skipped.
                 # Summary reviews are source-backed; never silently omit them.
-                if cue["phase"]=="summary" and recap_references:
+                if recap_only and recap_references:
                     raise LongboardError("CHALKBOARD_RECAP_REVIEW_OVERFLOW")
                 # Legacy classroom mode: optional carry may be skipped.
                 carried=[]
@@ -832,7 +837,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "carry_object_ids":(
                 [a["block_id"] for a in added if a.get("carry")]
                 if (computation is not None or proof is not None
-                    or diagram is not None or cue["phase"]=="summary") else []
+                    or diagram is not None or recap_only) else []
             ),
             **({"proof_carry_rows":carry_rows} if proof is not None else {}),
             "erase_before":clear,
