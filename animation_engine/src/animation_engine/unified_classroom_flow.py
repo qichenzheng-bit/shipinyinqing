@@ -58,7 +58,7 @@ STAGE_FIELDS = frozenset({
 HANDOFF_FIELDS = frozenset({
     "from_stage", "from_object_id", "to_object_id",
 })
-TRANSITION_FRAMES = transition_frame_count(30)  # legacy exported 30-FPS constant; runtime scales with fps
+TRANSITION_FRAMES = transition_frame_count(DEFAULT_VIDEO_FPS)  # default 36 frames; runtime duration stays 0.6s
 
 
 def canonical_sha(value: Any) -> str:
