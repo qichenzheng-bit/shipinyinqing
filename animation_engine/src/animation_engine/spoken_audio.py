@@ -19,6 +19,11 @@ from .longboard_plan import LongboardError
 from .spoken_classroom import SpokenContract, DEFAULT_SPEECH_RATE
 
 SAMPLE_RATE = 24000
+# Include in the PCM cache key so old clips with long silence are not reused.
+SPEECH_SILENCE_POLICY = "boundary-quiet-v1"
+MAX_LEADING_SILENCE_SECONDS = 0.12
+MAX_TRAILING_SILENCE_SECONDS = 0.18
+MIN_TRIMMABLE_SILENCE_SECONDS = 0.30
 
 
 @dataclass(frozen=True)
@@ -39,6 +44,7 @@ class VoicedSpan:
     frames: int
     math_start_frame: int | None
     diagram_beats: tuple[dict, ...] = ()
+    emphasis_beats: tuple[dict, ...] = ()
 
     def duration(self, fps: int) -> float:
         return self.frames / fps
@@ -78,9 +84,66 @@ def split_natural_phrases(text: str, *, limit: int = 23) -> list[str]:
                 remaining = remaining[cut:]
             if remaining:
                 result.append(remaining)
-    if "".join(result) != text:
+    # Do not synthesize a short connective as a stand-alone sentence.
+    # Edge TTS can give "这样，" a long final pause when it is isolated.
+    connective = re.compile(
+        r"^(?:这样|那么|所以|因此|于是|然后|接着|好|好的|最后|这时)[，、]$"
+    )
+    merged = []
+    i = 0
+    while i < len(result):
+        if (i + 1 < len(result) and connective.fullmatch(result[i])
+                and len(result[i] + result[i + 1]) <= limit):
+            merged.append(result[i] + result[i + 1])
+            i += 2
+        else:
+            merged.append(result[i])
+            i += 1
+    if "".join(merged) != text:
         raise LongboardError("VOICE_PHRASE_SOURCE_MUTATED")
-    return result
+    return merged
+
+
+def compact_tts_boundary_silence(pcm: bytes, *,
+                                 sample_rate: int = SAMPLE_RATE) -> bytes:
+    """Compact excessive quiet PCM at clip edges; preserve internal pauses.
+
+    Keep ample phoneme guard, and use the compacted *real PCM* for all later
+    frame durations, subtitle timestamps and voice placement.
+    """
+    from array import array
+    if (not isinstance(pcm, bytes) or len(pcm) % 2
+            or type(sample_rate) is not int or sample_rate <= 0):
+        raise LongboardError("VOICE_INVALID_PCM_FOR_SILENCE_CHECK")
+    if len(pcm) < sample_rate:  # too short: never risk clipping a syllable
+        return pcm
+    samples = array("h")
+    samples.frombytes(pcm)
+    window = max(1, round(sample_rate * 0.01))
+    # MP3-decoded silence need not be exactly zero.
+    threshold = 110
+    first = None
+    last = None
+    for start in range(0, len(samples), window):
+        block = samples[start:start + window]
+        if any(abs(v) > threshold for v in block):
+            if first is None:
+                first = start
+            last = min(start + window, len(samples))
+    if first is None or last is None:
+        # Existing source PCM verification rejects silent audio.
+        return pcm
+    before = first / sample_rate
+    after = (len(samples) - last) / sample_rate
+    cut_head = (max(0, first - round(MAX_LEADING_SILENCE_SECONDS * sample_rate))
+                if before > MIN_TRIMMABLE_SILENCE_SECONDS else 0)
+    cut_tail = (min(len(samples), last + round(MAX_TRAILING_SILENCE_SECONDS * sample_rate))
+                if after > MIN_TRIMMABLE_SILENCE_SECONDS else len(samples))
+    if cut_tail - cut_head < max(round(sample_rate * 0.50), last - first):
+        # A tiny utterance must not become too short for the existing
+        # source-action/time-axis invariant. Keep its original silence.
+        return pcm
+    return samples[cut_head:cut_tail].tobytes()
 
 
 def _decode_mp3_to_pcm(mp3: Path, wav: Path) -> bytes:
@@ -121,6 +184,7 @@ async def _edge_clip(index: int, text: str, voice: str,
     cache_key=(cache.key("speech_pcm",{
         "text":text,"voice":voice,"rate":rate,
         "sample_rate":SAMPLE_RATE,"codec":"pcm_s16le_mono",
+        "silence_policy":SPEECH_SILENCE_POLICY,
     }) if cache is not None else None)
     async with semaphore:
         if cache is not None:
@@ -140,7 +204,9 @@ async def _edge_clip(index: int, text: str, voice: str,
                 )
                 if not mp3.is_file() or mp3.stat().st_size < 200:
                     raise LongboardError("VOICE_PROVIDER_RETURNED_NO_AUDIO")
-                pcm=_decode_mp3_to_pcm(mp3,wav)
+                pcm=compact_tts_boundary_silence(
+                    _decode_mp3_to_pcm(mp3,wav)
+                )
                 if cache is not None:
                     cache.write("speech_pcm",cache_key,{"payload.bin":pcm})
                 return pcm
@@ -242,8 +308,30 @@ async def synthesize_voiced_spans(contract: SpokenContract, root: Path,
                             raise LongboardError("VOICE_DIAGRAM_BEAT_TOO_SHORT")
                         beats.append({"object_id": ident, "start_frame": a, "end_frame": b})
                 beats.sort(key=lambda b: b["start_frame"])
+            emphasis=[]
+            if span.emphasis_cues:
+                phrases={}
+                offset=0
+                for chunk in built:
+                    if chunk.kind=="text":
+                        phrases.setdefault(chunk.display,[]).append(
+                            (offset,offset+chunk.frames)
+                        )
+                    offset+=chunk.frames
+                for mark in span.emphasis_cues:
+                    matches=phrases.get(mark["spoken_phrase"],[])
+                    if len(matches)!=1:
+                        raise LongboardError("VOICE_EMPHASIS_PHRASE_NOT_UNIQUE")
+                    start,end=matches[0]
+                    if end>start_math:
+                        raise LongboardError("VOICE_EMPHASIS_MUST_PRECEDE_NEW_MATH")
+                    emphasis.append({
+                        **mark, "start_frame":start,"end_frame":end,
+                    })
+                emphasis.sort(key=lambda x:x["start_frame"])
             collected.append(VoicedSpan(
-                span.kind,span.object_id,tuple(built),total,start_math,tuple(beats)
+                span.kind,span.object_id,tuple(built),total,start_math,
+                tuple(beats),tuple(emphasis)
             ))
         result.setdefault(event.stage_id,{})[event.event_id]=tuple(collected)
     return result
@@ -262,6 +350,25 @@ def build_render_schedules(voiced: dict, *, fps: int) -> dict:
                 }
                 if span.kind=="math":
                     data["math_start_delay"]=span.math_start_frame/fps
+                    cursor=0
+                    spoken_windows=[]
+                    for chunk in span.chunks:
+                        if chunk.kind=="math":
+                            spoken_windows.append((cursor,cursor+chunk.frames))
+                        cursor+=chunk.frames
+                    if not spoken_windows:
+                        raise LongboardError("VOICE_MATH_NOT_SPOKEN")
+                    # The Write animation must occupy the actual
+                    # pronunciation window, not an arbitrary first 2.4s
+                    # followed by a static image while TTS continues.
+                    data["math_end_delay"]=spoken_windows[-1][1]/fps
+                if span.kind=="math" and span.emphasis_beats:
+                    data["math_emphasis_beats"] = [{
+                        **{k:v for k,v in b.items()
+                           if k not in ("start_frame","end_frame")},
+                        "start_offset":b["start_frame"]/fps,
+                        "end_offset":b["end_frame"]/fps,
+                    } for b in span.emphasis_beats]
                 if span.kind=="diagram" and span.diagram_beats:
                     data["diagram_beats"] = [{
                         "object_id": b["object_id"],

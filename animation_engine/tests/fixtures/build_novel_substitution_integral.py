@@ -76,7 +76,7 @@ NARRATION = {
     ("e_intro", "note"):
         "同学们大家好，我们先来看一下这道定积分题。",
     ("e_intro", "math"):
-        "题目要求计算：",
+        "计算定积分：",
     ("e_strategy", "note"):
         "这道题我们先观察一下被积函数的结构。指数里面是 x 平方，前面还有一个二 x。这两部分有什么联系？",
     ("e_strategy", "math"):
@@ -115,8 +115,6 @@ AFTER_MATH = {
         "这样，原来积分中的二 x d x，就可以用 d u 代替了。",
     "e_pitfall":
         "注意，这里的上限从二变成了四。不能继续使用原来的上限。",
-    "e_conclusion":
-        "这样，这道题就算出来了。",
 }
 
 READINGS = {
@@ -188,7 +186,7 @@ def build(root: Path):
             "event_id": "e_intro",
             "opening_text": "同学们大家好，我们先来看一下这道定积分题。",
             "question_segments": [
-                {"source_text": "计算定积分：", "spoken_text": "题目要求计算："},
+                {"source_text": "计算定积分：", "spoken_text": "计算定积分："},
                 {"source_text": r"\quad I=\int_0^2 2x e^{x^2}\,dx",
                  "spoken_text": READINGS["m_intro"]},
             ],

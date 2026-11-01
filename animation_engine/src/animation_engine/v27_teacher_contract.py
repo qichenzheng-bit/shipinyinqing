@@ -104,6 +104,10 @@ def check_v27_teacher_contract(flow, events, contract: dict) -> dict:
     if not isinstance(question, list) or not question:
         _error("QUESTION_SEGMENTS")
     originals, readings = [], []
+    if (any(not isinstance(part,dict) or
+            set(part) != {"source_text","spoken_text"} for part in question)
+            or "".join(part["source_text"] for part in question) != flow.problem):
+        _error("QUESTION_NOT_FULL_SOURCE")
     full_math_readings = [
         part["reading"] for span in first["event"].spans
         for part in span.parts if part["kind"] == "math"
@@ -114,9 +118,11 @@ def check_v27_teacher_contract(flow, events, contract: dict) -> dict:
         readings.append(part["spoken_text"])
         # A LaTeX-bearing source segment must cite the COMPLETE approved
         # mathematical pronunciation, not a tiny token such as "I 等于".
-        if any(ord(ch) == 92 for ch in part["source_text"]):
-            if part["spoken_text"] not in full_math_readings:
-                _error("QUESTION_MATH_READING_NOT_COMPLETE")
+        if not any(ord(ch) == 92 for ch in part["source_text"]):
+            if part["spoken_text"].strip() != part["source_text"].strip():
+                _error("QUESTION_ORIGINAL_WORDS_PARAPHRASED")
+        elif part["spoken_text"] not in full_math_readings:
+            _error("QUESTION_MATH_READING_NOT_COMPLETE")
     if "".join(originals) != flow.problem:
         _error("QUESTION_NOT_FULL_SOURCE")
     _in_order(_voice(first), readings, "QUESTION_NOT_FULLY_AUDIBLE")
@@ -224,9 +230,14 @@ def compile_spoken_script(contract, *, source_document: dict | None = None) -> t
                 "spoken_parts": list(span.parts),
                 "spoken_exact": span.tts_text,
             }
+            header_readout = (
+                row is rows[0] and row["phase"] == "observe"
+                and row["heading"] in ("完整读题", "读题", "题目朗读")
+            )
             if span.kind == "math":
-                item["board_math_latex"] = span.math_latex
-            elif span.kind == "note":
+                item["header_math_latex" if header_readout
+                     else "board_math_latex"] = span.math_latex
+            elif span.kind == "note" and not header_readout:
                 item["board_heading"] = row["heading"]
                 item["board_detail"] = row["detail"]
             elif span.kind == "diagram":
@@ -256,6 +267,8 @@ def compile_spoken_script(contract, *, source_document: dict | None = None) -> t
             lines.append(str(i) + ". [" + action["kind"] + "] " + action["object_id"])
             if "board_math_latex" in action:
                 lines.append("   - 板书 MathTex：" + action["board_math_latex"])
+            if "header_math_latex" in action:
+                lines.append("   - 已显示题干，仅朗读：" + action["header_math_latex"])
             if "board_heading" in action:
                 lines.append("   - 板书讲解：" + action["board_heading"] + "；" + action["board_detail"])
             if "diagram_source_id" in action:

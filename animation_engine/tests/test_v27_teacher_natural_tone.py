@@ -16,7 +16,7 @@ from build_novel_substitution_integral import UNITS, NARRATION, AFTER_MATH, READ
 def test_opening_directly_reads_the_question_without_announcing_a_reading():
     intro = NARRATION["e_intro", "note"] + NARRATION["e_intro", "math"]
     assert intro.startswith("同学们大家好，我们先来看一下这道定积分题。")
-    assert intro.endswith("题目要求计算：")
+    assert intro.endswith("计算定积分：")
     assert "我们来读一下" not in intro
     assert "把题目读" not in intro
     assert "我们把题目中的积分" not in intro
@@ -45,7 +45,7 @@ def test_full_necessary_calculation_remains_and_recap_writes_no_new_formula():
     assert by_id["conclusion"]["math"][0]["latex"] == r"I=e^4-1"
     assert by_id["summary"]["math"] == []
     assert "e 的零次方等于一" in NARRATION["e_conclusion", "note"]
-    assert AFTER_MATH["e_conclusion"] == "这样，这道题就算出来了。"
+    assert "e_conclusion" not in AFTER_MATH  # no redundant post-answer filler
     assert "上下限" in NARRATION["e_pitfall", "note"]
     assert "积分限" in NARRATION["e_summary", "note"] or "上下限" in NARRATION["e_summary", "note"]
 

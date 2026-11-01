@@ -7,6 +7,7 @@ import pytest
 from animation_engine.spoken_audio import (
     SAMPLE_RATE,VoiceChunk,VoicedSpan,assemble_source_pcm,
     build_render_schedules,split_natural_phrases,
+    compact_tts_boundary_silence,
 )
 from animation_engine.spoken_captions import captions_srt
 from animation_engine.longboard_plan import LongboardError
@@ -153,3 +154,43 @@ def test_long_caption_relation_break_preserves_latex_braces():
     from animation_engine.spoken_captions import _safe_math_caption_break
     assert _safe_math_caption_break(r"I=\int_0^1 e^u\,du")==(r"I=",r"\int_0^1 e^u\,du")
     assert _safe_math_caption_break(r"\frac{1+2}{x^2}") is None
+
+def test_connective_phrase_stays_with_following_clause_without_changing_words():
+    approved="这样，这道题就算出来了。然后，我们再来看归纳总结。"
+    pieces=split_natural_phrases(approved)
+    assert "".join(pieces)==approved
+    assert pieces[0]=="这样，这道题就算出来了。"
+    assert "这样，" not in pieces
+    assert "然后，" not in pieces
+    # Real mathematical expressions are never cut merely to reach a quota.
+    assert split_natural_phrases("x 的三次方加上 y 的三次方。")==[
+        "x 的三次方加上 y 的三次方。"
+    ]
+
+
+def test_pcm_boundary_compaction_preserves_actual_voice_and_middle_pause():
+    from array import array
+    # Real signed 16-bit mono samples; no TTS or video/render dependencies.
+    sr=24000
+    silence=lambda sec: array("h",[0]*round(sr*sec))
+    voice=lambda sec: array("h",[2000]*round(sr*sec))
+    original=(silence(.85)+voice(.65)+silence(.72)+voice(.75)+silence(.96))
+    result=compact_tts_boundary_silence(original.tobytes(),sample_rate=sr)
+    samples=array("h");samples.frombytes(result)
+    assert len(samples)<len(original)-sr
+    assert samples.count(2000)==round(sr*(.65+.75))
+    # Deliberate *intra*-sentence pause is kept intact.
+    assert (samples.count(0)-round(sr*.72))<round(sr*.38)
+    assert samples[:int(sr*.1)]==array("h",[0]*int(sr*.1))
+    assert samples[-int(sr*.1):]==array("h",[0]*int(sr*.1))
+
+
+def test_pcm_compaction_avoids_clip_damage_when_quiet_or_short():
+    from array import array
+    sr=24000
+    short=array("h",[0]*4000+[1500]*5000+[0]*3500).tobytes()
+    assert compact_tts_boundary_silence(short)==short
+    all_silence=array("h",[0]*sr*2).tobytes()
+    assert compact_tts_boundary_silence(all_silence)==all_silence
+    with pytest.raises(LongboardError,match="VOICE_INVALID_PCM_FOR_SILENCE_CHECK"):
+        compact_tts_boundary_silence(bytes([0]))

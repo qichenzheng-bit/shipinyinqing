@@ -33,17 +33,17 @@ NOTE_CHARACTERS = re.compile(r"^[\u3400-\u9fff0-9，。、；：？！—（）�
 # Reference-classroom typography: fixed sizes, category-specific colors.
 # Chinese labels are PIL CJK glyphs; maths remains source MathTex.
 BOARD_TEXT_STYLE = {
-    "observe": {"heading": "#475569", "font_px": 17},
-    "strategy": {"heading": "#2563EB", "font_px": 17},
-    "knowledge": {"heading": "#7C3AED", "font_px": 17},
-    "pitfall": {"heading": "#DC2626", "font_px": 17},
-    "check": {"heading": "#D97706", "font_px": 17},
-    "summary": {"heading": "#0F766E", "font_px": 17},
-    "conclusion": {"heading": "#111111", "font_px": 17},
-    "application": {"heading": "#111111", "font_px": 17},
-    "calculate": {"heading": "#111111", "font_px": 17},
+    "observe": {"heading": "#475569", "font_px": 20},
+    "strategy": {"heading": "#2563EB", "font_px": 20},
+    "knowledge": {"heading": "#7C3AED", "font_px": 20},
+    "pitfall": {"heading": "#DC2626", "font_px": 20},
+    "check": {"heading": "#D97706", "font_px": 20},
+    "summary": {"heading": "#0F766E", "font_px": 20},
+    "conclusion": {"heading": "#111111", "font_px": 20},
+    "application": {"heading": "#111111", "font_px": 20},
+    "calculate": {"heading": "#111111", "font_px": 20},
 }
-BOARD_DETAIL_FONT_PX = 15
+BOARD_DETAIL_FONT_PX = 18
 BOARD_DERIVATION_INK = "#111111"
 FONT_COLORS = {"ink":BOARD_DERIVATION_INK,"muted":"#64748B","blue":"#2563EB"}
 
@@ -51,7 +51,7 @@ FONT_COLORS = {"ink":BOARD_DERIVATION_INK,"muted":"#64748B","blue":"#2563EB"}
 # the central classroom, not as a persistent line beneath the question.
 # Application and calculation explanations belong to future voice content;
 # they are NOT converted to fake subtitles or repetitive board titles.
-BOARD_GUIDANCE_PHASES = frozenset({"observe","strategy","knowledge","pitfall","check","conclusion","summary"})
+BOARD_GUIDANCE_PHASES = frozenset({"observe","strategy","knowledge","pitfall","check","summary"})
 
 
 

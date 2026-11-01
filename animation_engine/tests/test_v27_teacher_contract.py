@@ -16,7 +16,7 @@ from animation_engine.v27_teacher_contract import (
 def lesson():
     problem = "计算定积分：x"
     rows = [
-        ("e_intro", "observe", "完整读题", "同学们大家好，我们先来看一下这道定积分题。题目要求计算定积分。x"),
+        ("e_intro", "observe", "完整读题", "同学们大家好，我们先来看一下这道定积分题。计算定积分：x"),
         ("e_strategy", "strategy", "分析结构", "为什么考虑换元法？因为出现内层导数。"),
         ("e_knowledge", "knowledge", "定积分换元法", "这里使用定积分换元法，并替换积分上下限。"),
         ("e_apply", "calculate", "换元", "令 u 等于 x 的平方。"),
@@ -47,7 +47,7 @@ def lesson():
         "opening": {
             "event_id": "e_intro", "opening_text": "同学们大家好，我们先来看一下这道定积分题。",
             "question_segments": [
-                {"source_text": "计算定积分：", "spoken_text": "题目要求计算定积分"},
+                {"source_text": "计算定积分：", "spoken_text": "计算定积分："},
                 {"source_text": "x", "spoken_text": "x"},
             ],
         },
@@ -171,7 +171,7 @@ def test_question_math_excerpt_must_match_full_authored_math_reading():
     flow, events, spec = lesson()
     flow.problem = "计算定积分：" + r"\int_0^2 2x\,dx"
     spec["opening"]["question_segments"] = [
-        {"source_text":"计算定积分：", "spoken_text":"题目要求计算定积分"},
+        {"source_text":"计算定积分：", "spoken_text":"计算定积分："},
         {"source_text":r"\int_0^2 2x\,dx", "spoken_text":"x"},
     ]
     with pytest.raises(LongboardError, match="V27_QUESTION_MATH_READING_NOT_COMPLETE"):

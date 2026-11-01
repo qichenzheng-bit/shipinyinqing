@@ -40,8 +40,8 @@ BOARD_ROW_GAP = 11
 KNOWLEDGE_WIDTH = 430
 KNOWLEDGE_GUTTER = 24
 NOTE_MAX_CHARS_PER_LINE = 48
-NOTE_HEIGHT = 29
-NOTE_DETAIL_LINE_HEIGHT = 23
+NOTE_HEIGHT = 32
+NOTE_DETAIL_LINE_HEIGHT = 27
 BOARD_CENTER_X = BOARD_X + BOARD_WIDTH / 2
 BOARD_CENTER_Y = (BOARD_START_Y + BOARD_BOTTOM_Y) / 2
 QUESTION_TO_BOARD_MIN_GAP_PX = 22
@@ -418,6 +418,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
     events=[]
     all_math=set()
     last_event_id=None
+    opening_readout_ids=set()
     pending_proof_row=None
     shown_diagram=[]
     sequence=list(zip(board.scenes,execution_plan.scenes,teaching))
@@ -431,6 +432,25 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             raise LongboardError(
                 f"CHALKBOARD_DUPLICATE_MATH_WRITE: {scene.event_id}"
             )
+        # Reading a question already visible in the fixed header is an
+        # AUDIO action, not a second new MathTex write. The source object,
+        # exact pronunciation and subtitle stay in the verified script.
+        # Opt-in is based on the teacher-authored heading and exact source,
+        # never on a guessed substring or arbitrary early equation.
+        opening_readout = (
+            index == 0 and cue["phase"] == "observe"
+            and cue["heading"] in {"完整读题", "读题", "题目朗读"}
+            and bool(newids) and all(
+                sources[mid]["latex"] in board.header.text for mid in newids
+            )
+        )
+        speech_only_actions = []
+        if opening_readout:
+            opening_readout_ids.update(newids)
+            speech_only_actions = [
+                {"kind": "note", "object_id": "note:"+scene.event_id},
+            ] + [{"kind": "math", "object_id":mid} for mid in newids]
+            newids = []
         # For a reviewed integral, dedicate the left portion to the
         # knowledge description and its *real MathTex formula*. Put the
         # complete step-by-step computation on the right. The two sections
@@ -445,10 +465,51 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             raise LongboardError(
                 "COMPUTATION_KNOWLEDGE_LAYOUT_MISMATCH: "+scene.event_id
             )
-        note_needed=cue["phase"] in BOARD_GUIDANCE_PHASES
+        # Summary is a compact visual review. Only refer to *already shown*
+        # knowledge and risk notes, never fabricate a new result or reread
+        # the full explanation. Keep the actual answer in the conclusion.
+        recap_only=(
+            cue["phase"]=="summary" and not newids
+            and any(previous["phase"]=="conclusion"
+                    for _,_,previous in sequence[:index])
+        )
+        recap_references=[]
+        if recap_only:
+            prior_knowledge=[]
+            prior_pitfalls=[]
+            for earlier_index,earlier in enumerate(events):
+                older_cue=sequence[earlier_index][2]
+                if older_cue["phase"] not in ("knowledge","pitfall"):
+                    continue
+                older_note=next(
+                    (b for b in earlier["added_blocks"]
+                     if b["kind"]=="teacher_note" and not b.get("carry")),None
+                )
+                older_math=[
+                    b["block_id"] for b in earlier["added_blocks"]
+                    if b["kind"]=="math" and not b.get("carry")
+                    and b["block_id"] in written
+                ]
+                if older_cue["phase"]=="knowledge" and older_math:
+                    prior_knowledge.append((older_cue,older_note,older_math))
+                elif older_cue["phase"]=="pitfall" and older_note:
+                    prior_pitfalls.append((older_cue,older_note,[]))
+            # At most the latest 2 core facts and 2 genuine pitfalls;
+            # adapt if a lesson has no such events. No answer is carried.
+            recap_references=(
+                [("knowledge",*item) for item in prior_knowledge[-2:]]
+                + [("pitfall",*item) for item in prior_pitfalls[-2:]]
+            )
+        note_needed=(cue["phase"] in BOARD_GUIDANCE_PHASES
+                     and cue["phase"] != "conclusion"
+                     and not opening_readout)
         note_width=(DIAGRAM_LEFT_WIDTH if diagram_column else
                     KNOWLEDGE_WIDTH if paired else BOARD_WIDTH)
         lines=_note_lines(cue["detail"],note_width) if note_needed else []
+        if recap_only and recap_references:
+            # The teacher comments briefly; the reviewed source objects
+            # below carry the educational substance without long text.
+            lines=[]
         noteheight=(NOTE_HEIGHT + len(lines)*NOTE_DETAIL_LINE_HEIGHT+5
                     if note_needed else 0)
         proof_formula_rows=[]
@@ -471,7 +532,10 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                     "kind":"teacher_note","block_id":"note:"+scene.event_id,
                     "event_id":scene.event_id,
                     "phase":cue["phase"],
-                    "heading":PHASE_NAMES[cue["phase"]]+"："+cue["heading"],
+                    "heading":(
+                        PHASE_NAMES["summary"] if cue["phase"]=="summary"
+                        else PHASE_NAMES[cue["phase"]]+"："+cue["heading"]
+                    ),
                     "detail":cue["detail"],"lines":lines,
                     "source_step_ids":list(cue["source_step_ids"]),
                     "x":BOARD_X,"y":y,"w":note_width,"h":noteheight,
@@ -558,7 +622,38 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                         )
                     additions.append({"kind":"math","block_id":mid,**item})
                     y+=item["h"]+BOARD_ROW_GAP
-            if note_needed and not newids:
+            if recap_only and recap_references:
+                for phase,source_cue,source_note,source_math in recap_references:
+                    caption=(
+                        "核心知识："+source_cue["heading"]
+                        if phase=="knowledge"
+                        else "易错点："+source_cue["heading"]
+                    )
+                    detail=source_cue["detail"] if phase=="pitfall" else ""
+                    recap_lines=_note_lines(detail) if detail else []
+                    recap_h=NOTE_HEIGHT+len(recap_lines)*NOTE_DETAIL_LINE_HEIGHT+5
+                    additions.append({
+                        "kind":"teacher_note",
+                        "block_id":"recap:note:"+source_cue["event_id"],
+                        "event_id":scene.event_id,
+                        "phase":phase,
+                        "heading":caption,"detail":detail,"lines":recap_lines,
+                        "source_step_ids":list(source_cue["source_step_ids"]),
+                        "source_block_id":source_note["block_id"] if source_note else None,
+                        "carry":True,"recap_review":True,
+                        "x":BOARD_X,"y":y,"w":BOARD_WIDTH,"h":recap_h,
+                    })
+                    y+=recap_h+BOARD_ROW_GAP
+                    for mid in source_math:
+                        item=_math_placement(
+                            mid,sources,selected,size_of,size_cache,y
+                        )
+                        additions.append({
+                            "kind":"math","block_id":mid,"carry":True,
+                            "recap_review":True,"source_object_id":mid,**item,
+                        })
+                        y+=item["h"]+BOARD_ROW_GAP
+            if note_needed and not newids and not recap_references:
                 y+=BOARD_ROW_GAP
             return additions,y
         proof_layout_mode="stacked"
@@ -614,7 +709,9 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         clear=False
         carry_rows=[]
         diagram_carry_ids=[]
-        if next_y>BOARD_BOTTOM_Y:
+        if next_y>BOARD_BOTTOM_Y or (
+                recap_only and bool(active)
+            ):
             if not active:
                 raise LongboardError(
                     f"CHALKBOARD_EVENT_TOO_TALL: {scene.event_id}"
@@ -638,6 +735,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             # Copying results follows a real classroom's new page and never
             # implies calculating them before the original teacher event.
             carryids=(
+                [] if recap_only else
                 proof.carry_at(scene.event_id,written)
                 if proof is not None
                 else computation.carry_at(scene.event_id,written)
@@ -679,6 +777,10 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                          else "COMPUTATION_MANDATORY_CARRY_OVERFLOW: ")+
                         scene.event_id
                     )
+                # Optional historical result carry may be skipped.
+                # Summary reviews are source-backed; never silently omit them.
+                if recap_only and recap_references:
+                    raise LongboardError("CHALKBOARD_RECAP_REVIEW_OVERFLOW")
                 # Legacy classroom mode: optional carry may be skipped.
                 carried=[]
                 cursor=page_start_y
@@ -735,7 +837,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "carry_object_ids":(
                 [a["block_id"] for a in added if a.get("carry")]
                 if (computation is not None or proof is not None
-                    or diagram is not None) else []
+                    or diagram is not None or recap_only) else []
             ),
             **({"proof_carry_rows":carry_rows} if proof is not None else {}),
             "erase_before":clear,
@@ -760,8 +862,13 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "erase_reason":("whole_reasoning_unit_cannot_fit"
                             if clear else None),
             "added_blocks":added,
+            "speech_only_actions":speech_only_actions,
             "visible_block_ids":[a["block_id"] for a in active],
             "pause_seconds":cue["pause_seconds"],
+            "recap_review_source_ids":[
+                b.get("source_object_id",b.get("source_block_id"))
+                for b in added if b.get("recap_review")
+            ],
             "write_seconds":cue["write_seconds"],
         })
         last_event_id=scene.event_id
@@ -773,7 +880,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
     expected={a.object_id for sc in execution_plan.scenes for a in sc.actions
               if a.kind in ("progressive_write","restore")
               and a.object_id in sources and a.to_region!="question"}
-    if all_math != expected:
+    if all_math | opening_readout_ids != expected:
         raise LongboardError("CHALKBOARD_MATH_EVENT_LOST")
     centering=_center_page_heights(
         events, page_start_y=page_start_y, header_bottom_y=header_bottom_y,
@@ -940,7 +1047,11 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                 expected.append(diag)
             expected.extend(
                 ("note" if x["kind"]=="teacher_note" else "math",x["block_id"])
-                for x in event["added_blocks"]
+                for x in event["added_blocks"] if not x.get("carry")
+            )
+            expected.extend(
+                (a["kind"],a["object_id"])
+                for a in event.get("speech_only_actions",[])
             )
             if diag and event["diagram_order"]=="math_then_diagram":
                 expected.append(diag)
@@ -956,11 +1067,22 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             or not math.isfinite(x["math_start_delay"])
                             or x["math_start_delay"] < 0
                             or x["math_start_delay"] >= x["duration"]
+                            or type(x.get("math_end_delay")) not in (int,float)
+                            or not math.isfinite(x["math_end_delay"])
+                            or not x["math_start_delay"] < x["math_end_delay"] <= x["duration"]
                         )) for x in spans)):
                 raise LongboardError("CHALKBOARD_NARRATION_ACTION_MISMATCH")
+    emphasis_fragments={}
+    if narration_events:
+        for action_list in narration_events.values():
+            for action in action_list:
+                for beat in action.get("math_emphasis_beats", []):
+                    emphasis_fragments.setdefault(beat["source_object_id"],set()).add(
+                        beat["latex_fragment"]
+                    )
     from .diagram_classroom import DIAGRAM_PANEL
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
-                       tempconfig,linear)
+                       tempconfig,linear,Indicate,RED)
     fw=8*1280/720
     fh=8.
     def place(rect):
@@ -969,7 +1091,14 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
     def build_math(block):
         pieces=[]
         for f in block["fragments"]:
-            glyph=MathTex(f["latex"],color=BOARD_DERIVATION_INK)
+            isolates=sorted((
+                token for token in emphasis_fragments.get(block["block_id"],())
+                if token in f["latex"]
+            ),key=lambda x:-len(x))
+            glyph=MathTex(
+                f["latex"],color=BOARD_DERIVATION_INK,
+                **({"substrings_to_isolate":isolates} if isolates else {})
+            )
             glyph.scale(block["scale"])
             glyph.move_to(place(f))
             if (abs(glyph.width*90-f["w"])>2 or
@@ -1089,6 +1218,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                         start=self.time
                         action_timings=[]
                         diagram_reveal_timings=[]
+                        emphasis_timings=[]
                         clips=(narration_events or {}).get(row["event_id"],[])
                         clip_cursor=[0]
                         def perform_sync(kind,ident,paint):
@@ -1232,6 +1362,18 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             ident=block["block_id"]
                             if ident in active:
                                 raise LongboardError("CHALKBOARD_DUPLICATE_LIVE_OBJECT")
+                            if block.get("carry"):
+                                if block["kind"]=="teacher_note":
+                                    from manim import ImageMobject
+                                    obj=ImageMobject(str(
+                                        temp/(ident.replace(":","_")+".png")
+                                    ))
+                                    obj.scale_to_fit_width(fw).move_to([0,0,0])
+                                else:
+                                    obj=build_math(block)
+                                self.add(obj)
+                                active[ident]=obj
+                                continue
                             if block["kind"]=="teacher_note":
                                 from manim import ImageMobject
                                 obj=ImageMobject(str(temp/(ident.replace(":","_")+".png")))
@@ -1265,13 +1407,79 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                         # actual *math* audio chunk, not at
                                         # the start of the spoken preamble.
                                         intro=speech["math_start_delay"]
-                                        if intro>1e-5:
-                                            self.wait(intro)
-                                        speaking=duration-intro
-                                        writing=min(speaking*.78,2.4*len(obj))
-                                        each=writing/len(obj)
+                                        # Visual cancellation/highlights are
+                                        # source-authorized and triggered by the
+                                        # exact spoken phrase, BEFORE the new
+                                        # simplified formula begins to write.
+                                        marks=speech.get("math_emphasis_beats",[])
+                                        if marks:
+                                            groups={}
+                                            for mark in marks:
+                                                if mark["end_offset"]>intro+1/fps:
+                                                    raise LongboardError("CHALKBOARD_MARK_AFTER_NEW_MATH")
+                                                groups.setdefault(mark["start_offset"],[]).append(mark)
+                                            for mark_start, group in sorted(groups.items()):
+                                                if self.time > before+mark_start+2/fps:
+                                                    raise LongboardError("CHALKBOARD_MARK_BEAT_ORDER")
+                                                if self.time < before+mark_start:
+                                                    self.wait(before+mark_start-self.time)
+                                                targets=[]
+                                                for mark in group:
+                                                    source=active.get(mark["source_object_id"])
+                                                    if source is None:
+                                                        raise LongboardError("CHALKBOARD_MARK_SOURCE_NOT_VISIBLE")
+                                                    # Manim Community 0.22 exposes
+                                                    # get_part_by_tex, but *not*
+                                                    # the legacy get_parts_by_tex.
+                                                    # Use the exact source-identified
+                                                    # substring-to-SVG map; no
+                                                    # freehand or guessed bbox.
+                                                    matches=[]
+                                                    for glyph in source:
+                                                        for tex_value,match_id in getattr(
+                                                            glyph,"matched_strings_and_ids",()
+                                                        ):
+                                                            if tex_value == mark["latex_fragment"]:
+                                                                match=getattr(glyph,"id_to_vgroup_dict",{}).get(match_id)
+                                                                if match is not None:
+                                                                    matches.append(match)
+                                                    if mark["occurrence"] >= len(matches):
+                                                        raise LongboardError("CHALKBOARD_MARK_GLYPH_NOT_FOUND")
+                                                    targets.append(matches[mark["occurrence"]])
+                                                window=min(m["end_offset"] for m in group)-mark_start
+                                                remaining_intro=before+intro-self.time
+                                                duration=min(.7,max(.15,window*.55),remaining_intro)
+                                                if duration<.08:
+                                                    raise LongboardError("CHALKBOARD_MARK_TOO_LATE")
+                                                highlighted_at=self.time
+                                                self.play(
+                                                    *[Indicate(t,color=RED,scale_factor=1.06)
+                                                      for t in targets],
+                                                    run_time=duration,rate_func=linear
+                                                )
+                                                for mark in group:
+                                                    emphasis_timings.append({
+                                                        "source_object_id":mark["source_object_id"],
+                                                        "latex_fragment":mark["latex_fragment"],
+                                                        "spoken_phrase":mark["spoken_phrase"],
+                                                        "start_preview_second":highlighted_at,
+                                                        "end_preview_second":self.time,
+                                                    })
+                                        if before+intro>self.time+1e-5:
+                                            self.wait(before+intro-self.time)
+                                        # Math ink progresses throughout the
+                                        # *measured math-reading audio*, and
+                                        # finishes at that audio boundary.
+                                        # Earlier versions capped each line at
+                                        # 2.4s, displaying long equations
+                                        # before the teacher had read them.
+                                        math_window=speech["math_end_delay"]-intro
+                                        each=math_window/len(obj)
                                         for frag in obj:
-                                            self.play(Write(frag),run_time=each)
+                                            self.play(
+                                                Write(frag),run_time=each,
+                                                rate_func=linear
+                                            )
                                         remaining=duration-(self.time-before)
                                         if remaining>1e-5:
                                             self.wait(remaining)
@@ -1286,6 +1494,18 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                     "diagram","diagram:"+row["event_id"],
                                     reveal_diagram
                                 )
+                        for virtual in row.get("speech_only_actions", []):
+                            # Question text/formula are already in the fixed
+                            # header. Sound and source-bound MathTex subtitles
+                            # remain; no duplicate drawing or invisible ink
+                            # consumes the working board.
+                            def read_existing_header(speech):
+                                if speech is not None:
+                                    self.wait(speech["duration"])
+                            perform_sync(
+                                virtual["kind"],virtual["object_id"],
+                                read_existing_header,
+                            )
                         if narration_events is not None and clip_cursor[0]!=len(clips):
                             raise LongboardError("CHALKBOARD_SPEECH_ACTION_UNUSED")
                         if (diagram is not None and
@@ -1303,6 +1523,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                         self.timing.append({
                             "action_timing":action_timings,
                             "diagram_reveal_timing":diagram_reveal_timings,
+                            "math_emphasis_timing":emphasis_timings,
+                            "carry_object_ids":list(row.get("carry_object_ids",[])),
                             "event_id":row["event_id"],"page_index":row["page_index"],
                             "erase_before":row["erase_before"],
                             "math_write_count":row["math_write_count"],

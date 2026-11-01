@@ -33,6 +33,7 @@ EVENT = frozenset({
 SPAN = frozenset({"kind", "object_id", "parts"})
 EVENT_WITH_FACTS = EVENT | {"question_fact_alignment"}
 SPAN_WITH_DIAGRAM_CUES = SPAN | {"diagram_phrase_cues"}
+SPAN_WITH_EMPHASIS = SPAN | {"emphasis_cues"}
 TEXT_PART = frozenset({"kind", "value"})
 MATH_PART = frozenset({"kind", "latex", "reading"})
 MATH_PART_WITH_CAPTION = MATH_PART | {"spoken_math_latex"}
@@ -73,6 +74,7 @@ class SpokenSpan:
     tts_text: str
     math_latex: str | None
     diagram_phrase_cues: tuple[dict, ...] = ()
+    emphasis_cues: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -132,12 +134,23 @@ def _expected_actions(flow: Flow, *, measure=None, adaptive=False) -> list[dict]
             if diagram and event["diagram_order"] == "diagram_then_math":
                 expected.append(diagram)
             for block in event["added_blocks"]:
+                # An established result carried onto a fresh page is
+                # visible ink, not a second narrated mathematical write.
+                if block.get("carry"):
+                    continue
                 ident = block["block_id"]
                 expected.append((
                     "note" if block["kind"] == "teacher_note" else "math",
                     ident, maths[ident]["latex"] if block["kind"] == "math"
                     else None
                 ))
+            # Reading a source formula already pinned in the header is
+            # an authenticated voice/subtitle action, not a fresh board write.
+            expected.extend(
+                (a["kind"],a["object_id"],
+                 maths[a["object_id"]]["latex"] if a["kind"]=="math" else None)
+                for a in event.get("speech_only_actions", [])
+            )
             if diagram and event["diagram_order"] == "math_then_diagram":
                 expected.append(diagram)
             result.append({
@@ -192,9 +205,10 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
             raise LongboardError("SPOKEN_ACTION_COVERAGE")
         checked = []
         for row, (kind, ident, latex) in zip(spans, planned["actions"]):
-            if not isinstance(row, dict) or set(row) not in (SPAN, SPAN_WITH_DIAGRAM_CUES):
+            if not isinstance(row, dict) or set(row) not in (SPAN, SPAN_WITH_DIAGRAM_CUES, SPAN_WITH_EMPHASIS):
                 raise LongboardError("SPOKEN_SPAN_FIELDS")
             diagram_cues = row.get("diagram_phrase_cues", [])
+            emphasis_cues = row.get("emphasis_cues", [])
             if (row["kind"], row["object_id"]) != (kind, ident):
                 raise LongboardError("SPOKEN_ACTION_ORDER")
             if not isinstance(row["parts"], list) or not row["parts"]:
@@ -294,8 +308,47 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
                         {x["object_id"] for x in diagram_cues} !=
                             set(planned["diagram_reveal_ids"])):
                     raise LongboardError("V27_DIAGRAM_REVEAL_NOT_FULLY_VOICED")
-            checked.append(SpokenSpan(kind, ident, tuple(parts), actual, latex,
-                                     tuple(dict(c) for c in diagram_cues)))
+            if emphasis_cues:
+                from .spoken_audio import split_natural_phrases
+                if kind != "math" or not isinstance(emphasis_cues,list):
+                    raise LongboardError("SPOKEN_EMPHASIS_BAD_ACTION")
+                prior_math = {
+                    mid:source_tex
+                    for prior in required[:index]
+                    if prior["stage_id"] == planned["stage_id"]
+                    for role,mid,source_tex in prior["actions"]
+                    if role == "math" and source_tex is not None
+                }
+                voice_phrases = [
+                    phrase for part in parts if part["kind"]=="text"
+                    for phrase in split_natural_phrases(part["value"])
+                ]
+                if len(emphasis_cues)>8:
+                    raise LongboardError("SPOKEN_EMPHASIS_TOO_MANY")
+                for mark in emphasis_cues:
+                    if (not isinstance(mark,dict) or set(mark)!={
+                        "source_object_id","latex_fragment",
+                        "occurrence","spoken_phrase","effect"
+                    } or mark["effect"]!="highlight"
+                            or mark["source_object_id"] not in prior_math
+                            or type(mark["latex_fragment"]) is not str
+                            or not mark["latex_fragment"]
+                            or mark["latex_fragment"] not in prior_math[mark["source_object_id"]]
+                            or type(mark["occurrence"]) is not int
+                            or not 0<=mark["occurrence"]<12
+                            or voice_phrases.count(mark["spoken_phrase"])!=1):
+                        raise LongboardError("SPOKEN_EMPHASIS_NOT_SOURCE_BOUND")
+            elif "emphasis_cues" in row and kind != "math":
+                raise LongboardError("SPOKEN_EMPHASIS_BAD_ACTION")
+            if ("lesson_contract" in doc and kind=="math"
+                    and re.search(r"相消|划去|划掉", actual)
+                    and not emphasis_cues):
+                raise LongboardError("V27_SPOKEN_CANCELLATION_WITHOUT_VISUAL_ACTION")
+            checked.append(SpokenSpan(
+                kind,ident,tuple(parts),actual,latex,
+                tuple(dict(c) for c in diagram_cues),
+                tuple(dict(c) for c in emphasis_cues),
+            ))
         if "question_fact_alignment" in recorded:
             facts = recorded["question_fact_alignment"]
             if index != 0 or not isinstance(facts, list) or not facts:
