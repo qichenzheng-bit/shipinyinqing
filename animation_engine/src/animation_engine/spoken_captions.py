@@ -70,18 +70,29 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
                             color="#111827",font_size=23,
                         )
                     plate_height = .56
-                    if kind == "math" and glyph.width > 12.6:
-                        pieces = _safe_math_caption_break(display)
-                        if pieces is None:
-                            raise LongboardError("CAPTION_MATH_NEEDS_REVIEWED_BREAK")
-                        glyph = VGroup(*(
-                            MathTex(part, color=BLACK)
-                            for part in pieces
-                        )).arrange(DOWN,buff=.08)
-                        glyph.scale(min(.44,12.4/glyph.width,.70/glyph.height))
-                        plate_height = .84
+                    if kind == "math":
+                        if glyph.width > 12.6:
+                            pieces = _safe_math_caption_break(display)
+                            if pieces is None:
+                                raise LongboardError("CAPTION_MATH_NEEDS_REVIEWED_BREAK")
+                            glyph = VGroup(*(
+                                MathTex(part, color=BLACK)
+                                for part in pieces
+                            )).arrange(DOWN,buff=.08)
+                            glyph.scale(min(.44,12.4/glyph.width,.70/glyph.height))
+                            plate_height = .84
+                        # Integral bounds, radicals and tall fractions are
+                        # naturally higher than ordinary Chinese text. Give
+                        # them the 88-pixel safe band instead of rejecting
+                        # correct source MathTex or truncating the symbols.
+                        if glyph.height > .47:
+                            plate_height = .84
+                            if glyph.height > .70:
+                                glyph.scale(.70 / glyph.height)
                     if glyph.width>12.6 or glyph.height>(.73 if plate_height>.56 else .47):
-                        raise LongboardError("CAPTION_LINE_TOO_LONG")
+                        raise LongboardError(
+                            f"CAPTION_LINE_TOO_LONG:{kind}:{glyph.width:.3f}x{glyph.height:.3f}"
+                        )
                     glyph.move_to([0,-3.53,0])
                     plate=RoundedRectangle(
                         width=max(1.0,glyph.width+.36),
