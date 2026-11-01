@@ -11,6 +11,8 @@ never pretends that a hard-coded keyword parser understands arbitrary language.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import json
 import os
 import shutil
@@ -174,7 +176,7 @@ def _publish_bundle(version: Path, root: Path) -> None:
 
 def create_session(
     package: Path, baseline_mp4: Path, baseline_manifest: Path,
-    root: Path, *, adaptive: bool = True, fps: int = 30,
+    root: Path, *, adaptive: bool = True, fps: int = DEFAULT_VIDEO_FPS,
     media_check: Callable[[Path], Any] = _verified_media,
 ) -> dict:
     """Initialize on an already verified V2.6.4 lesson, not dummy speech."""
