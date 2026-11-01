@@ -38,7 +38,7 @@ UNITS = [
          r"\frac{d}{dx}(x^2)=2x", "说明为什么优先考虑换元。", "strategy"),
     unit("knowledge", "定积分换元法", "以新变量代替内层函数，微分及上下限须同步变换。",
          r"u=g(x),\quad du=g'(x)\,dx", "换元法的一般微分关系及适用结构。", "knowledge"),
-    unit("substitution", "选择新变量", "令新变量等于平方函数，利用微分关系变换 integrand。",
+    unit("substitution", "选择新变量", "令新变量等于平方函数，利用微分关系变换被积函数。",
          r"u=x^2,\quad du=2x\,dx", "将本题映射到通用换元公式。"),
     unit("pitfall", "换元上下限易错点", "不能只换被积函数而保留原端点，必须重算新端点。",
          r"x=0\Longrightarrow u=0,\quad x=2\Longrightarrow u=4",
