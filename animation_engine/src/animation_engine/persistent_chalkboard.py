@@ -1352,11 +1352,21 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                                     source=active.get(mark["source_object_id"])
                                                     if source is None:
                                                         raise LongboardError("CHALKBOARD_MARK_SOURCE_NOT_VISIBLE")
+                                                    # Manim Community 0.22 exposes
+                                                    # get_part_by_tex, but *not*
+                                                    # the legacy get_parts_by_tex.
+                                                    # Use the exact source-identified
+                                                    # substring-to-SVG map; no
+                                                    # freehand or guessed bbox.
                                                     matches=[]
                                                     for glyph in source:
-                                                        matches.extend(glyph.get_parts_by_tex(
-                                                            mark["latex_fragment"],substring=False
-                                                        ))
+                                                        for tex_value,match_id in getattr(
+                                                            glyph,"matched_strings_and_ids",()
+                                                        ):
+                                                            if tex_value == mark["latex_fragment"]:
+                                                                match=getattr(glyph,"id_to_vgroup_dict",{}).get(match_id)
+                                                                if match is not None:
+                                                                    matches.append(match)
                                                     if mark["occurrence"] >= len(matches):
                                                         raise LongboardError("CHALKBOARD_MARK_GLYPH_NOT_FOUND")
                                                     targets.append(matches[mark["occurrence"]])
