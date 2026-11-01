@@ -46,6 +46,46 @@ def _op(pointer,file="spoken_classroom.json"):
     return [{"file":file,"pointer":pointer,"action":"set"}]
 
 
+def test_render_cache_environment_fingerprint_tracks_actual_font_bytes(
+        tmp_path, monkeypatch):
+    from animation_engine import render_cache, classroom_compositor
+    font = tmp_path / "NotoSansCJK-Regular.ttc"
+    font.write_bytes(b"font-content-v1")
+    monkeypatch.setattr(classroom_compositor, "_CJK_FONT_CANDIDATES", (str(font),))
+    monkeypatch.setattr(render_cache.shutil, "which", lambda name: None)
+    first = render_cache._render_environment_fingerprint()
+    assert first["board_cjk_font"]["sha256"] == render_cache.file_sha(font)
+    assert first["latex"] == "not-installed"
+    assert first["manim_cjk_font"]["status"] == "missing"
+    font.write_bytes(b"font-content-v2")
+    second = render_cache._render_environment_fingerprint()
+    assert first["board_cjk_font"]["sha256"] != second["board_cjk_font"]["sha256"]
+
+
+def test_render_cache_signature_invalidates_when_tex_or_fonts_change(
+        tmp_path, monkeypatch):
+    from animation_engine import render_cache
+    environment = {"latex": "latex v1", "board_cjk_font": "font v1"}
+    monkeypatch.setattr(
+        render_cache, "_render_environment_fingerprint",
+        lambda: dict(environment),
+    )
+    try:
+        render_cache.engine_signature.cache_clear()
+        cache = ArtifactCache(tmp_path / "resources")
+        before = cache.key("subtitle_png", {"formula": r"\\frac12"})
+        environment["latex"] = "latex v2"
+        render_cache.engine_signature.cache_clear()
+        after_tex_upgrade = cache.key("subtitle_png", {"formula": r"\\frac12"})
+        assert before != after_tex_upgrade
+        environment["board_cjk_font"] = "font v2"
+        render_cache.engine_signature.cache_clear()
+        after_font_update = cache.key("subtitle_png", {"formula": r"\\frac12"})
+        assert after_font_update != after_tex_upgrade
+    finally:
+        render_cache.engine_signature.cache_clear()
+
+
 def test_cache_integrity_and_payload_tampering(tmp_path):
     cache=ArtifactCache(tmp_path/"resources")
     key=cache.key("speech_pcm",{"text":"数学教学","voice":"A","rate":"-4%"})
