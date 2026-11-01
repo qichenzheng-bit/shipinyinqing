@@ -219,3 +219,29 @@ def prepare_teacher_draft(
         "validation":payload["validation"],
         "candidate_sha256":candidate.validated_content_sha256,
     }
+
+
+def bind_course_voice(package: Path, voice: str) -> str:
+    """Ensure user-selected voice is effective before script approval.
+
+    Re-seals the authored spoken source (without altering display/math text).
+    Any previously exported script/approval is invalid after a voice change.
+    """
+    from animation_engine.spoken_classroom import VOICES,checked_spoken
+    from animation_engine.iterative_edit_ops import atomic_json
+    if voice not in VOICES:
+        raise BridgeError("LESSON_UNSUPPORTED_VOICE")
+    source=Path(package)/"spoken_classroom.json"
+    document=json.loads(source.read_text(encoding="utf-8"))
+    if document["voice"]!=voice:
+        document["voice"]=voice
+        # All original board actions and readings are unchanged; the checked
+        # spoken contract's source hash will change and require re-approval.
+        atomic_json(source,document)
+        for name in (
+            "lesson_script.json","lesson_script.md",
+            "lesson_script_approval.json",
+        ):
+            (source.parent/name).unlink(missing_ok=True)
+    verified=checked_spoken(source,adaptive=False)
+    return verified.source_sha256
