@@ -314,7 +314,34 @@ def create_app(
                     lesson.status="ready"
                     job.status="succeeded";job.phase="完成"
                     db.commit()
-            elif kind=="edit":
+            elif kind=="edit_prepare":
+                from .edit_review import prepare_edit_review
+                from animation_engine.iterative_ai_adapter import make_openai_compatible_agent
+                with SessionLocal() as db:
+                    job=db.get(Job,job_id);job.phase="生成候选微调和讲稿"
+                    record=db.get(EditRecord,edit_id)
+                    session=Path(lesson_get(db,lesson_id).session_path)
+                    instruction=record.original_instruction
+                    db.commit()
+                config=Path(os.environ.get("WEIGUANG_EDIT_AI_CONFIG",""))
+                if not config.is_file():
+                    raise RuntimeError("EDIT_AI_CONFIGURATION_REQUIRED")
+                candidate=prepare_edit_review(
+                    session,instruction,agent=make_openai_compatible_agent(config),
+                )
+                with SessionLocal() as db:
+                    job=db.get(Job,job_id)
+                    lesson=lesson_get(db,lesson_id)
+                    record=db.get(EditRecord,edit_id)
+                    if lesson.revision!=previous_revision or job.status!="running":
+                        raise RuntimeError("STALE_EDIT_REVIEW_CANDIDATE")
+                    record.review_path=candidate["review_path"]
+                    record.source_revision=previous_revision
+                    record.status="review_pending"
+                    job.status="succeeded"
+                    job.phase="微调候选待审核"
+                    db.commit()
+            elif kind in ("edit","edit_reviewed"):
                 with SessionLocal() as db:
                     job=db.get(Job,job_id)
                     job.phase="执行微调";db.commit()
@@ -322,7 +349,12 @@ def create_app(
                     instruction=record.original_instruction
                     lesson=lesson_get(db,lesson_id)
                     session=Path(lesson.session_path)
-                if edit_runner is not None:
+                if kind=="edit_reviewed":
+                    from .edit_review import render_approved_edit
+                    if not record.review_path:
+                        raise RuntimeError("EDIT_CANDIDATE_MISSING")
+                    outcome=render_approved_edit(session,Path(record.review_path))
+                elif edit_runner is not None:
                     outcome=edit_runner(session,instruction)
                 else:
                     config=Path(os.environ.get("WEIGUANG_EDIT_AI_CONFIG",""))
@@ -872,9 +904,22 @@ def create_app(
             l=lesson_get(db,id)
             if not l.session_path:
                 raise HTTPException(409,"VIDEO_SESSION_NOT_READY")
+            pending=db.scalars(select(EditRecord).where(
+                EditRecord.lesson_id==id,EditRecord.status.in_(
+                    ("review_pending","approved"),
+                )
+            )).first()
+            if pending:
+                raise HTTPException(409,"EDIT_PREVIOUS_REVIEW_PENDING")
             row=EditRecord(lesson_id=id,original_instruction=data.instruction)
             db.add(row);db.commit();db.refresh(row)
-            job=job_add(db,l,"edit",edit_id=row.id)
+            trusted=bool(
+                os.environ.get("WEIGUANG_MATH_REVIEWER")
+                and os.environ.get("WEIGUANG_SCRIPT_REVIEWER")
+            )
+            kind=("edit" if edit_runner is not None or trusted
+                  else "edit_prepare")
+            job=job_add(db,l,kind,edit_id=row.id)
             result={"edit_id":row.id,"job":describe_job(job)}
         dispatch(job.id)
         return result
