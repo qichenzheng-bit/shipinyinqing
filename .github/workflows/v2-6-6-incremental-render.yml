@@ -125,6 +125,8 @@ jobs:
           assert stats["raw_stage_miss"]==1,stats
           assert stats["speech_pcm_hit"]>5,stats
           assert stats["subtitle_png_hit"]>5,stats
+          assert stats["event_clip_hit"]>=1,stats
+          assert stats["event_stage_reassembled"]>=1,stats
           assert sum(bool(x["stage_cache_hit"]) for x in report["stage_render_reports"])==2
           src=json.loads((session/"versions/0002/package/spoken_classroom.json").read_text("utf-8"))
           assert src["events"][0]["spans"][0]["parts"][0]["value"].startswith("我们先看这道")
