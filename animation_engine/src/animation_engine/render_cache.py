@@ -213,8 +213,9 @@ class ArtifactCache:
             # This verifies actual video frames/fps via ffprobe; a content
             # hash alone is not proof of a valid or compatible movie.
             from .unified_classroom_flow import _video_frames
-            frames = _video_frames(
-                video, fps, min_frames=(1 if namespace=="event_clip" else 20)
+            frames = (
+                _video_frames(video,fps,min_frames=1)
+                if namespace=="event_clip" else _video_frames(video,fps)
             )
             if frames <= 0:
                 raise ValueError("CACHE_STAGE_VIDEO_EMPTY")
