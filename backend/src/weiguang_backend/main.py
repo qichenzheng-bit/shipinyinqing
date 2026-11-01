@@ -33,7 +33,7 @@ from .bridge import (
     initialize_edit, render_package, run_real_edit, prepare_teacher_draft,
 
 )
-from .models import Base, EditRecord, Job, Lesson, Project, now
+from .models import Base, EditRecord, EditSessionArchive, Job, Lesson, Project, now
 
 
 def describe_lesson(lesson: Lesson):
@@ -280,15 +280,18 @@ def create_app(
             elif kind=="render":
                 with SessionLocal() as db:
                     job=db.get(Job,job_id);job.phase="渲染画面与音频";db.commit()
+                # A job owns immutable media files. Failed retries and new
+                # source revisions can never overwrite an older good movie.
                 movie,manifest,srt,report=render_package(
-                    folder/"package",folder/"output",fps=fps,renderer=renderer,
+                    folder/"package",folder/"outputs"/job_id,
+                    fps=fps,renderer=renderer,
                 )
                 with SessionLocal() as db:
                     lesson=lesson_get(db,lesson_id)
                     job=db.get(Job,job_id)
                     if lesson.revision!=previous_revision or job.status!="running":
                         raise RuntimeError("STALE_OR_CANCELLED_JOB")
-                session=folder/"edit_session"
+                session=folder/"edit_sessions"/job_id
                 if not session.exists():
                     initialize_edit(
                         folder/"package",movie,manifest,session,fps=fps,
@@ -302,6 +305,11 @@ def create_app(
                     lesson.latest_video=str(movie)
                     lesson.latest_manifest=str(manifest)
                     lesson.session_path=str(session)
+                    db.add(EditSessionArchive(
+                        lesson_id=lesson_id,job_id=job_id,
+                        session_path=str(session),
+                        source_revision=previous_revision,
+                    ))
                     lesson.revision+=1
                     lesson.status="ready"
                     job.status="succeeded";job.phase="完成"
@@ -796,21 +804,43 @@ def create_app(
         from animation_engine.iterative_edit_engine import export_history
         with SessionLocal() as db:
             lessons_all=list(db.scalars(select(Lesson)))
+            archive=list(db.scalars(
+                select(EditSessionArchive).order_by(EditSessionArchive.created_at)
+            ))
             api_history=list(db.scalars(select(EditRecord)))
         engine_history=[]
-        for l in lessons_all:
-            if not l.session_path or not Path(l.session_path).exists():
+        indexed=set()
+        for item in archive:
+            indexed.add(item.session_path)
+            entry=(item.lesson_id,item.session_path,item.source_revision)
+            engine_history.append(entry)
+        # Include sessions created before the archive index existed.
+        for lesson in lessons_all:
+            if lesson.session_path and lesson.session_path not in indexed:
+                engine_history.append((lesson.id,lesson.session_path,None))
+        history_records=[]
+        for lesson_id,folder,source_revision in engine_history:
+            if not Path(folder).exists():
+                history_records.append({
+                    "lesson_id":lesson_id,
+                    "source_revision":source_revision,
+                    "session":{"error":"SESSION_DIRECTORY_NOT_FOUND","rounds":[]},
+                })
                 continue
             with tempfile.TemporaryDirectory(prefix="wg-export-") as tmp:
                 try:
-                    data=export_history(Path(l.session_path),Path(tmp)/"records.json")
+                    data=export_history(Path(folder),Path(tmp)/"records.json")
                 except Exception:
                     data={"error":"SESSION_EXPORT_UNAVAILABLE","rounds":[]}
-                engine_history.append({"lesson_id":l.id,"session":data})
+                history_records.append({
+                    "lesson_id":lesson_id,
+                    "source_revision":source_revision,
+                    "session":data,
+                })
         all_data={
             "schema_version":"1.0","mode":"weiguang_all_edit_history",
             "exported_at":datetime.now(timezone.utc).isoformat(),
-            "sessions":engine_history,
+            "sessions":history_records,
             "api_attempts":[{
                 "id":x.id,"lesson_id":x.lesson_id,
                 "original_instruction":x.original_instruction,
