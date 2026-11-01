@@ -49,8 +49,16 @@ def seed(app,base):
         teaching=Lesson(title="数学教师教学草稿",
             problem=sample["problem"],reference_solution=sample["reference_solution"],
             status="teacher_review_pending")
-        db.add_all((ready,review,other,teaching));db.commit()
+        curriculum=Lesson(title="课堂板书与口播编排",
+            problem=sample["problem"],reference_solution=sample["reference_solution"],
+            status="curriculum_review_pending")
+        db.add_all((ready,review,other,teaching,curriculum));db.commit()
         db.refresh(ready);db.refresh(review);db.refresh(other);db.refresh(teaching)
+        db.refresh(curriculum)
+        _,candidate=curriculum_fixture(base/"curriculum_fixture")
+        candidate_file=base/"lessons"/curriculum.id/"curriculum_candidate.json"
+        candidate_file.parent.mkdir(parents=True,exist_ok=True)
+        candidate_file.write_text(json.dumps(candidate,ensure_ascii=False),encoding="utf-8")
         draft=base/"lessons"/teaching.id/"teacher_draft"/"teaching_package.json"
         draft.parent.mkdir(parents=True,exist_ok=True)
         draft.write_text(json.dumps(
@@ -67,7 +75,7 @@ def seed(app,base):
         import shutil
         shutil.copytree(fixture,output)
         db.commit()
-        return ready.id,review.id,other.id,teaching.id
+        return ready.id,review.id,other.id,teaching.id,curriculum.id
 
 
 def main():
@@ -76,7 +84,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="weiguang-browser-") as tmp:
         data=Path(tmp)
         app=create_app(data_dir=data,local_dev=True,eager=True)
-        ready,review,other,teaching=seed(app,data)
+        ready,review,other,teaching,curriculum=seed(app,data)
         config=uvicorn.Config(app,host="127.0.0.1",port=PORT,
                               log_level="error",access_log=False)
         server=uvicorn.Server(config)
