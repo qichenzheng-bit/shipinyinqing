@@ -3,7 +3,7 @@ import json
 import sys
 from pathlib import Path
 import pytest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"fixtures"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 
 from build_fresh_taylor_classroom import build_new,STEPS,PROBLEM
 from build_classroom_rework_example import build as original_integral
