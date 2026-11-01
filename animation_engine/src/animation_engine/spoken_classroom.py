@@ -43,6 +43,19 @@ FORBIDDEN = re.compile(
     r"|(?:参考答案|标准答案|原答案|答案里|答案中|"
     r"题解里|题解中|解答里|解答中|讲义答案|参考解法)"
 )
+# Classroom narration must describe mathematical ideas, not the renderer,
+# screen/pagination mechanics or formula-introduction placeholders.
+# These intentionally narrow phrases are independent of voice and topic.
+CLASSROOM_META = re.compile(
+    r"(?:上一|下一)(?:页|屏|幕)"
+    r"|(?:上|下)一(?:个)?(?:画面|场景|镜头)"
+    r"|(?:计算|展示|演示|公式|板书|答题)区"
+    r"|(?:把|将)[^。！？]{0,20}(?:搬到|移到|接到)(?:计算|展示|板书|公式)区"
+)
+STILTED_TRANSITION = re.compile(
+    r"其公式为|对应的公式(?:为|是)|现在(?:展示|呈现)(?:计算|最终)?(?:公式|结果)"
+)
+
 VOICES = frozenset({
     "zh-CN-YunxiNeural", "zh-CN-YunjianNeural",
     "zh-CN-XiaoxiaoNeural", "zh-CN-XiaoyiNeural",
@@ -219,6 +232,10 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
             actual = "".join(voice)
             if FORBIDDEN.search(actual):
                 raise LongboardError("SPOKEN_EXTERNAL_ANSWER_REFERENCE")
+            if CLASSROOM_META.search(actual):
+                raise LongboardError("SPOKEN_CLASSROOM_META_LANGUAGE")
+            if STILTED_TRANSITION.search(actual):
+                raise LongboardError("SPOKEN_STILTED_TRANSITION")
             checked.append(SpokenSpan(kind, ident, tuple(parts), actual, latex))
         validated.append(SpokenEvent(
             recorded["stage_id"], recorded["event_id"], tuple(checked)

@@ -179,3 +179,40 @@ def test_teaching_preambles_are_short_and_prior_math_is_not_rote_repeated(exampl
         ["parts"][-1]["reading"])<18
     assert len(next(s for s in spans if s["object_id"]=="m_hypotenuse_recall")
         ["parts"][0]["value"])<24
+
+
+@pytest.mark.parametrize("utterance,error", [
+    ("把上一页的等式接到计算区：", "SPOKEN_CLASSROOM_META_LANGUAGE"),
+    ("下面进入下一幕。", "SPOKEN_CLASSROOM_META_LANGUAGE"),
+    ("把这个公式移到板书区。", "SPOKEN_CLASSROOM_META_LANGUAGE"),
+    ("其公式为：", "SPOKEN_STILTED_TRANSITION"),
+    ("对应的公式是：", "SPOKEN_STILTED_TRANSITION"),
+    ("现在展示计算结果。", "SPOKEN_STILTED_TRANSITION"),
+])
+def test_reject_engine_language_and_stilted_transitions(example, utterance, error):
+    data=get(example)
+    # Any topic/scene can contain teacher prose; guard the general contract,
+    # not only the reviewed triangle example.
+    data["events"][0]["spans"][0]["parts"][0]["value"]=utterance
+    put(example,data)
+    with pytest.raises(LongboardError, match=error):
+        checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_approved_narration_uses_maths_not_renderer_as_transition(example):
+    spoken=get(example)
+    utterances=[
+        part["value"] if part["kind"]=="text" else part["reading"]
+        for event in spoken["events"] for span in event["spans"]
+        for part in span["parts"]
+    ]
+    assert not any(x in phrase for phrase in utterances
+                   for x in ["上一页","计算区","下一幕","对应的公式是","其公式为"])
+    carry=next(span for event in spoken["events"] for span in event["spans"]
+               if span["object_id"]=="m_square_handoff")
+    assert "接下来" in carry["parts"][0]["value"]
+    assert "八的平方加六的平方" in carry["parts"][-1]["reading"]
+    recap=next(span for event in spoken["events"] for span in event["spans"]
+               if span["object_id"]=="m_hypotenuse_recall")
+    assert recap["parts"][0]["value"].endswith("，")
+    assert checked_spoken(example/"spoken_classroom.json",adaptive=True)
