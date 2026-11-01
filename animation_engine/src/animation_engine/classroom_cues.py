@@ -19,13 +19,13 @@ from .classroom_compositor import _font
 
 
 PHASES = frozenset({"observe", "strategy", "knowledge", "pitfall",
-                    "application", "calculate", "check", "summary"})
+                    "application", "calculate", "check", "conclusion", "summary"})
 PHASE_NAMES = {
     "observe": "观察题目", "strategy": "思路引导",
     "knowledge": "核心知识点", "pitfall": "易错点",
     "application": "本题应用",
     "calculate": "逐步计算", "check": "结果检查",
-    "summary": "归纳总结",
+    "conclusion": "最终结论", "summary": "归纳总结",
 }
 # Formula characters belong in the mathematically exact MathTex board, not
 # in the CJK teaching-note raster layer or the TTS pronunciation layer.
@@ -39,6 +39,7 @@ BOARD_TEXT_STYLE = {
     "pitfall": {"heading": "#DC2626", "font_px": 17},
     "check": {"heading": "#D97706", "font_px": 17},
     "summary": {"heading": "#0F766E", "font_px": 17},
+    "conclusion": {"heading": "#111111", "font_px": 17},
     "application": {"heading": "#111111", "font_px": 17},
     "calculate": {"heading": "#111111", "font_px": 17},
 }
@@ -50,7 +51,7 @@ FONT_COLORS = {"ink":BOARD_DERIVATION_INK,"muted":"#64748B","blue":"#2563EB"}
 # the central classroom, not as a persistent line beneath the question.
 # Application and calculation explanations belong to future voice content;
 # they are NOT converted to fake subtitles or repetitive board titles.
-BOARD_GUIDANCE_PHASES = frozenset({"observe","strategy","knowledge","pitfall","check","summary"})
+BOARD_GUIDANCE_PHASES = frozenset({"observe","strategy","knowledge","pitfall","check","conclusion","summary"})
 
 
 
