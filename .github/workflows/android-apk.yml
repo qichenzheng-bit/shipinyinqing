@@ -86,9 +86,15 @@ jobs:
           script: |
             mkdir -p android_app/screenshots
             adb install -r android_app/app/build/outputs/apk/debug/app-debug.apk
+            adb logcat -c
             adb shell am start -W -n cn.weiguang.math/.MainActivity
             sleep 5
-            adb shell pidof cn.weiguang.math
+            adb logcat -d -s AndroidRuntime:E | tee android_app/screenshots/launch-runtime.log
+            if ! adb shell pidof cn.weiguang.math; then
+              echo "ANDROID_APP_EXITED_AFTER_LAUNCH"
+              cat android_app/screenshots/launch-runtime.log
+              exit 1
+            fi
             adb shell screencap -p /sdcard/weiguang-android-launch.png
             adb pull /sdcard/weiguang-android-launch.png android_app/screenshots/00-android-native-launcher.png
             test -s android_app/screenshots/00-android-native-launcher.png
@@ -101,6 +107,7 @@ jobs:
             android_app/app/build/outputs/apk/debug/app-debug.apk
             android_app/app/build/outputs/apk/debug/SHA256SUMS.txt
             android_app/screenshots/*.png
+            android_app/screenshots/*.log
           if-no-files-found: error
           retention-days: 30
 
