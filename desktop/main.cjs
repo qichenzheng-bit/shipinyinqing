@@ -2,7 +2,6 @@
 const { app, BrowserWindow, ipcMain, safeStorage, session } = require('electron');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { execFile } = require('node:child_process');
@@ -18,7 +17,8 @@ let starting = false;
 let appClosing = false;
 
 app.setAppUserModelId(APP_ID);
-if (!app.requestSingleInstanceLock()) {
+const hasLock = app.requestSingleInstanceLock();
+if (!hasLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
@@ -277,7 +277,7 @@ function createLauncher() {
   launcher.loadFile(path.join(__dirname, 'launcher.html'));
 }
 
-if (app.requestSingleInstanceLock) {
+if (hasLock) {
   app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, done) => done(false));
     ipcMain.handle('wg:status', onlyLauncher(() => ({
