@@ -20,7 +20,7 @@ from build_math_memory_triangle import export_memory_triangle
 NARRATIVE = {
     # Spoken connectors follow mathematical reasoning, never a software page.
     ("introduce_triangle", "e_intro", "diagram"):
-        "这道题给出直角三角形，A 角是直角，AB 长八，AC 长六，求斜边和周长。先画直角三角形，再连接 B、C。",
+        "这道题给出直角三角形，A 角是直角，AB 长八，AC 长六，求斜边和周长。先画直角三角形的两条直角边，再连接 B、C，图就完整了。",
     ("introduce_triangle", "e_intro", "note"):
         "两条直角边已经知道了。要算周长，先得求出斜边。",
     ("introduce_triangle", "e_intro", "math"):
