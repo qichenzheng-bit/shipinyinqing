@@ -8,6 +8,8 @@ result may then be explicitly REWRITTEN from the verified original source.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import json
 import math
 import shutil
@@ -879,7 +881,7 @@ def _event_entry_contract(layout: dict, index: int) -> dict:
 
 
 def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
-                                 output_mp4:Path,output_json:Path,fps:int=30,
+                                 output_mp4:Path,output_json:Path,fps: int = DEFAULT_VIDEO_FPS,
                                  computation_manifest=None,matrix_manifest=None,
                                  proof_manifest=None,diagram_manifest=None,
                                  layout_hint=None,narration_events=None,
