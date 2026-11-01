@@ -140,7 +140,7 @@ def main():
             page.locator("#teacher-reviewer").fill("数学审核教师")
             page.locator("#teacher-check").check()
             page.get_by_role("button",name="确认教学草稿").click()
-            page.get_by_text("待准备").wait_for()
+            page.get_by_text("待准备",exact=True).wait_for()
             os.environ.pop("WEIGUANG_API_TOKEN",None)
             if errors:
                 raise AssertionError("UI_PAGE_ERRORS: "+str(errors))
