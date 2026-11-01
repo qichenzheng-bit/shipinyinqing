@@ -33,25 +33,27 @@ def unit(ident, heading, detail, tex, reason, phase="calculate"):
 
 
 UNITS = [
-    unit("intro", "完整读题", "已知被积函数和积分上下限，目标是求定积分。",
-         r"I=\int_0^2 2x e^{x^2}\,dx", "原题数学表达式必须原样保留。", "observe"),
-    unit("strategy", "观察复合结构", "指数内是平方函数，外部恰好有对应的导数因子。",
-         r"\frac{d}{dx}(x^2)=2x", "说明为什么优先考虑换元。", "strategy"),
-    unit("knowledge", "定积分换元法", "以新变量代替内层函数，微分及上下限须同步变换。",
-         r"u=g(x),\quad du=g'(x)\,dx", "换元法的一般微分关系及适用结构。", "knowledge"),
-    unit("substitution", "选择新变量", "令新变量等于平方函数，利用微分关系变换被积函数。",
-         r"u=x^2,\quad du=2x\,dx", "将本题映射到通用换元公式。"),
-    unit("pitfall", "积分限同步变换", "不能只换被积函数而保留原端点，必须重算新端点。",
+    unit("intro", "完整读题", "题目要求计算给定区间上的定积分。",
+         r"I=\int_0^2 2x e^{x^2}\,dx", "题目中的积分表达式。", "observe"),
+    unit("strategy", "观察函数结构", "观察指数中的函数和外部系数之间的导数关系。",
+         r"\frac{d}{dx}(x^2)=2x", "发现复合函数的内层导数。", "strategy"),
+    unit("knowledge", "定积分换元法", "明确新变量与微分的对应关系以及积分限的变换。",
+         r"u=g(x),\quad du=g'(x)\,dx", "定积分换元法的一般微分关系。", "knowledge"),
+    unit("substitution", "结合本题换元", "将指数中的平方函数设为新变量，替换对应微分。",
+         r"u=x^2,\quad du=2x\,dx", "将本题内层函数映射到换元公式。"),
+    unit("pitfall", "积分限同步变换", "积分变量改变以后，新变量端点也必须重新计算。",
          r"x=0\Longrightarrow u=0,\quad x=2\Longrightarrow u=4",
-         "本题上限从二变为四，展示实际易错风险。", "pitfall"),
-    unit("rewrite", "化为基础指数积分", "完成变量和积分限转换后，得到标准指数积分。",
-         r"I=\int_0^4 e^u\,du", "全部变量和界限同时换元。"),
-    unit("primitive", "利用指数积分公式", "原函数是同一个指数函数，按新端点计算。",
-         r"I=\left[e^u\right]_0^4", "指数函数原函数。"),
-    unit("conclusion", "积分结果", "依次代入四和零，取上限值减下限值。",
-         r"I=e^4-1", "全题的实际最终结论。", "conclusion"),
-    unit("summary", "换元要点回顾", "记住复合结构和对应导数，尤其避免漏换定积分限。",
-         None, "本题结果后以简短讲稿回顾方法与易错点。", "summary"),
+         "积分上限从二变成四，不能沿用旧端点。", "pitfall"),
+    unit("rewrite", "化为基本积分", "换元之后得到更容易计算的指数函数积分。",
+         r"I=\int_0^4 e^u\,du", "同时完成函数、微分和积分限转换。"),
+    unit("primitive", "求指数函数原函数", "利用指数函数的原函数进行定积分计算。",
+         r"I=\left[e^u\right]_0^4", "由原函数定理得到待代入的表达式。"),
+    unit("evaluate", "代入积分上下限", "先取上限对应的函数值，再减去下限对应的值。",
+         r"I=e^4-e^0", "将新的积分上下限代入原函数。"),
+    unit("conclusion", "积分结果", "利用零次幂等于一得到最终结果。",
+         r"I=e^4-1", "给出全题最终结果。", "conclusion"),
+    unit("summary", "换元要点回顾", "回顾发现内层导数的方法以及积分限同步变换。",
+         None, "结果之后只作简短口播回顾，不重复书写公式。", "summary"),
 ]
 
 KNOWLEDGE_CATALOG = {
@@ -68,37 +70,64 @@ KNOWLEDGE_CATALOG = {
     }],
 }
 
+# These lines are teacher-authored natural classroom speech, not labels
+# generated from the engine's scene names. They are reviewed BEFORE any TTS.
 NARRATION = {
     ("e_intro", "note"):
-        "同学们大家好，我们先来看一下这道定积分题。题目要求计算从零到二的定积分。被积函数是二乘 x，乘 e 的 x 平方次幂。",
-    ("e_intro", "math"): "我们把题目中的积分完整读出来：",
+        "同学们大家好，我们先来看一下这道定积分题。",
+    ("e_intro", "math"):
+        "题目要求计算：",
     ("e_strategy", "note"):
-        "先观察被积函数的结构。指数里面是 x 平方，前面恰好有二乘 x。为什么考虑换元法呢？因为它是内层的导数。",
-    ("e_strategy", "math"): "先把这个关键导数关系写清楚：",
+        "这道题我们先观察一下被积函数的结构。指数里面是 x 平方，前面还有一个二 x。这两部分有什么联系？",
+    ("e_strategy", "math"):
+        "我们先求一下 x 平方的导数：",
     ("e_knowledge", "note"):
-        "这里用的是定积分换元法。它的核心是用新变量表示内层函数，同时把微分换成新变量。",
-    ("e_knowledge", "math"): "相应的一般关系可以写成：",
+        "这里回顾一下定积分换元法。换元时，用新的变量代替内层函数。除了被积函数和微分，积分上下限也要变成新变量对应的值。这一点很重要。",
+    ("e_knowledge", "math"):
+        "一般的换元关系可以写成：",
     ("e_substitution", "math"):
-        "结合本题，令 u 等于 x 的平方。于是微分关系是：",
+        "回到这道题。既然指数里面是 x 平方，我们就令：",
     ("e_pitfall", "note"):
-        "最容易错的是只换函数，忘了换上下限。正确做法是把原端点代入换元关系，重新计算积分限。这里上限从二变成四。",
-    ("e_pitfall", "math"): "因此，新变量对应的积分上下限是：",
-    ("e_rewrite", "math"): "把变量、微分和上下限都换好，原积分就变成：",
-    ("e_primitive", "math"): "指数函数的原函数还是指数函数。按新变量积分，得到：",
-    ("e_conclusion", "note"): "最后，用上限四对应的函数值减去下限零对应的函数值。",
-    ("e_conclusion", "math"): "因此本题的最终结果是：",
+        "不过，这是定积分，我们还需要换积分上下限。最容易错的地方，就是只换了函数，却把原来的上下限直接保留下来。因为积分变量已经改变，端点也必须重新计算。",
+    ("e_pitfall", "math"):
+        "在这道题里，新变量对应的两个端点是：",
+    ("e_rewrite", "math"):
+        "现在把换元关系和新的积分限代入，原积分就变成：",
+    ("e_primitive", "math"):
+        "这个积分就很简单了。e 的 u 次幂的原函数还是它本身。所以：",
+    ("e_evaluate", "math"):
+        "先代入上限四，再减去下限零对应的函数值：",
+    ("e_conclusion", "note"):
+        "因为 e 的零次方等于一，所以继续化简。",
+    ("e_conclusion", "math"):
+        "最终得到：",
     ("e_summary", "note"):
-        "最后归纳一下。这题的关键是认出复合函数和它的内层导数。要熟悉换元法。尤其注意，换元后积分上下限必须同步改。",
+        "最后我们简单回顾一下。这道题的关键，是发现指数里的平方函数和前面的二 x，正好构成函数及其导数的关系。遇到这种结构，可以优先考虑换元法，把复合函数积分变成基本积分。另外，定积分换元时，上下限一定要跟着改变。这也是本题最容易出错的地方。好，这道题我们就讲到这里。",
+}
+
+# Speaking about the mathematics follows the actual MathTex writing action.
+# The first extra paragraph comes AFTER the derivative was written and read,
+# so the teacher introduces substitution only after discovering why it fits.
+AFTER_MATH = {
+    "e_strategy":
+        "再来看前面的二 x，恰好就是它的导数。也就是说，指数里的函数和它的导数同时出现。遇到这样的结构，我们就可以把 x 平方看作整体，换成一个新的变量。这样能化成更简单的指数函数积分。这种方法，就是换元法。",
+    "e_substitution":
+        "这样，原来积分中的二 x d x，就可以用 d u 代替了。",
+    "e_pitfall":
+        "注意，这里的上限从二变成了四。不能继续使用原来的上限。",
+    "e_conclusion":
+        "这样，这道题就算出来了，最终结果是 e 的四次方减一。",
 }
 
 READINGS = {
-    "m_intro": "I 等于从零到二，二 x 乘 e 的 x 平方次幂，对 x 积分。",
-    "m_strategy": "x 的平方对 x 求导，等于二 x。",
+    "m_intro": "I 等于从零到二，二 x 乘以 e 的 x 平方次幂，对 x 的定积分。",
+    "m_strategy": "x 平方对 x 求导，等于二 x。",
     "m_knowledge": "令 u 等于 g x，那么 d u 等于 g 撇 x 乘 d x。",
     "m_substitution": "u 等于 x 的平方，d u 等于二 x d x。",
     "m_pitfall": "x 等于零时 u 等于零，x 等于二时 u 等于四。",
     "m_rewrite": "I 等于从零到四，e 的 u 次幂对 u 积分。",
     "m_primitive": "I 等于 e 的 u 次幂，在零到四两端的差。",
+    "m_evaluate": "I 等于 e 的四次方减去 e 的零次方。",
     "m_conclusion": "I 等于 e 的四次方减一。",
 }
 
@@ -143,6 +172,8 @@ def build(root: Path):
             parts = [{"kind": "text", "value": text}]
             if kind == "math":
                 parts.append({"kind": "math", "latex": tex, "reading": READINGS[obj]})
+                if event_id in AFTER_MATH:
+                    parts.append({"kind": "text", "value": AFTER_MATH[event_id]})
             spans.append({"kind": kind, "object_id": obj, "parts": parts})
         events.append({
             "stage_id": "integration", "event_id": action["event_id"],
@@ -157,25 +188,25 @@ def build(root: Path):
             "event_id": "e_intro",
             "opening_text": "同学们大家好，我们先来看一下这道定积分题。",
             "question_segments": [
-                {"source_text": "计算定积分：", "spoken_text": "题目要求计算从零到二的定积分。"},
+                {"source_text": "计算定积分：", "spoken_text": "题目要求计算："},
                 {"source_text": r"\quad I=\int_0^2 2x e^{x^2}\,dx",
                  "spoken_text": READINGS["m_intro"]},
             ],
         },
         "strategy": {
-            "event_id": "e_strategy", "why_method": "为什么考虑换元法呢？因为它是内层的导数。",
+            "event_id": "e_strategy", "why_method": "遇到这样的结构，我们就可以把 x 平方看作整体，换成一个新的变量。",
         },
         "knowledge": [{
             "event_id": "e_knowledge", "kind": "formula", "title": "定积分换元法",
             "math_latex": r"u=g(x),\quad du=g'(x)\,dx",
-            "spoken_explanation": "这里用的是定积分换元法。它的核心是用新变量表示内层函数",
+            "spoken_explanation": "这里回顾一下定积分换元法。换元时，用新的变量代替内层函数。",
             "applied_event_id": "e_substitution",
         }],
         "pitfalls": [{
             "event_id": "e_pitfall", "typical_mistake": "换元后仍写旧积分限二",
             "correction": "将新上限算为四并同步更换",
-            "spoken_mistake": "最容易错的是只换函数，忘了换上下限。",
-            "spoken_correction": "正确做法是把原端点代入换元关系，重新计算积分限。",
+            "spoken_mistake": "最容易错的地方，就是只换了函数，却把原来的上下限直接保留下来。",
+            "spoken_correction": "因为积分变量已经改变，端点也必须重新计算。",
         }],
         "conclusion": {
             "event_id": "e_conclusion",
@@ -183,7 +214,7 @@ def build(root: Path):
         },
         "recap": {
             "event_id": "e_summary",
-            "spoken_recap": "最后归纳一下。这题的关键是认出复合函数和它的内层导数。",
+            "spoken_recap": "最后我们简单回顾一下。这道题的关键",
         },
     }
     spoken = {
