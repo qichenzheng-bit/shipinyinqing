@@ -217,7 +217,9 @@ def create_app(
     def run_job(job_id: str):
         """Celery/eager execution with per-task revision fence."""
         with SessionLocal() as db:
-            job=db.get(Job,job_id)
+            job=db.scalar(
+                select(Job).where(Job.id==job_id).with_for_update()
+            )
             if job is None or job.status!="queued":
                 return
             lesson=lesson_get(db,job.lesson_id)
@@ -557,6 +559,37 @@ def create_app(
             job=job_add(db,l,"render")
             response=describe_job(job)
         dispatch(job.id)
+        return response
+
+    @api.get("/jobs")
+    def job_list(lesson_id: str | None=None,
+                 limit: int=Query(30,ge=1,le=200)):
+        with SessionLocal() as db:
+            stmt=select(Job)
+            if lesson_id:stmt=stmt.where(Job.lesson_id==lesson_id)
+            return [describe_job(j) for j in db.scalars(
+                stmt.order_by(Job.created_at.desc()).limit(limit)
+            )]
+
+    @api.post("/jobs/{id}/retry",status_code=202)
+    def job_retry(id: str):
+        with SessionLocal() as db:
+            job=db.get(Job,id)
+            if not job:raise HTTPException(404,"JOB_NOT_FOUND")
+            if job.status!="failed":
+                raise HTTPException(409,"ONLY_FAILED_JOBS_CAN_RETRY")
+            lesson=lesson_get(db,job.lesson_id)
+            if lesson.revision!=job.expected_revision:
+                raise HTTPException(409,"RETRY_STALE_SOURCE_REVISION")
+            active=db.scalars(select(Job).where(
+                Job.lesson_id==lesson.id,
+                Job.status.in_(("queued","running")),
+            )).first()
+            if active:raise HTTPException(409,"LESSON_JOB_ALREADY_ACTIVE")
+            job.status="queued";job.phase="重新排队";job.error=None
+            db.commit()
+            response=describe_job(job)
+        dispatch(id)
         return response
 
     @api.get("/jobs/{id}")
