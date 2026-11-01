@@ -45,8 +45,17 @@ def seed(app,base):
         other=Lesson(title="矩阵初等变换",problem="求矩阵的秩",
             reference_solution="示例中只保存文字，不触发数学推理。",
             status="draft")
-        db.add_all((ready,review,other));db.commit()
-        db.refresh(ready);db.refresh(review);db.refresh(other)
+        teaching=Lesson(title="数学教师教学草稿",
+            problem=sample["problem"],reference_solution=sample["reference_solution"],
+            status="teacher_review_pending")
+        db.add_all((ready,review,other,teaching));db.commit()
+        db.refresh(ready);db.refresh(review);db.refresh(other);db.refresh(teaching)
+        draft=base/"lessons"/teaching.id/"teacher_draft"/"teaching_package.json"
+        draft.parent.mkdir(parents=True,exist_ok=True)
+        draft.write_text(json.dumps(
+            json.loads((fixture/"integration"/"teaching_package.json").read_text(encoding="utf-8")),
+            ensure_ascii=False,
+        ),encoding="utf-8")
         video=base/"lessons"/ready.id/"output"/"latest.mp4"
         video.parent.mkdir(parents=True,exist_ok=True)
         # The HTML video player uses a non-video placeholder during UI
@@ -57,7 +66,7 @@ def seed(app,base):
         import shutil
         shutil.copytree(fixture,output)
         db.commit()
-        return ready.id,review.id,other.id
+        return ready.id,review.id,other.id,teaching.id
 
 
 def main():
@@ -66,7 +75,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="weiguang-browser-") as tmp:
         data=Path(tmp)
         app=create_app(data_dir=data,local_dev=True,eager=True)
-        ready,review,other=seed(app,data)
+        ready,review,other,teaching=seed(app,data)
         config=uvicorn.Config(app,host="127.0.0.1",port=PORT,
                               log_level="error",access_log=False)
         server=uvicorn.Server(config)
@@ -123,6 +132,15 @@ def main():
             page.locator("#login-secret").fill("preview-browser-only-auth-secret")
             page.get_by_role("button",name="登录",exact=True).click()
             page.get_by_role("heading",name="制作视频").wait_for()
+            page.get_by_role("button",name="视频库").click()
+            page.get_by_text("数学教师教学草稿",exact=True).click()
+            page.get_by_role("button",name="查看教学草稿").click()
+            page.get_by_role("heading",name="教学草稿").wait_for()
+            page.screenshot(path=str(shots/"09-teacher-draft.png"),full_page=True)
+            page.locator("#teacher-reviewer").fill("数学审核教师")
+            page.locator("#teacher-check").check()
+            page.get_by_role("button",name="确认教学草稿").click()
+            page.get_by_text("待准备").wait_for()
             os.environ.pop("WEIGUANG_API_TOKEN",None)
             if errors:
                 raise AssertionError("UI_PAGE_ERRORS: "+str(errors))
