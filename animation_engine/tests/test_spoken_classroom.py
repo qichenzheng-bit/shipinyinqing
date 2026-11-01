@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 import pytest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"fixtures"))
+sys.path.insert(0,str(Path(__file__).resolve().parent/"fixtures"))
 from build_spoken_triangle import export_spoken_triangle
 from animation_engine.spoken_classroom import checked_spoken, plan_spoken
 from animation_engine.longboard_plan import LongboardError
