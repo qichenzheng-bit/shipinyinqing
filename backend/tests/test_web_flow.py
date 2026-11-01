@@ -239,3 +239,46 @@ def test_renaming_does_not_invalidate_video_source_and_changed_fps_does(studio):
     assert reupload.status_code==200,reupload.text
     archive_dir=Path(client.app.state.root)/"lessons"/ident/"previous_packages"
     assert archive_dir.exists() and list(archive_dir.iterdir())
+
+
+
+def test_compiled_curriculum_approval_to_reviewed_video_and_download(studio,tmp_path):
+    from test_compiler import curriculum_fixture
+    from weiguang_backend.models import Lesson
+    client,_,_=studio
+    source,candidate=curriculum_fixture(tmp_path)
+    created=client.post("/api/v1/lessons",json={
+        "title":"自动候选经人工审核的课程",
+        "problem":source["problem"],
+        "reference_solution":source["reference_solution"],
+    })
+    assert created.status_code==201,created.text
+    ident=created.json()["id"]
+    with client.app.state.SessionLocal() as db:
+        lesson=db.get(Lesson,ident)
+        lesson.status="curriculum_review_pending"
+        db.commit()
+    basedir=Path(client.app.state.root)/"lessons"/ident
+    basedir.mkdir(parents=True,exist_ok=True)
+    (basedir/"curriculum_candidate.json").write_text(
+        json.dumps(candidate,ensure_ascii=False),encoding="utf-8",
+    )
+    payload=client.get(f"/api/v1/lessons/{ident}/curriculum")
+    assert payload.status_code==200
+    no_review=client.post(f"/api/v1/lessons/{ident}/curriculum/approve",
+        json={"reviewer":"teacher","confirmed":False})
+    assert no_review.status_code==422
+    approved=client.post(f"/api/v1/lessons/{ident}/curriculum/approve",
+        json={"reviewer":"teacher","confirmed":True})
+    assert approved.status_code==200,approved.text
+    assert approved.json()["events"]==10
+    script=client.get(f"/api/v1/lessons/{ident}/script")
+    assert script.status_code==200,script.text
+    accepted=client.post(f"/api/v1/lessons/{ident}/approve",
+        json={"reviewer":"teacher","confirmed":True})
+    assert accepted.status_code==200,accepted.text
+    rendered=client.post(f"/api/v1/lessons/{ident}/render")
+    assert rendered.status_code==202,rendered.text
+    job=client.get("/api/v1/jobs/"+rendered.json()["id"]).json()
+    assert job["status"]=="succeeded",job
+    assert client.get(f"/api/v1/videos/{ident}/download").status_code==200
