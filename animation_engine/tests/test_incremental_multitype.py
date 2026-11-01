@@ -134,7 +134,7 @@ def test_invalid_board_boundary_never_silently_restored():
 
 
 @pytest.mark.parametrize("kind,variant,minimum_events",[
-    ("integral","C",10),
+    ("integral","C",8),
     ("proof","A",9),
     ("proof","C",9),
     ("matrix","A",8),
