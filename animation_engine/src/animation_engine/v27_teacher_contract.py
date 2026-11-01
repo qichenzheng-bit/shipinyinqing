@@ -114,9 +114,11 @@ def check_v27_teacher_contract(flow, events, contract: dict) -> dict:
         readings.append(part["spoken_text"])
         # A LaTeX-bearing source segment must cite the COMPLETE approved
         # mathematical pronunciation, not a tiny token such as "I 等于".
-        if any(ord(ch) == 92 for ch in part["source_text"]):
-            if part["spoken_text"] not in full_math_readings:
-                _error("QUESTION_MATH_READING_NOT_COMPLETE")
+        if not any(ord(ch) == 92 for ch in part["source_text"]):
+            if part["spoken_text"].strip() != part["source_text"].strip():
+                _error("QUESTION_ORIGINAL_WORDS_PARAPHRASED")
+        elif part["spoken_text"] not in full_math_readings:
+            _error("QUESTION_MATH_READING_NOT_COMPLETE")
     if "".join(originals) != flow.problem:
         _error("QUESTION_NOT_FULL_SOURCE")
     _in_order(_voice(first), readings, "QUESTION_NOT_FULLY_AUDIBLE")
