@@ -302,8 +302,8 @@ def export_spoken_script(approved, *, output_json: Path, output_md: Path,
     return doc
 
 
-def require_prerender_script(contract, path: Path) -> dict:
-    """For new V2.7 lessons the script must have been exported BEFORE TTS."""
+def _source_verified_script(contract, path: Path) -> dict:
+    """Verify complete script content without conflating it with approval."""
     script = path.parent / "lesson_script.json"
     if not script.is_file():
         _error("SCRIPT_MUST_BE_EXPORTED_BEFORE_RENDER")
@@ -321,4 +321,67 @@ def require_prerender_script(contract, path: Path) -> dict:
     )
     if document != authoritative:
         _error("SCRIPT_CONTENT_TAMPERED_OR_INCOMPLETE")
+    return document
+
+
+def approve_prerender_script(
+    contract, path: Path, *, reviewer: str, confirmed: bool,
+) -> dict:
+    """Store explicit reviewed identity and exact source/script digests.
+
+    This is a self-attested human/trusted-reviewer action, not a cryptographic
+    proof of identity. Export alone never creates a valid approval record.
+    """
+    from datetime import datetime, timezone
+    from .iterative_edit_ops import file_digest
+    from .safe_output import publish_bundle
+    path = Path(path)
+    if confirmed is not True or not isinstance(reviewer, str) or not reviewer.strip():
+        _error("SCRIPT_EXPLICIT_REVIEW_REQUIRED")
+    _source_verified_script(contract, path)
+    approval = {
+        "schema_version": "1.0",
+        "decision": "approved",
+        "source_spoken_sha256": contract.source_sha256,
+        "script_sha256": file_digest(path.parent / "lesson_script.json"),
+        "reviewer": reviewer.strip(),
+        "approved_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    destination = path.parent / "lesson_script_approval.json"
+    publish_bundle({
+        destination: (json.dumps(approval, ensure_ascii=False, indent=2)
+                      + "\n").encode("utf-8"),
+    }, suffixes={destination: ".json"},
+        protected=[path, path.parent / "lesson_script.json"])
+    return approval
+
+
+def require_prerender_script(contract, path: Path) -> dict:
+    """For V2.7, require both source-exact export and explicit script approval."""
+    from .iterative_edit_ops import file_digest
+    path = Path(path)
+    document = _source_verified_script(contract, path)
+    approval_path = path.parent / "lesson_script_approval.json"
+    if not approval_path.is_file():
+        _error("SCRIPT_HUMAN_APPROVAL_REQUIRED")
+    try:
+        approval = json.loads(approval_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as exc:
+        raise LongboardError("V27_SCRIPT_APPROVAL_INVALID_JSON") from exc
+    if (not isinstance(approval, dict)
+            or set(approval) != {
+                "schema_version", "decision", "source_spoken_sha256",
+                "script_sha256", "reviewer", "approved_at",
+            }
+            or approval["schema_version"] != "1.0"
+            or approval["decision"] != "approved"
+            or not isinstance(approval["reviewer"], str)
+            or not approval["reviewer"].strip()
+            or not isinstance(approval["approved_at"], str)
+            or not approval["approved_at"].strip()
+            or approval["source_spoken_sha256"] != contract.source_sha256
+            or approval["script_sha256"] != file_digest(
+                path.parent / "lesson_script.json"
+            )):
+        _error("SCRIPT_APPROVAL_STALE_OR_INVALID")
     return document
