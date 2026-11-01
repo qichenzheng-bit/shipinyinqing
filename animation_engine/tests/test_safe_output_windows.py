@@ -27,13 +27,13 @@ def test_mp4_json_srt_collisions_are_rejected_before_tts(tmp_path, monkeypatch):
             source, output_mp4=movie, output_json=manifest,
             output_srt=movie, adaptive=False,
         )
-    with pytest.raises(OutputSafetyError, match="OUTPUT_INVALID_TARGET"):
+    with pytest.raises(OutputSafetyError, match="OUTPUT_OVERWRITES_SOURCE"):
         render_spoken_classroom(
             source, output_mp4=movie,
             output_json=source, output_srt=movie.with_suffix(".srt"),
             adaptive=False,
         )
-    with pytest.raises(OutputSafetyError, match="OUTPUT_TARGET_COLLISION"):
+    with pytest.raises(OutputSafetyError, match="OUTPUT_OVERWRITES_SOURCE"):
         validate_output_targets({
             tmp_path / "same.json": ".json",
             tmp_path / "other.json": ".json",
