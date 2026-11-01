@@ -6,6 +6,8 @@ video can be reported as the final spoken classroom output.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import asyncio
 import hashlib
 import json
@@ -117,7 +119,7 @@ def render_spoken_classroom(
     input_file: Path | str, *,
     output_mp4: Path, output_json: Path,
     output_srt: Path | None=None,
-    fps: int=30, adaptive: bool=True, cache_dir: Path | None=None,
+    fps: int = DEFAULT_VIDEO_FPS, adaptive: bool=True, cache_dir: Path | None=None,
 ) -> dict:
     path=Path(input_file).resolve()
     if (not isinstance(fps,int) or not 8<=fps<=60
