@@ -1061,6 +1061,24 @@ def create_app(
                     "source_revision":source_revision,
                     "session":data,
                 })
+        def review_export(record):
+            if not record.review_path:
+                return None
+            path=Path(record.review_path).resolve()
+            if not path.is_relative_to(lesson_root(record.lesson_id)):
+                return {"error":"REVIEW_PATH_OUTSIDE_SOURCE_ROOT"}
+            try:
+                doc=json.loads((path/"review.json").read_text(encoding="utf-8"))
+                return {
+                    "status":doc.get("status"),
+                    "source_revision":doc.get("source_revision"),
+                    "source_spoken_sha256":doc.get("source_spoken_sha256"),
+                    "requirements":doc.get("plan",{}).get("requirements",[]),
+                    "operations":doc.get("plan",{}).get("operations",[]),
+                    "changed_files":doc.get("changed",[]),
+                }
+            except (OSError,ValueError,TypeError,AttributeError):
+                return {"error":"REVIEW_RECORD_UNAVAILABLE"}
         all_data={
             "schema_version":"1.0","mode":"weiguang_all_edit_history",
             "exported_at":datetime.now(timezone.utc).isoformat(),
@@ -1070,6 +1088,9 @@ def create_app(
                 "original_instruction":x.original_instruction,
                 "status":x.status,"error":x.error,
                 "feedback":x.feedback,"satisfied":bool(x.satisfied),
+                "reviewer":x.reviewer,
+                "source_revision":x.source_revision,
+                "review_candidate":review_export(x),
             } for x in api_history],
             "media_embedded":False,
         }
