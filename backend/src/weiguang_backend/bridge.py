@@ -195,6 +195,7 @@ def run_real_edit(session: Path, instruction: str, *, ai_config: Path,
 
 def prepare_teacher_draft(
     *, problem: str, reference_solution: str, output: Path,
+    provider=None,
 ) -> dict:
     """Run authentic MathTeacher A/B/C; never mislabel it an engine package.
 
@@ -204,7 +205,7 @@ def prepare_teacher_draft(
     from math_teacher.models import TeacherInput
     from math_teacher.pipeline import MathTeacherPipeline
     from math_teacher.provider import OpenAICompatibleJsonModel
-    provider=OpenAICompatibleJsonModel()
+    provider=provider if provider is not None else OpenAICompatibleJsonModel()
     candidate=MathTeacherPipeline(provider).run(
         TeacherInput(problem=problem,reference_solution=reference_solution),
         allow_needs_review=True,
