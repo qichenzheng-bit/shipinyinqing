@@ -119,12 +119,17 @@ def test_native_generation_json_transport_and_version_identity(monkeypatch):
         calls.append((client.protocol,client.model_id,suffix,body))
         if client.protocol=="openai_chat":
             return {"choices":[{"message":{"content":'{"ok":true}'}}]}
+        if client.protocol=="openai_responses":
+            return {"output":[{"type":"message","content":[
+                {"type":"output_text","text":'{"ok":true}'},
+            ]}]}
         if client.protocol=="anthropic_messages":
             return {"content":[{"type":"text","text":'{"ok":true}'}]}
         return {"candidates":[{"content":{"parts":[{"text":'{"ok":true}'}]}}]}
     monkeypatch.setattr(HubClient,"_request",upstream)
     for protocol,url in [
         ("openai_chat","https://api.openai.com/v1"),
+        ("openai_responses","https://api.openai.com/v1"),
         ("anthropic_messages","https://api.anthropic.com/v1"),
         ("gemini_generate","https://generativelanguage.googleapis.com/v1beta"),
     ]:
@@ -132,9 +137,11 @@ def test_native_generation_json_transport_and_version_identity(monkeypatch):
                         model_id="family-revision-2026-11")
         assert model.probe()["status"]=="connected"
     assert calls[0][3]["model"]=="family-revision-2026-11"
-    assert calls[1][2]=="/messages"
-    assert calls[2][2]=="/models/family-revision-2026-11:generateContent"
-    assert calls[2][3]["systemInstruction"]["parts"]
+    assert calls[1][2]=="/responses"
+    assert calls[1][3]["model"]=="family-revision-2026-11"
+    assert calls[2][2]=="/messages"
+    assert calls[3][2]=="/models/family-revision-2026-11:generateContent"
+    assert calls[3][3]["systemInstruction"]["parts"]
 
 
 def test_atomic_shared_or_independent_task_bindings_and_job_pin(studio):
