@@ -34,7 +34,8 @@
       "launcher.js",
       "launcher.css",
       "brand.svg",
-      "package.json"
+      "package.json",
+      "build/app.png"
     ],
     "extraResources": [
       {
