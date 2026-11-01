@@ -170,11 +170,13 @@ class ArtifactCache:
         from PIL import Image
         try:
             with Image.open(BytesIO(found["payload.bin"])) as picture:
+                # Pillow.verify() must run immediately after open; after
+                # accessing pixels use load() for full decoding/validation.
+                picture.load()
                 if picture.size != (1280, 88) or picture.mode != "RGBA":
                     raise ValueError("CACHE_CAPTION_DIMENSIONS")
                 if picture.getchannel("A").getextrema()[0] != 0:
                     raise ValueError("CACHE_CAPTION_ALPHA")
-                picture.verify()
         except (OSError, ValueError, TypeError):
             self.counts["subtitle_png_invalid"] += 1
             return False
