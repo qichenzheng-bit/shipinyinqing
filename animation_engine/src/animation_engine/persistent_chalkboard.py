@@ -850,6 +850,34 @@ def _note_png(block,output):
     canvas.save(output)
 
 
+def _event_entry_contract(layout: dict, index: int) -> dict:
+    """Source-authoritative live board state before a teaching event.
+
+    No video screenshot is used: every previous visible MathTex/teacher note
+    is reconstructable from the immutable validated layout, while geometry
+    retains the exact original object order and coordinate definitions.
+    """
+    events=layout["events"]
+    if type(index) is not int or not 0<=index<len(events):
+        raise LongboardError("CHALKBOARD_EVENT_WINDOW_INVALID")
+    previous=events[index-1] if index else None
+    blocks=list(previous["visible_block_ids"]) if previous else []
+    diagrams=list(previous.get("visible_diagram_ids",[])) if previous else []
+    catalog={
+        block["block_id"]:block
+        for row in events[:index] for block in row["added_blocks"]
+    }
+    if any(ident not in catalog for ident in blocks):
+        raise LongboardError("CHALKBOARD_EVENT_MISSING_ENTRY_BLOCK")
+    if len(blocks)!=len(set(blocks)) or len(diagrams)!=len(set(diagrams)):
+        raise LongboardError("CHALKBOARD_EVENT_DUPLICATE_ENTRY_INK")
+    return {
+        "visible_block_ids":blocks,
+        "visible_diagram_ids":diagrams,
+        "block_catalog":catalog,
+    }
+
+
 def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                  output_mp4:Path,output_json:Path,fps:int=30,
                                  computation_manifest=None,matrix_manifest=None,
@@ -883,16 +911,10 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
             raise LongboardError("CHALKBOARD_EVENT_WINDOW_INVALID")
         if narration_events is None:
             raise LongboardError("CHALKBOARD_EVENT_REQUIRES_REAL_VOICE")
-        previous=layout["events"][event_index-1] if event_index else None
-        entering_blocks=previous["visible_block_ids"] if previous else []
-        entering_diagrams=previous.get("visible_diagram_ids",[]) if previous else []
-        block_catalog={
-            block["block_id"]:block
-            for prior in layout["events"][:event_index]
-            for block in prior["added_blocks"]
-        }
-        if any(ident not in block_catalog for ident in entering_blocks):
-            raise LongboardError("CHALKBOARD_EVENT_MISSING_ENTRY_BLOCK")
+        state=_event_entry_contract(layout,event_index)
+        entering_blocks=state["visible_block_ids"]
+        entering_diagrams=state["visible_diagram_ids"]
+        block_catalog=state["block_catalog"]
         event_rows=layout["events"][event_index:event_index+1]
     else:
         entering_blocks=[]
