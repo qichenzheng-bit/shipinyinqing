@@ -1,0 +1,92 @@
+name: V2.7 teacher script and real narrated lesson acceptance
+on:
+  push:
+    branches: [feature/v27-teacher-script-first-contract]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  v27-source-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+      - name: Check all teaching, visual and animation non-render tests
+        run: |
+          cd animation_engine && python -m pytest -q -m 'not render'
+          cd ../teacher_module && python -m pytest -q
+          cd ../visual_director && python -m pytest -q
+  v27-real-taught-integral:
+    needs: v27-source-regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: {python-version: '3.11'}
+      - name: Install real MathTex, Manim, neural voice and ffprobe dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends pkg-config libcairo2-dev libpango1.0-dev ffmpeg texlive-latex-base texlive-latex-extra texlive-fonts-recommended texlive-science dvisvgm ghostscript fonts-noto-cjk
+          python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test,speech]'
+      - name: Create teacher-reviewed integration task with actually changing bounds
+        run: python animation_engine/tools/build_novel_substitution_integral.py --output v27-integral
+      - name: REQUIRED full narrated-and-written lesson script BEFORE rendering
+        run: |
+          math-animation export-spoken-script --spoken v27-integral/spoken_classroom.json --output v27-integral/lesson_script.md
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('v27-integral')
+          obj=json.loads((root/'lesson_script.json').read_text(encoding='utf-8'))
+          assert obj['acceptance']['contract_version']=='2.7'
+          assert obj['full_original_question'].endswith(r'\int_0^2 2x e^{x^2}\,dx')
+          assert [e['phase'] for e in obj['events']]==[
+            'observe','strategy','knowledge','calculate','pitfall',
+            'calculate','calculate','conclusion','summary']
+          assert '同学们大家好' in (root/'lesson_script.md').read_text(encoding='utf-8')
+          assert (root/'lesson_script.md').stat().st_size>1400
+          PY
+      - name: Real Xiaoxiao PCM + progressive MathTex + captions and MP4
+        run: |
+          math-animation render-spoken --spoken v27-integral/spoken_classroom.json --output v27-integral/lesson.mp4 --manifest v27-integral/manifest.json --srt v27-integral/lesson.srt --fps 30
+      - name: Confirm actual audio video, independent result and post-result recap
+        run: |
+          python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from sympy import symbols,integrate,exp,simplify
+          x=symbols('x',real=True)
+          assert simplify(integrate(2*x*exp(x*x),(x,0,2))-(exp(4)-1))==0
+          root=Path('v27-integral')
+          report=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          script=json.loads((root/'lesson_script.json').read_text(encoding='utf-8'))
+          assert len(report['event_timing'])==9
+          assert report['voiced_action_count']>=9
+          assert report['voice_status']=='real_edge_neural_pcm_verified'
+          assert report['subtitle_status']=='actual_tts_phrase_aligned'
+          assert report['fabricated_voice_or_subtitle_count']==0
+          answer=next(i for i,x in enumerate(report['event_timing']) if x['event_id']=='e_conclusion')
+          recap=next(i for i,x in enumerate(report['event_timing']) if x['event_id']=='e_summary')
+          assert answer<recap and recap==8
+          obj=json.loads((root/'integration'/'teaching_package.json').read_text(encoding='utf-8'))
+          assert any(m['latex']==r'I=e^4-1' for m in obj['lesson']['math_objects'])
+          actual_voice=''.join(c['actual_voice_text'] for c in report['caption_timing'])
+          assert '最后归纳一下' in actual_voice
+          assert '同学们大家好' in actual_voice
+          probe=json.loads(subprocess.check_output(
+            ['ffprobe','-v','quiet','-show_streams','-of','json',str(root/'lesson.mp4')]
+          ))
+          assert {'audio','video'} <= {s['codec_type'] for s in probe['streams']}
+          assert (root/'lesson.srt').stat().st_size>120
+          print('V27_REAL_CLASSROOM_ACCEPTED',report['actual_video_frames'],len(script['events']))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v27-script-first-integral-real-mp4-and-script
+          path: v27-integral/
+          if-no-files-found: warn
