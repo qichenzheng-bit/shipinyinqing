@@ -96,12 +96,18 @@ jobs:
           if (Test-Path (Join-Path $sourceRoot 'frontend/screenshots')) { throw 'PACKAGED_SCREENSHOTS_NOT_ALLOWED' }
           if (Test-Path (Join-Path $sourceRoot '.env')) { throw 'PACKAGED_SECRETS_NOT_ALLOWED' }
           Get-ChildItem desktop/dist/*.exe | Select-Object Name,Length
+          $checks = Get-ChildItem desktop/dist/*.exe | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          $checks | Out-File -FilePath desktop/dist/SHA256SUMS.txt -Encoding utf8
           Write-Output "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK"
       - uses: actions/upload-artifact@v4
         with:
           name: WeiGuang-Math-Windows-Setup-and-Portable
           path: |
             desktop/dist/*.exe
+            desktop/dist/SHA256SUMS.txt
             desktop/screenshots/*.png
           if-no-files-found: error
           retention-days: 30
