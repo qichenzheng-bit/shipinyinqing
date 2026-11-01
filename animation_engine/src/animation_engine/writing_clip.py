@@ -45,6 +45,8 @@ def render_math_writing_clip(
     fps: int = DEFAULT_VIDEO_FPS,
 ) -> MathWritingClipResult:
     output_mp4, output_json = Path(output_mp4), Path(output_json)
+    from .safe_output import validate_output_targets, publish_bundle
+    validate_output_targets({output_mp4: ".mp4", output_json: ".json"})
     if output_mp4.resolve() == output_json.resolve():
         raise MathWritingClipError("INVALID_OUTPUT: MP4 and manifest paths overlap")
     if output_mp4.suffix.lower() != ".mp4" or output_json.suffix.lower() != ".json":
@@ -188,16 +190,11 @@ def render_math_writing_clip(
             tmp_json = Path(work) / "math_writing.json"
             tmp_json.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
                                 encoding="utf-8")
-            output_mp4.parent.mkdir(parents=True, exist_ok=True)
-            output_json.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(movie, Path(work) / "ready.mp4")
-            os.replace(Path(work) / "ready.mp4", output_mp4)
-            os.replace(tmp_json, output_json)
+            publish_bundle({
+                output_mp4: movie, output_json: tmp_json,
+            }, suffixes={output_mp4: ".mp4", output_json: ".json"})
         except Exception as exc:
-            # A failed render is not a successful video. Don't preserve a
-            # misleading partial artifact, including from a failing ffmpeg.
-            output_mp4.unlink(missing_ok=True)
-            output_json.unlink(missing_ok=True)
+            # A failed rerender never removes previously published artifacts.
             if isinstance(exc, MathWritingClipError):
                 raise
             raise MathWritingClipError(
