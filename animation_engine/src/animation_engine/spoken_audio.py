@@ -262,6 +262,18 @@ def build_render_schedules(voiced: dict, *, fps: int) -> dict:
                 }
                 if span.kind=="math":
                     data["math_start_delay"]=span.math_start_frame/fps
+                    cursor=0
+                    spoken_windows=[]
+                    for chunk in span.chunks:
+                        if chunk.kind=="math":
+                            spoken_windows.append((cursor,cursor+chunk.frames))
+                        cursor+=chunk.frames
+                    if not spoken_windows:
+                        raise LongboardError("VOICE_MATH_NOT_SPOKEN")
+                    # The Write animation must occupy the actual
+                    # pronunciation window, not an arbitrary first 2.4s
+                    # followed by a static image while TTS continues.
+                    data["math_end_delay"]=spoken_windows[-1][1]/fps
                 if span.kind=="diagram" and span.diagram_beats:
                     data["diagram_beats"] = [{
                         "object_id": b["object_id"],
