@@ -76,6 +76,8 @@ jobs:
           times={e['event_id']:e for e in m['event_timing']}
           assert times['e_intro']['math_write_count']==0
           assert times['e_conclusion']['math_write_count']==1
+          assert len(times['e_cancel']['math_emphasis_timing'])>=2
+          assert all(b['source_object_id']=='m_substitute' for b in times['e_cancel']['math_emphasis_timing'])
           assert times['e_summary']['page_index'] >= times['e_conclusion']['page_index']
           summary=times['e_summary']
           assert 'm_conclusion' in summary['visible_block_ids']
