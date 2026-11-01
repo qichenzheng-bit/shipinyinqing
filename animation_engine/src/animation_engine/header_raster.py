@@ -197,6 +197,10 @@ def render_source_header(
     return overlay, {
         "source_segments": segments,
         "math_segments_latex": maths,
+        "math_bbox_px": (
+            [round(max(p.width for p in glyphs), 2),
+             round(max(p.height for p in glyphs), 2)] if glyphs else [0, 0]
+        ),
         "header_bbox_px": [round(x0), round(y0), round(width), round(height)],
         "visible_pixel_bbox": list(alpha_box),
         "scale": round(factor, 6),
