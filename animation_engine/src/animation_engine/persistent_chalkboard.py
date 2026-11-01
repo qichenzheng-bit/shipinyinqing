@@ -854,7 +854,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                  output_mp4:Path,output_json:Path,fps:int=30,
                                  computation_manifest=None,matrix_manifest=None,
                                  proof_manifest=None,diagram_manifest=None,
-                                 layout_hint=None,narration_events=None):
+                                 layout_hint=None,narration_events=None,
+                                 event_index=None):
     """Real uninterrupted-ink Manim video; erase only on board-full cut."""
     if not isinstance(fps,int) or not 8<=fps<=60:
         raise LongboardError("CHALKBOARD_INVALID_FPS")
@@ -873,6 +874,31 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
         matrix_manifest=matrix_manifest,proof_manifest=proof_manifest,
         diagram_manifest=diagram_manifest, layout_hint=layout_hint
     )
+    # Event-level incremental rendering starts from the *real* source-verified
+    # board state of the preceding event, not a screenshot. It is intentionally
+    # opt-in; ordinary full-stage rendering keeps the accepted behavior.
+    if event_index is not None:
+        if (type(event_index) is not int or
+                not 0 <= event_index < len(layout["events"])):
+            raise LongboardError("CHALKBOARD_EVENT_WINDOW_INVALID")
+        if narration_events is None:
+            raise LongboardError("CHALKBOARD_EVENT_REQUIRES_REAL_VOICE")
+        previous=layout["events"][event_index-1] if event_index else None
+        entering_blocks=previous["visible_block_ids"] if previous else []
+        entering_diagrams=previous.get("visible_diagram_ids",[]) if previous else []
+        block_catalog={
+            block["block_id"]:block
+            for prior in layout["events"][:event_index]
+            for block in prior["added_blocks"]
+        }
+        if any(ident not in block_catalog for ident in entering_blocks):
+            raise LongboardError("CHALKBOARD_EVENT_MISSING_ENTRY_BLOCK")
+        event_rows=layout["events"][event_index:event_index+1]
+    else:
+        entering_blocks=[]
+        entering_diagrams=[]
+        block_catalog={}
+        event_rows=layout["events"]
     # Source-bound, opt-in real-audio timings. Default Manim behavior remains
     # exactly the previously accepted V2.5-V2.6.3 visual behavior.
     if narration_events is not None:
@@ -1012,7 +1038,30 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                     active={}
                     diagram_active={}
                     self.timing=[]
-                    for row in layout["events"]:
+                    # Restore live MathTex, note and diagram objects in the
+                    # same original order before animating the chosen event.
+                    # An erase at the event boundary must still visibly erase
+                    # these objects as a real classroom chalkboard would.
+                    for ident in entering_blocks:
+                        block=block_catalog[ident]
+                        if block["kind"]=="teacher_note":
+                            from manim import ImageMobject
+                            obj=ImageMobject(str(
+                                temp/(ident.replace(":","_")+".png")
+                            ))
+                            obj.scale_to_fit_width(fw).move_to([0,0,0])
+                        else:
+                            obj=build_math(block)
+                        self.add(obj)
+                        active[ident]=obj
+                    for ident in entering_diagrams:
+                        if diagram is None:
+                            raise LongboardError("CHALKBOARD_EVENT_DIAGRAM_NO_SOURCE")
+                        obj=build_diagram(ident)
+                        if obj is not None:
+                            self.add(obj)
+                        diagram_active[ident]=obj
+                    for row in event_rows:
                         start=self.time
                         action_timings=[]
                         clips=(narration_events or {}).get(row["event_id"],[])
@@ -1234,6 +1283,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
             "in_page_reposition_count":0,
             "in_page_fadeout_count":0,
             "voice_status":"not_recorded","subtitle_status":"not_audio_aligned",
+            "rendered_event_index":event_index,
+            "event_window_entry_verified":event_index is not None,
             "color_scheme":{"math":"#111111",
                             **{k:v["heading"] for k,v in BOARD_TEXT_STYLE.items()}},
         }
