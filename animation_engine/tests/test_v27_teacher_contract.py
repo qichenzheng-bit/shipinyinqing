@@ -171,7 +171,7 @@ def test_question_math_excerpt_must_match_full_authored_math_reading():
     flow, events, spec = lesson()
     flow.problem = "计算定积分：" + r"\int_0^2 2x\,dx"
     spec["opening"]["question_segments"] = [
-        {"source_text":"计算定积分：", "spoken_text":"题目要求计算定积分"},
+        {"source_text":"计算定积分：", "spoken_text":"计算定积分："},
         {"source_text":r"\int_0^2 2x\,dx", "spoken_text":"x"},
     ]
     with pytest.raises(LongboardError, match="V27_QUESTION_MATH_READING_NOT_COMPLETE"):
