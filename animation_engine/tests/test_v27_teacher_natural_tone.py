@@ -16,7 +16,7 @@ from build_novel_substitution_integral import UNITS, NARRATION, AFTER_MATH, READ
 def test_opening_directly_reads_the_question_without_announcing_a_reading():
     intro = NARRATION["e_intro", "note"] + NARRATION["e_intro", "math"]
     assert intro.startswith("同学们大家好，我们先来看一下这道定积分题。")
-    assert intro.endswith("题目要求计算：")
+    assert intro.endswith("计算定积分：")
     assert "我们来读一下" not in intro
     assert "把题目读" not in intro
     assert "我们把题目中的积分" not in intro
