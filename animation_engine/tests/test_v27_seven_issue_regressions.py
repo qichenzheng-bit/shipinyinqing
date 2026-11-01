@@ -61,16 +61,29 @@ def test_question_is_sourced_and_speech_only_in_fixed_header(sample):
     assert "仅朗读" in markdown
 
 
-def test_conclusion_is_never_lost_on_summary_page(sample):
+def test_conclusion_stays_in_solution_and_summary_only_reviews_knowledge(sample):
     folder,doc,contract,plan=sample
     rows={e["event_id"]:e for e in plan["events"]}
     conclusion=rows["e_conclusion"]
     summary=rows["e_summary"]
-    assert conclusion["page_index"]<=summary["page_index"]
-    assert "m_conclusion" in summary["visible_block_ids"]
-    if summary["erase_before"]:
-        assert "m_conclusion" in summary["carry_object_ids"]
-        assert any(b["block_id"]=="m_conclusion" and b.get("carry")
+    assert "m_conclusion" in conclusion["visible_block_ids"]
+    assert summary["page_index"]>conclusion["page_index"]
+    assert summary["erase_before"]
+    # Explicitly requested: no final-answer block on the recap page.
+    assert "m_conclusion" not in summary["visible_block_ids"]
+    assert "m_conclusion" not in summary["carry_object_ids"]
+    # Previously verified MathTex is displayed again without a new write,
+    # pronunciation, calculation or fabricated educational source.
+    assert "m_knowledge" in summary["visible_block_ids"]
+    assert "m_knowledge" in summary["carry_object_ids"]
+    assert summary["math_write_count"]==0
+    assert any(b["block_id"]=="m_knowledge" and b.get("recap_review")
+               and b.get("carry") for b in summary["added_blocks"])
+    assert any(b["kind"]=="teacher_note" and b.get("recap_review")
+               and b["phase"]=="pitfall" and "易错点" in b["heading"]
+               for b in summary["added_blocks"])
+    assert "m_knowledge" in summary["recap_review_source_ids"]
+    assert not any(b.get("recap_review") and b["block_id"]=="m_conclusion"
                    for b in summary["added_blocks"])
 
 
