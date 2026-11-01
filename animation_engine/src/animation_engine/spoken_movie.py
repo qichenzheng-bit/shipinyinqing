@@ -122,10 +122,17 @@ def render_spoken_classroom(
     fps: int = DEFAULT_VIDEO_FPS, adaptive: bool=True, cache_dir: Path | None=None,
 ) -> dict:
     path=Path(input_file).resolve()
-    if (not isinstance(fps,int) or not 8<=fps<=60
-            or Path(output_mp4).suffix.lower()!=".mp4"
-            or Path(output_json).suffix.lower()!=".json"):
+    from .safe_output import (
+        validate_output_targets, course_source_files, publish_bundle,
+    )
+    output_mp4, output_json = Path(output_mp4), Path(output_json)
+    output_srt = (Path(output_srt) if output_srt is not None
+                  else output_mp4.with_suffix(".srt"))
+    if type(fps) is not int or not 8<=fps<=60:
         raise LongboardError("SPOKEN_RENDER_ARGUMENTS")
+    targets = {output_mp4: ".mp4", output_json: ".json", output_srt: ".srt"}
+    protected = course_source_files(path)
+    validate_output_targets(targets, protected=protected)
     checked=checked_spoken(path,adaptive=adaptive)
     from .unified_classroom_flow import _load
     if "lesson_contract" in _load(path):
@@ -281,19 +288,11 @@ def render_spoken_classroom(
         }
         if report["source_narration_action_count"]!=report["voiced_action_count"]:
             raise LongboardError("SPOKEN_UNVOICED_SOURCE_ACTION")
-        output_mp4=Path(output_mp4)
-        output_json=Path(output_json)
-        output_srt=(
-            Path(output_srt) if output_srt is not None
-            else output_mp4.with_suffix(".srt")
-        )
-        output_mp4.parent.mkdir(parents=True,exist_ok=True)
-        output_json.parent.mkdir(parents=True,exist_ok=True)
-        output_srt.parent.mkdir(parents=True,exist_ok=True)
-        shutil.copyfile(final,output_mp4)
-        output_json.write_text(
-            json.dumps(report,ensure_ascii=False,indent=2)+"\n",
-            encoding="utf-8"
-        )
-        output_srt.write_text(srt,encoding="utf-8")
+        publish_bundle({
+            output_mp4: final,
+            output_json: (json.dumps(
+                report, ensure_ascii=False, indent=2
+            )+"\n").encode("utf-8"),
+            output_srt: srt.encode("utf-8"),
+        }, suffixes=targets, protected=protected)
         return report
