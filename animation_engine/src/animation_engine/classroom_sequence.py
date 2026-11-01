@@ -63,8 +63,9 @@ def render_classroom_sequence(
                 "actual_preview_seconds": produced["actual_preview_seconds"],
             })
         names_file = temp / "parts.txt"
+        from .safe_output import ffconcat_file
         names_file.write_text(
-            "".join(f"file '{p.name}'\n" for p in parts), encoding="utf-8")
+            "".join(ffconcat_file(p.name) for p in parts), encoding="utf-8")
         assembled = temp / "classroom_full.mp4"
         proc = subprocess.run([
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -89,13 +90,8 @@ def render_classroom_sequence(
         data = temp / "sequence.json"
         data.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n",
                         encoding="utf-8")
-        try:
-            output_mp4.parent.mkdir(parents=True, exist_ok=True)
-            output_json.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(assembled, output_mp4)
-            os.replace(data, output_json)
-        except Exception:
-            output_mp4.unlink(missing_ok=True)
-            output_json.unlink(missing_ok=True)
-            raise
+        from .safe_output import publish_bundle
+        publish_bundle({
+            output_mp4: assembled, output_json: data,
+        }, suffixes={output_mp4: ".mp4", output_json: ".json"})
         return result
