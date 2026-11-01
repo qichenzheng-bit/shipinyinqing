@@ -369,7 +369,7 @@ def _render_board_wipe(prior_mp4: Path, dest: Path, scratch: Path,
 
 def render_flow(input_file: Path | str, *, output_mp4: Path,
                 output_json: Path, fps: int = 30,
-                narration_schedules=None) -> dict:
+                narration_schedules=None, cache=None) -> dict:
     if (type(fps) is not int or not 8 <= fps <= 60
             or Path(output_mp4).suffix.lower() != ".mp4"
             or Path(output_json).suffix.lower() != ".json"):
@@ -387,14 +387,13 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
         for i, stage in enumerate(flow.stages):
             part_video = root / f"stage_{i:02d}.mp4"
             part_json = root / f"stage_{i:02d}.json"
-            manifest = render_persistent_chalkboard(
-                stage.storyboard, stage.execution, stage.cues, stage.policy,
-                output_mp4=part_video, output_json=part_json, fps=fps,
-                narration_events=(
+            from .incremental_render import render_or_reuse_stage
+            manifest, cache_hit = render_or_reuse_stage(
+                stage, output_mp4=part_video, output_json=part_json,
+                fps=fps, narration_events=(
                     narration_schedules[stage.stage_id]
                     if narration_schedules is not None else None
-                ),
-                **stage.kwargs()
+                ), cache=cache,
             )
             if manifest["source_storyboard_sha256"] != stage.execution["source_storyboard_sha256"]:
                 raise LongboardError("FLOW_RENDERED_STAGE_SOURCE_MISMATCH")
@@ -419,6 +418,7 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
                 "page_count": manifest["page_count"],
                 "event_count": manifest["event_count"],
                 "handoff": list(stage.handoff),
+                "stage_cache_hit": cache_hit,
             })
             frame_offset += frames
             if i != len(flow.stages)-1:
@@ -451,6 +451,9 @@ def render_flow(input_file: Path | str, *, output_mp4: Path,
             "fabricated_voice_or_subtitle_count": 0,
             "stage_render_reports": stage_reports,
             "event_timing": timings,
+            "incremental_stage_cache": (
+                cache.stats() if cache is not None else None
+            ),
         }
         output_mp4 = Path(output_mp4)
         output_json = Path(output_json)
