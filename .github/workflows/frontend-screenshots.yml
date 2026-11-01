@@ -22,15 +22,16 @@ jobs:
           python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]' playwright
           python -m playwright install chromium --with-deps
       - name: Test navigation, CRUD and render every frontend screen
+        run: python backend/tests/capture_pages.py
+      - name: Install CJK font for real FFmpeg watermark frame
         run: |
-          if [ ! -f frontend/screenshots/12-edit-review.png ]; then
-            python backend/tests/capture_pages.py
-          else
-            echo "Screen captures already committed on this branch"
-          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk ffmpeg
+      - name: Encode, probe and extract one genuine watermarked frame
+        run: python backend/tests/acceptance_one_frame.py
       - uses: actions/upload-artifact@v4
         with:
-          name: weiguang-seven-front-end-screens
+          name: weiguang-browser-and-ffmpeg-watermark-frames
           path: frontend/screenshots/*.png
           if-no-files-found: error
       - name: Preserve acceptance screenshots on the PR branch
