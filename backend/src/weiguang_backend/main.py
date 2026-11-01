@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .bridge import (
     approve_script, export_script, extract_engine_package,
-    initialize_edit, render_package, run_real_edit,
+    initialize_edit, render_package, run_real_edit, prepare_teacher_draft,
 )
 from .models import Base, EditRecord, Job, Lesson, Project, now
 
@@ -232,7 +232,24 @@ def create_app(
             previous_revision=lesson.revision
         try:
             folder=lesson_root(lesson_id)
-            if kind=="render":
+            if kind=="teacher":
+                with SessionLocal() as db:
+                    job=db.get(Job,job_id);job.phase="数学教师 A/B/C";db.commit()
+                    lesson=lesson_get(db,lesson_id)
+                    problem=lesson.problem
+                    reference_solution=lesson.reference_solution
+                draft=prepare_teacher_draft(
+                    problem=problem,reference_solution=reference_solution,
+                    output=folder/"teacher_draft"/"teaching_package.json",
+                )
+                with SessionLocal() as db:
+                    job=db.get(Job,job_id);lesson=lesson_get(db,lesson_id)
+                    if lesson.revision!=previous_revision or job.status!="running":
+                        raise RuntimeError("STALE_TEACHER_DRAFT")
+                    lesson.status="teacher_review_pending"
+                    job.status="succeeded";job.phase="教学草稿待审核"
+                    db.commit()
+            elif kind=="render":
                 with SessionLocal() as db:
                     job=db.get(Job,job_id);job.phase="渲染画面与音频";db.commit()
                 movie,manifest,srt,report=render_package(
@@ -443,11 +460,51 @@ def create_app(
             for l in rows:l.deleted_at=None
             db.commit();return {"restored":[l.id for l in rows]}
 
+    @api.post("/lessons/{id}/prepare",status_code=202)
+    def teacher_prepare(id: str):
+        if not os.environ.get("MATH_TEACHER_MODEL") or not os.environ.get("MATH_TEACHER_API_KEY"):
+            raise HTTPException(409,"MATH_TEACHER_MODEL_OR_KEY_NOT_CONFIGURED")
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
+            if lesson.status not in ("draft","package_needed"):
+                raise HTTPException(409,"TEACHER_SOURCE_ALREADY_PREPARED")
+            job=job_add(db,lesson,"teacher")
+            response=describe_job(job)
+        dispatch(job.id)
+        return response
+
+    @api.get("/lessons/{id}/teaching")
+    def teacher_candidate(id: str):
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
+            if lesson.status not in ("teacher_review_pending","package_needed"):
+                raise HTTPException(409,"TEACHER_DRAFT_NOT_READY")
+        path=lesson_root(id)/"teacher_draft"/"teaching_package.json"
+        if not path.is_file():
+            raise HTTPException(404,"TEACHER_DRAFT_MISSING")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    @api.post("/lessons/{id}/teaching/review")
+    def teacher_review(id: str,data: Review):
+        if not data.confirmed:
+            raise HTTPException(422,"REVIEW_CONFIRMATION_REQUIRED")
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
+            if lesson.status!="teacher_review_pending":
+                raise HTTPException(409,"TEACHER_DRAFT_NOT_READY")
+            lesson.status="package_needed"
+            db.commit()
+        return {
+            "status":"package_needed",
+            "note":"Teacher candidate approved, but a complete source-verified "
+                   "unified/spoken engine package is still required.",
+        }
+
     @api.post("/lessons/{id}/package")
     async def upload_package(id: str,file: UploadFile=File(...)):
         with SessionLocal() as db:
             l=lesson_get(db,id)
-            if l.status not in ("draft","package_needed"):
+            if l.status not in ("draft","package_needed","teacher_review_pending"):
                 raise HTTPException(409,"SOURCE_PACKAGE_ALREADY_SET")
             problem,reference=l.problem,l.reference_solution
         payload=await file.read(64*1024*1024+1)
@@ -661,7 +718,9 @@ def create_app(
         return {"default_fps":60,"default_resolution":"1280x720",
                 "voices":["zh-CN-YunxiNeural","zh-CN-XiaoxiaoNeural"],
                 "max_render_jobs":1,
-                "ai_configured":bool(os.environ.get("WEIGUANG_EDIT_AI_CONFIG"))}
+                "ai_configured":bool(os.environ.get("WEIGUANG_EDIT_AI_CONFIG")),
+                "teacher_ai_configured":bool(os.environ.get("MATH_TEACHER_MODEL")
+                                             and os.environ.get("MATH_TEACHER_API_KEY"))}
 
     app.include_router(api)
     from fastapi.staticfiles import StaticFiles
