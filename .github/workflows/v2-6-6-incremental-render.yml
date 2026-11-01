@@ -1,7 +1,7 @@
 name: V2.6.6 incremental math video render and edit acceptance
 on:
   push:
-    branches: [feature/v2-6-6-incremental-render]
+    branches: [feature/v2-6-6-incremental-render, integration/v2-6-release-2026-11-01, main]
   workflow_dispatch:
 permissions:
   contents: read

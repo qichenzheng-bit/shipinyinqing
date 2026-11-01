@@ -1,41 +1,46 @@
-# 考研数学教学视频引擎（shipinyinqing）
+# 考研数学教学视频引擎
 
-这是按 **教学内容 → 视觉导演 → 动画执行** 划分职责的考研数学教学视频工程。当前已经有可运行的教师事件/分镜合同、MathTex 数学渲染、真实 Manim 视频及可追溯的页面布局和预览验证；旧版目录与合同仍在，不能因为某段示范视频通过就声称所有题型或 AI 自动教学已完成。
+**现行版本：V2.6 统一集成候选（2026-11-01）。** 项目按教师审核教学内容、视觉导演、真实动画渲染三个工程组织。V2.5.1—V2.6.6 的核心模块已有分支级真实视频及 CI 验收记录，最终发布以 main 合并后的测试为准。
 
-## 用户确认的简单题课堂模式
+## 功能进度
 
-- 白底、题干居中固定，**数学表达式与题干数学字号匹配**，数学解析统一黑色；答案不加框。
-- 思维引导蓝色、核心知识点紫色、易错点红色、归纳总结绿色；标题和正文使用固定字号，讲到相应知识才作为板书写出，不是题干下面一直悬浮的提示卡。
-- 黑板**只追加书写**，每个知识点与相应公式写到哪里就保留到哪里，后面的知识点和公式接着往下写；禁止每一步淡出、移动旧公式、滚动回排。
-- 只有下一个**完整教师事件**不能放下时才执行一次整板擦除，固定题干不擦；如需要早先计算结果，擦后依据原 MathTex 和来源重新书写。不能中途拆断复杂分式或矩阵。
-- 讲解面向考研基础较弱和中等水平学生，完整解释方法、依据和必要计算，不机械地增加细碎废话。长证明/图形/矩阵仍需专门版式，不强制套简单题模板。
-- LaTeX 显示、未来 TTS 发音映射、真实字幕三条数据独立。当前验收 MP4 仍为无音频演示，未实现真实口播—板书—字幕时间码对齐；不接入在线 AI 生成教学内容。
+| 阶段 | 已实现 |
+| --- | --- |
+| V2.5.1—2.5.4 | 多项积分、矩阵/行列式、长证明/分类讨论、函数图像与积分区域 |
+| V2.6.1—2.6.3 | 统一课程衔接、自适应板书、图形保留恢复、跨幕数学记忆 |
+| V2.6.4 | 实际 Edge 神经语音、真实 MathTex、口播/板书/字幕逐动作同步 |
+| V2.6.5 | 多要求自然语言微调、连续编辑、失败回退、最新 MP4、单一 JSON 导出 |
+| V2.6.6 | PCM/字幕缓存、分幕和来源校验的事件级缓存、依赖失效与安全回退 |
 
-### 运行与示范
+教学约束：白底、固定居中题干、黑色数学解析、蓝色思维引导、紫色知识点、红色易错点、绿色总结；不用答案框。真实 MathTex 不准随意替换，短公式可并排，已写板书保留直到安全擦板；字幕只根据实际教师口播显示，数学读音与屏显 LaTeX 严格隔离。数学内容须先经教师审核，不假称引擎已经实现自动解题。
 
-`animation_engine/src/animation_engine/classroom_policy.py` 是简单题标准课堂配置的统一入口。带教师审核教学提示 `--classroom-cues` 且未显式指定 `--policy` 时，`plan-longboard` / `render-longboard` 默认使用该持续板书模式；复杂教学可显式传入专业版式配置。
+## 语音选择与约快 5% 的默认播速
 
-此前的五阶泰勒极限题现已从19次机械拆分重构为5个完整教学环节，并补上遗漏的高阶乘法推导。此次另选**一阶线性微分方程初值问题**作为全新题型验收：
+审核后的 `spoken_classroom.json` 中，`voice` 可选 `zh-CN-YunxiNeural`（保留云希）或 `zh-CN-XiaoxiaoNeural`（晓晓）。`speech_rate` 是可选字段：
 
-```bash
-python animation_engine/tools/build_complete_ode_lesson.py --output ode-demo
-
-math-animation plan-longboard \
-  --storyboard ode-demo/storyboard.json \
-  --execution ode-demo/execution.json \
-  --classroom-cues ode-demo/teacher_approved_cues.json \
-  --policy ode-demo/page_policy.json \
-  --output ode-demo/board_pages.json
-
-math-animation render-longboard \
-  --storyboard ode-demo/storyboard.json \
-  --execution ode-demo/execution.json \
-  --classroom-cues ode-demo/teacher_approved_cues.json \
-  --policy ode-demo/page_policy.json \
-  --output ode-demo/classroom.mp4 \
-  --manifest ode-demo/video_manifest.json --fps 30
+```json
+{"voice":"zh-CN-YunxiNeural","speech_rate":"+1%"}
 ```
 
-CI workflow: `.github/workflows/classroom-complete-units-fresh-ode.yml`，包括旧泰勒内容重构回归、新微分方程的 SymPy 独立验算、所有动画模块回归、真实 MathTex 排版、逐页板书与 MP4 关键帧。教学编译器 `classroom_teaching_units.py` 支持一个完整教学环节连续写多条公式，不再强制每条公式变成一个独立讲解。先安装 `visual_director`、`animation_engine[render,test]` 及对应系统 LaTeX/Manim/FFmpeg 依赖。
+旧版实际 TTS 使用 `-4%`。当前默认 `+1%`，名义播速相比旧值提高约 5.2%；可显式设为 `-4%` 使用原速。按 PCM 实际音频时长重新生成整条音画时间轴，而非对旧视频变速。已审核的合法速率范围为 `-30%` 至 `+30%`，带符号。音色/速率均进入缓存键及最终视频清单，改变时不错误复用旧声画。
 
-详见 `animation_engine/README.md` 和 `docs/superpowers/plans/`；所有专项 PR 均先保持 Draft，不自动合并 `main`。
+## 运行示例
+
+依赖真实 Manim、LaTeX、dvisvgm、FFmpeg、中文字体及可连接的 Edge TTS。
+
+```bash
+python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[render,test,speech]'
+python animation_engine/tools/build_spoken_triangle.py --output demo
+math-animation plan-spoken --spoken demo/spoken_classroom.json --output demo/plan.json --adaptive
+math-animation render-spoken --spoken demo/spoken_classroom.json --output demo/lesson.mp4 --manifest demo/lesson.json --srt demo/lesson.srt --adaptive --fps 30 --cache-dir demo/resource-cache
+```
+
+微调引擎支持 `edit-start`、`edit-apply`、`edit-feedback`、`edit-export`；当前没有用户操作界面，开放式 AI 计划器必须显式配置并通过数学来源审查。无审核 TeX 不应在没有低权限沙箱、CPU/内存/超时限制的公网环境直接执行。
+
+## 真实验收
+
+- [V2.6.6 原始 HEAD 有声编辑和性能测试](https://github.com/qichenzheng-bit/shipinyinqing/actions/runs/41268963404)：相同编辑任务冷缓存 181 秒、热缓存 74 秒，提速 2.45 倍；仅代表该测试任务。
+- [V2.6.6 原始 HEAD 跨题型长视频](https://github.com/qichenzheng-bit/shipinyinqing/actions/runs/41268963398)：积分、矩阵、长证明及分类证明。
+- [V2.6 统一集成记录](docs/V2_6_INTEGRATION_2026-11-01.md)；[增量渲染说明](docs/v2-6-6-efficient-incremental-render.md)。
+
+历史开发文档保留在 `animation_engine/README.md` 和 `docs/superpowers/plans/`。其中历史“未实现真实配音”等语句仅代表当时阶段，不再代表 V2.6 当前能力。
