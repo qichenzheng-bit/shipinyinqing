@@ -23,7 +23,7 @@ from pydantic import BaseModel, ValidationError
 from .models import AiJobSelection, AiProvider, AiTaskSelection
 
 TASKS = ("teacher", "curriculum", "edit")
-PROTOCOLS = ("openai_chat", "anthropic_messages", "gemini_generate")
+PROTOCOLS = ("openai_chat", "openai_responses", "anthropic_messages", "gemini_generate")
 # Service URLs are *templates*, never an exhaustive or frozen model list.
 # Regional accounts, gateways and new families use the same custom endpoint.
 CATALOG = (
@@ -332,6 +332,23 @@ class HubClient:
                     result["candidates"][0]["content"]["parts"] if "text" in p)
             except (KeyError,IndexError,TypeError) as exc:
                 raise ModelHubError("MODEL_RESPONSE_TEXT_MISSING") from exc
+        elif self.protocol=="openai_responses":
+            request={
+                "model":self.model_id,
+                "instructions":system,
+                "input":user_json,
+            }
+            if self.json_mode:
+                request["text"]={"format":{"type":"json_object"}}
+            result=self._request("/responses",body=request,timeout=timeout)
+            texts=[]
+            for entry in result.get("output",[]):
+                if not isinstance(entry,dict):
+                    continue
+                for part in entry.get("content",[]):
+                    if isinstance(part,dict) and part.get("type") in ("output_text","text"):
+                        texts.append(part.get("text",""))
+            raw="".join(texts) or result.get("output_text","")
         else:
             request={
                 "model":self.model_id,
