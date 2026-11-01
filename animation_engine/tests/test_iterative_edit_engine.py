@@ -23,6 +23,12 @@ from animation_engine.iterative_ai_adapter import make_openai_compatible_agent
 from animation_engine.spoken_classroom import checked_spoken
 
 
+def _reviewed_edit(*args, **kwargs):
+    """Legacy tests explicitly model a trusted reviewer for content edits."""
+    kwargs.setdefault("math_reviewer", lambda package, changed: True)
+    return run_edit(*args, **kwargs)
+
+
 def fake_report(package, adaptive=True):
     contract=checked_spoken(package/"spoken_classroom.json",adaptive=adaptive)
     count=sum(len(x.spans) for x in contract.events)
@@ -102,7 +108,7 @@ def test_multi_request_one_round_then_unhappy_then_satisfied(session,tmp_path):
         (FIRST,"这是一道直角三角形的题，我们先辨认两条直角边，再求斜边。"),
         (SECOND,"直角位于这个顶点，两条直角边互相垂直。"),
     ],instructions=["第一幕自然讲解","Second scene should explain clearly"])
-    r1=run_edit(session,text1,lambda text,src,history:p1,
+    r1=_reviewed_edit(session,text1,lambda text,src,history:p1,
                 renderer=mock_renderer,media_check=stub_check)
     assert r1["status"]=="preview_ready"
     assert r1["revision"]==1
@@ -122,7 +128,7 @@ def test_multi_request_one_round_then_unhappy_then_satisfied(session,tmp_path):
                            .read_text(encoding="utf-8"))
         assert current["events"][0]["spans"][0]["parts"][0]["value"]==p1["operations"][0]["value"]
         return proposal([(SECOND,"注意这是直角顶点，两条边成直角，我们再标清斜边。")])
-    r2=run_edit(session,text2,second_round,
+    r2=_reviewed_edit(session,text2,second_round,
                 renderer=mock_renderer,media_check=stub_check)
     assert r2["status"]=="preview_ready" and r2["revision"]==2
     mark=record_feedback(session,"满意了，可以结束。",satisfied=True)
@@ -158,7 +164,7 @@ def test_fail_closed_preserves_last_movie_and_records_attempt(session,bad,expect
     else:
         mathpath="/events/0/spans/2/parts/1/latex"
         patch=proposal([(mathpath,"x=42")])
-    result=run_edit(session,"这里重新做一下",lambda *args:patch,
+    result=_reviewed_edit(session,"这里重新做一下",lambda *args:patch,
                     renderer=mock_renderer,media_check=stub_check)
     assert result["status"]=="failed"
     assert expected in result["error"]
@@ -170,18 +176,18 @@ def test_fail_closed_preserves_last_movie_and_records_attempt(session,bad,expect
 
 
 def test_failed_renderer_does_not_replace_latest_and_can_retry(session):
-    first=run_edit(session,"第一次语音修改",lambda *a:proposal([(FIRST,"先看题目。")]),
+    first=_reviewed_edit(session,"第一次语音修改",lambda *a:proposal([(FIRST,"先看题目。")]),
                    renderer=mock_renderer,media_check=stub_check)
     assert first["revision"]==1
     old=(session/"latest.mp4").read_bytes()
     def crashed_renderer(*a,**kw):
         raise RuntimeError("TTS service unavailable")
-    fail=run_edit(session,"第二轮语音调整",lambda *a:proposal([(FIRST,"再看题目。")]),
+    fail=_reviewed_edit(session,"第二轮语音调整",lambda *a:proposal([(FIRST,"再看题目。")]),
                   renderer=crashed_renderer,media_check=stub_check)
     assert fail["status"]=="failed"
     assert "TTS service unavailable" in fail["error"]
     assert fail["revision"]==1 and (session/"latest.mp4").read_bytes()==old
-    good=run_edit(session,"再改一次",lambda *a:proposal([(FIRST,"重新分析题目。")]),
+    good=_reviewed_edit(session,"再改一次",lambda *a:proposal([(FIRST,"重新分析题目。")]),
                   renderer=mock_renderer,media_check=stub_check)
     assert good["status"]=="preview_ready" and good["revision"]==2
     assert _state(session)["attempt"]==3
@@ -193,7 +199,7 @@ def test_plan_cannot_silently_omit_requirement(session):
         "id":"req-extra","instruction":"另一个要求","target":"e_final",
         "operation_ids":["operation_missed"],
     })
-    result=run_edit(session,"第一条修改，第二条修改",
+    result=_reviewed_edit(session,"第一条修改，第二条修改",
                     lambda *a:p,renderer=mock_renderer,media_check=stub_check)
     assert result["status"]=="failed"
     assert "EDIT_REQUIREMENT_OPERATION_COVERAGE" in result["error"]
@@ -201,11 +207,30 @@ def test_plan_cannot_silently_omit_requirement(session):
 
 def test_arbitrary_multilingual_input_retained_exactly(session):
     source="この説明を直してください。 Keep all formulas. Исправь паузу. مرحبا."
-    result=run_edit(session,source,lambda *a:proposal([
+    result=_reviewed_edit(session,source,lambda *a:proposal([
         (FIRST,"题目要求求直角三角形的斜边和周长。")
     ]),renderer=mock_renderer,media_check=stub_check)
     assert result["status"]=="preview_ready"
     assert _state(session)["history"][0]["original_instruction"]==source
+
+
+def test_spoken_prose_requires_math_review_but_voice_only_does_not(session):
+    proposed = proposal([(FIRST, "这里补充一条未经审核的数学断言。")])
+    denied = run_edit(
+        session, "加入新数学断言", lambda *args: proposed,
+        renderer=mock_renderer, media_check=stub_check,
+    )
+    assert denied["status"] == "failed"
+    assert "EDIT_MATH_REVIEW_REQUIRED" in denied["error"]
+    assert denied["revision"] == 0
+    assert all(req["status"] == "failed" for req in denied["requirements"])
+    allowed = run_edit(
+        session, "仅调整配音音色",
+        lambda *args: proposal([("/voice", "zh-CN-XiaoxiaoNeural")]),
+        renderer=mock_renderer, media_check=stub_check,
+    )
+    assert allowed["status"] == "preview_ready"
+    assert all(req["status"] == "completed" for req in allowed["requirements"])
 
 
 def test_unsafe_paths_and_plan_fields_rejected(session,tmp_path):
@@ -231,7 +256,7 @@ def test_unsafe_paths_and_plan_fields_rejected(session,tmp_path):
 def test_locked_session_fails_immediately_and_no_journal_mutation(session):
     with session_lock(session):
         with pytest.raises(EditEngineError,match="EDIT_SESSION_LOCKED"):
-            run_edit(session,"用户提出一个修改",
+            _reviewed_edit(session,"用户提出一个修改",
                 lambda *a:proposal([(FIRST,"新的讲解。")]),
                 renderer=mock_renderer,media_check=stub_check)
     assert _state(session)["attempt"]==0
@@ -305,7 +330,7 @@ def test_agent_sees_current_video_clock_and_subtitle_context(session):
         assert (package.parent/"current_subtitles.srt").is_file()
         seen.append(timeline["source_spoken_sha256"])
         return proposal([(FIRST,"我们先把直角三角形的条件整理清楚。")])
-    first=run_edit(session,"一分钟那里讲清楚些",inspect,
+    first=_reviewed_edit(session,"一分钟那里讲清楚些",inspect,
                    renderer=mock_renderer,media_check=stub_check)
     assert first["status"]=="preview_ready" and len(seen)==1
     def later(text,package,history):
@@ -316,17 +341,17 @@ def test_agent_sees_current_video_clock_and_subtitle_context(session):
         )
         assert history[0]["status"]=="preview_ready"
         return proposal([(SECOND,"两条直角边相互垂直，斜边位于直角对面。")])
-    second=run_edit(session,"刚才那个位置也改一下",later,
+    second=_reviewed_edit(session,"刚才那个位置也改一下",later,
                     renderer=mock_renderer,media_check=stub_check)
     assert second["revision"]==2
 
 
 def test_feedback_still_targets_latest_success_after_failed_attempt(session):
-    good=run_edit(session,"第一轮修改",lambda *a:proposal([
+    good=_reviewed_edit(session,"第一轮修改",lambda *a:proposal([
         (FIRST,"现在先理清题目已知条件。")]),
         renderer=mock_renderer,media_check=stub_check)
     assert good["revision"]==1
-    bad=run_edit(session,"第二轮修改失败",lambda *a:proposal([
+    bad=_reviewed_edit(session,"第二轮修改失败",lambda *a:proposal([
         (FIRST,"根据参考答案求解。")]),
         renderer=mock_renderer,media_check=stub_check)
     assert bad["status"]=="failed"
