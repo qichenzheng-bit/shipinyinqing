@@ -56,12 +56,55 @@ def _source_parts(question: str) -> tuple[str, str, str]:
     return chinese, candidate, suffix
 
 
+def _cjk_font_paths() -> tuple[Path, ...]:
+    """Resolve the actual installed CJK font across Linux/Windows/macOS."""
+    paths = [Path(path) for path in _CJK_FONT_CANDIDATES]
+    windows = os.environ.get("WINDIR") or os.environ.get("SystemRoot")
+    if os.name == "nt" or windows:
+        directory = Path(windows or "C:/Windows") / "Fonts"
+        paths.extend(directory / name for name in (
+            "msyh.ttc", "msyhbd.ttc", "simhei.ttf", "simsun.ttc",
+        ))
+    paths.extend((
+        Path("/System/Library/Fonts/PingFang.ttc"),
+        Path("/Library/Fonts/Arial Unicode.ttf"),
+    ))
+    return tuple(paths)
+
+
+def _cjk_font_path() -> Path | None:
+    return next((p for p in _cjk_font_paths() if p.is_file()), None)
+
+
+def _cjk_text_font_family() -> str:
+    """Use a family actually provided by common Windows system fonts."""
+    name = _cjk_font_path()
+    if name is None:
+        raise AdaptiveLayoutError(
+            "CJK_FONT_UNAVAILABLE: install Noto Sans CJK or a CJK system font"
+        )
+    if name.name.lower().startswith("msyh"):
+        return "Microsoft YaHei"
+    if name.name.lower().startswith("simhei"):
+        return "SimHei"
+    if name.name.lower().startswith("simsun"):
+        return "SimSun"
+    if name.name == "PingFang.ttc":
+        return "PingFang SC"
+    return "Noto Sans CJK SC"
+
+
 def _font(size: int):
     from PIL import ImageFont
-    for path in _CJK_FONT_CANDIDATES:
-        if Path(path).is_file():
-            return ImageFont.truetype(path, size)
-    raise AdaptiveLayoutError("CJK_FONT_UNAVAILABLE: install fonts-noto-cjk")
+    for path in _cjk_font_paths():
+        if path.is_file():
+            try:
+                return ImageFont.truetype(str(path), size)
+            except OSError:
+                continue
+    raise AdaptiveLayoutError(
+        "CJK_FONT_UNAVAILABLE: install Noto Sans CJK or a CJK system font"
+    )
 
 
 def render_classroom_board_png(
