@@ -143,3 +143,25 @@ def test_method_only_knowledge_uses_explicit_reusable_procedure_not_fake_formula
     point["method_description"] = "代入"
     with pytest.raises(LongboardError, match="CORE_KNOWLEDGE_METHOD_REQUIRED"):
         checked_core_knowledge(units, catalog)
+
+
+def test_compiled_summary_is_genuine_note_only_event_with_no_new_math():
+    from animation_engine.classroom_teaching_units import compile_teaching_units
+    def entry(ident, phase, math):
+        return {
+            "id":ident, "event_type":"derivation", "phase":phase,
+            "heading":"结果" if math else "归纳总结",
+            "detail":"完成运算" if math else "回顾本题思路和关键误区",
+            "goal":"先求结果后回顾方法", "pause_seconds":1.5,
+            "write_seconds":0.85, "math":math,
+        }
+    maths=[{"id":"result", "latex":"x=1", "reason":"真实计算结论"}]
+    _, board, execution, cues = compile_teaching_units(
+        problem="求 x", reference_solution="x=1",
+        units=[entry("result","calculate",maths),entry("review","summary",[])],
+        teacher_reviewed=True,
+    )
+    assert [e.event_id for e in board.scenes]==["e_result","e_review"]
+    assert not execution.scenes[-1].actions
+    assert cues["events"][-1]["source_step_ids"]==[]
+    assert cues["events"][-1]["phase"]=="summary"
