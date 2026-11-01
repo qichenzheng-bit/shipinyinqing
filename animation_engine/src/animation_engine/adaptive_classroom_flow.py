@@ -279,7 +279,8 @@ def _wipe_preserving_diagram(prior_mp4: Path, dest: Path,
 
 def render_adaptive_flow(input_file: Path | str, *,
                          output_mp4: Path, output_json: Path,
-                         fps: int = 30, narration_schedules=None) -> dict:
+                         fps: int = 30, narration_schedules=None,
+                         cache=None) -> dict:
     if (type(fps) is not int or not 8 <= fps <= 60
             or Path(output_mp4).suffix.lower() != ".mp4"
             or Path(output_json).suffix.lower() != ".json"):
@@ -299,9 +300,9 @@ def render_adaptive_flow(input_file: Path | str, *,
         for i, (stage, spec) in enumerate(zip(flow.stages, checked.stages)):
             raw = root / f"raw_stage_{i:02d}.mp4"
             raw_manifest = root / f"raw_stage_{i:02d}.json"
-            rendered = render_persistent_chalkboard(
-                stage.storyboard, stage.execution, stage.cues, stage.policy,
-                output_mp4=raw, output_json=raw_manifest, fps=fps,
+            from .incremental_render import render_or_reuse_stage
+            rendered, cache_hit = render_or_reuse_stage(
+                stage, output_mp4=raw, output_json=raw_manifest, fps=fps,
                 narration_events=(
                     narration_schedules[stage.stage_id]
                     if narration_schedules is not None else None
@@ -310,8 +311,7 @@ def render_adaptive_flow(input_file: Path | str, *,
                     "diagram_left" if spec.layout == "math_left_diagram_right"
                     else "preserve_diagram" if spec.layout == "diagram_native"
                     else None
-                ),
-                **stage.kwargs(),
+                ), cache=cache,
             )
             if (rendered["source_storyboard_sha256"] !=
                     stage.execution["source_storyboard_sha256"]
@@ -350,6 +350,7 @@ def render_adaptive_flow(input_file: Path | str, *,
                 "page_count": rendered["page_count"],
                 "event_count": rendered["event_count"],
                 "native_math_size_preserved": True,
+                "stage_cache_hit": cache_hit,
                 "handoff": list(stage.handoff),
             })
             frame_offset += raw_frames
@@ -400,6 +401,9 @@ def render_adaptive_flow(input_file: Path | str, *,
             "stage_render_reports": reports,
             "event_timing": timings,
             "diagram_panel_pixels": dict(DIAGRAM_PANEL),
+            "incremental_stage_cache": (
+                cache.stats() if cache is not None else None
+            ),
         }
         target = Path(output_mp4)
         manifest = Path(output_json)
