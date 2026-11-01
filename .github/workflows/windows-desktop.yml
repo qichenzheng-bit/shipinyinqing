@@ -54,6 +54,9 @@ jobs:
       - name: Validate desktop URL/security rules
         working-directory: desktop
         run: npm test
+      - name: Launch real Windows Electron window and screenshot both modes
+        working-directory: desktop
+        run: npm run test:native
       - name: Create signed-off source inventory (no production data)
         shell: pwsh
         run: |
@@ -97,6 +100,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: WeiGuang-Math-Windows-Setup-and-Portable
-          path: desktop/dist/*.exe
+          path: |
+            desktop/dist/*.exe
+            desktop/screenshots/*.png
           if-no-files-found: error
           retention-days: 30
