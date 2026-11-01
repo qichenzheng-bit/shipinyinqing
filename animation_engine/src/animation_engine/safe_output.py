@@ -50,10 +50,15 @@ def course_source_files(source: Path):
     a video into the same output files. An unknown JSON is protected by default.
     """
     root = Path(source).parent
-    generated = {"movie_manifest.json", "render_report.json", "video_manifest.json"}
+    generated = {
+        "movie_manifest.json", "render_report.json",
+        "video_manifest.json", "manifest.json", "latest_manifest.json",
+    }
     return [
         file for file in root.rglob("*.json")
-        if file.is_file() and file.name not in generated
+        if file.is_file() and not (
+            file.parent == root and file.name in generated
+        )
     ]
 
 
@@ -70,6 +75,7 @@ def publish_bundle(
     staged: dict[Path, Path] = {}
     backups: dict[Path, Path | None] = {}
     published: list[Path] = []
+    rollback_failed = False
 
     def _temporary(target: Path, prefix: str) -> Path:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -111,6 +117,7 @@ def publish_bundle(
             except OSError as exc:
                 rollback_errors.append(f"{target}: {type(exc).__name__}")
         if rollback_errors:
+            rollback_failed = True
             raise OutputSafetyError(
                 "OUTPUT_ROLLBACK_FAILED: " + ", ".join(rollback_errors)
             )
@@ -118,15 +125,10 @@ def publish_bundle(
     finally:
         for temp in staged.values():
             temp.unlink(missing_ok=True)
-        for backup in backups.values():
-            if backup is not None:
-                # On an unsuccessful rollback, never destroy recoverable data.
-                if backup.exists() and not published:
-                    backup.unlink(missing_ok=True)
-                elif backup.exists() and not any(
-                    target in published for target, prior in backups.items()
-                    if prior == backup
-                ):
+        # Keep recovery copies if a filesystem failure prevented rollback.
+        if not rollback_failed:
+            for backup in backups.values():
+                if backup is not None:
                     backup.unlink(missing_ok=True)
 
 
