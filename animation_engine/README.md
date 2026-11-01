@@ -1,5 +1,13 @@
 # 数学动画执行模块：V2.6 现行能力与 V1 历史记录
 
+## V2.7 默认 60 FPS 视频输出（2026-11-01）
+
+**所有新生成的视频默认使用 60 FPS，分辨率维持 1280×720。** 涵盖真实有声教学视频、跨幕/自适应合成、公式写入预览、动画过渡以及新建微调会话。运行时统一读取 `src/animation_engine/video_settings.py` 的 `DEFAULT_VIDEO_FPS=60`；无须再给命令手动添加 `--fps 60`。显式 `--fps 60` 仍可用于复现历史项目；已经生成的旧 MP4 不会自动变成 60 FPS，已有微调会话继续使用创建时记录的帧率。
+
+**教学时间不因帧率增加而减半。** 原来持续 0.6 秒的换幕擦板在 30 FPS 对应 18 帧、在 60 FPS 对应 36 帧；语音、字幕 SRT、动画事件与缓存按实际 FPS 计算和校验。帧率增加会提升视觉流畅度，但可能提高帧渲染和编码开销，并不改变数学讲解或配音语速。
+
+本次仅修改代码、设计文档和**非渲染**回归测试，不生成 MP4，也不执行 TTS。
+
 ## 最新 V2.6 实际入口
 
 `render-spoken` 支持真实 Edge TTS + Manim MathTex + 逐短句字幕，`spoken_classroom.json` 中可选云希/晓晓和 `speech_rate`（默认 `+1%`，旧版 `-4%`）。`edit-start`、`edit-apply`、`edit-feedback`、`edit-export` 支持无 UI 多轮修改及单一 JSON 历史；缓存仅在全部来源、入场状态和时长通过验证时复用。下面内容是各阶段历史规则，不得用旧阶段能力边界覆盖本段。
@@ -62,7 +70,7 @@ math-animation render-writing --storyboard storyboard.json --execution execution
   --output writing.mp4 --manifest writing.json
 ```
 
-可省略 `--hint` 以试验**安全整式回退模式**。命令行支持 `--pixel-width`、`--pixel-height`、`--fps`，默认 1280×720、15 fps。色彩固定白底 #FFFFFF、墨色 #1E293B、当前高亮 #2563EB，动画只改变颜色，不移动已写好的字符；最终恢复墨色。使用真实 MathTex 生成 MP4 和可追溯 manifest；没有配音，`timing_source=preview_only_not_audio_aligned` 的预览节奏**不是口播对齐时间**。整幕/逐步滚动以及跨多个公式位置跟踪属于后续阶段。
+可省略 `--hint` 以试验**安全整式回退模式**。命令行支持 `--pixel-width`、`--pixel-height`、`--fps`，默认 1280×720、60 fps（历史版本使用 15 fps）。色彩固定白底 #FFFFFF、墨色 #1E293B、当前高亮 #2563EB，动画只改变颜色，不移动已写好的字符；最终恢复墨色。使用真实 MathTex 生成 MP4 和可追溯 manifest；没有配音，`timing_source=preview_only_not_audio_aligned` 的预览节奏**不是口播对齐时间**。整幕/逐步滚动以及跨多个公式位置跟踪属于后续阶段。
 
 **重要的上游布局限制**：`animation_engine/examples/sin_taylor_approved_parts.json` 可用于验证分段合同，但原视觉导演把该长泰勒式放在较窄的 scratch 区，它按正常字号可能触发 `FORMULA_OVERFLOW`，不是动画失败。2.2 不会擅自缩字/改区域；需要等 2.3 的真实版面重排。故本阶段完整 MP4 验收使用已处于正常 board 区的结论公式 `m_end`。
 
@@ -79,7 +87,7 @@ math-animation render-writing --storyboard storyboard.json --execution execution
 
     math-animation plan-longboard --storyboard storyboard.json --execution execution.json --policy animation_engine/examples/longboard_policy.template.json --output longboard.json
 
-    math-animation render-longboard --storyboard storyboard.json --execution execution.json --policy animation_engine/examples/longboard_policy.template.json --output lesson.mp4 --manifest lesson.json --fps 30
+    math-animation render-longboard --storyboard storyboard.json --execution execution.json --policy animation_engine/examples/longboard_policy.template.json --output lesson.mp4 --manifest lesson.json --fps 60
 
 policy 模板包含 pinned_ids（重要条件）、result_ids（已完成结果）、break_hints（原 LaTeX 严格逐字符重组的合法分行）、cut_before_events（人工批准的事件切幕点）和动态滚动限制。未定义数学语义的对象不可以由动画引擎猜测为答案。默认仅尝试在顶层 + / - 处安全断行；分式、矩阵等不能随意拆散。公式仍不能放下时显式报错，不无限缩小字体，也不偷偷裁切。
 
@@ -110,7 +118,7 @@ python animation_engine/tools/build_fresh_taylor_classroom.py --output taylor-de
 math-animation render-longboard --storyboard taylor-demo/storyboard.json \
   --execution taylor-demo/execution.json \
   --classroom-cues taylor-demo/teacher_approved_cues.json \
-  --output taylor-demo/lesson.mp4 --manifest taylor-demo/manifest.json --fps 30
+  --output taylor-demo/lesson.mp4 --manifest taylor-demo/manifest.json --fps 60
 ```
 
 这是完全新编的考研数学泰勒极限测试，与之前的多项积分和分部积分题不同。构建器生成具有真正数学来源的教学包、分镜和执行计划，CI 使用 SymPy 另行计算极限以核验，随后输出真实 Manim 视频并检验擦板前后关键帧。旧阶段入口和历史测试保留，不进行破坏性替换。
@@ -140,7 +148,7 @@ math-animation render-longboard --storyboard ode-demo/storyboard.json \
   --execution ode-demo/execution.json \
   --classroom-cues ode-demo/teacher_approved_cues.json \
   --policy ode-demo/page_policy.json \
-  --output ode-demo/lesson.mp4 --manifest ode-demo/manifest.json --fps 30
+  --output ode-demo/lesson.mp4 --manifest ode-demo/manifest.json --fps 60
 ```
 
 专项验收：`.github/workflows/classroom-complete-units-fresh-ode.yml`。该模型是可信、已审核教学脚本的确定性执行和验证路径，**不自动证明所有解题步骤正确**、不冒充真正教师口播；完整数学真实性仍需要上游内容审核与针对性外部符号核验。
