@@ -212,6 +212,34 @@ def test_v27_export_is_not_approval_and_stale_approval_cannot_render(tmp_path):
         require_prerender_script(reviewed, spoken)
 
 
+def test_script_export_rejects_markdown_path_overwriting_json_or_source(tmp_path):
+    import json
+    from animation_engine.safe_output import OutputSafetyError
+    flow, events, spec = lesson()
+    contract = SimpleNamespace(
+        flow=flow, events=tuple(events), source_sha256="approved",
+    )
+    spoken = tmp_path / "spoken_classroom.json"
+    original = json.dumps({"lesson_contract": spec})
+    spoken.write_text(original, encoding="utf-8")
+    docpath = tmp_path / "lesson_script.json"
+    docpath.write_text("last-good-script")
+    with pytest.raises(OutputSafetyError, match="OUTPUT_INVALID_TARGET"):
+        export_spoken_script(
+            contract, output_json=docpath, output_md=docpath,
+            source_document={"lesson_contract": spec}, source_path=spoken,
+        )
+    assert docpath.read_text() == "last-good-script"
+    assert spoken.read_text() == original
+    with pytest.raises(OutputSafetyError, match="OUTPUT_OVERWRITES_SOURCE"):
+        export_spoken_script(
+            contract, output_json=spoken,
+            output_md=tmp_path / "lesson_script.md",
+            source_document={"lesson_contract": spec}, source_path=spoken,
+        )
+    assert spoken.read_text() == original
+
+
 def test_prerender_script_rejects_tampered_body_even_with_matching_source_hash(tmp_path):
     import json
     flow, events, spec = lesson()
