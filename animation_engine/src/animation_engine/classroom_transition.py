@@ -30,6 +30,8 @@ def render_classroom_transition(
         output_mp4.suffix.lower() != ".mp4" or output_json.suffix.lower() != ".json"
     ):
         raise AdaptiveLayoutError("INVALID_OUTPUT")
+    from .safe_output import validate_output_targets, publish_bundle
+    validate_output_targets({output_mp4: ".mp4", output_json: ".json"})
     if not shutil.which("ffmpeg"):
         raise AdaptiveLayoutError("FFMPEG_UNAVAILABLE")
     board = StoryboardPlan.model_validate(storyboard)
@@ -84,13 +86,7 @@ def render_classroom_transition(
         }
         (temp / "complete.json").write_text(json.dumps(
             metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        try:
-            output_mp4.parent.mkdir(parents=True, exist_ok=True)
-            output_json.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(movie, output_mp4)
-            os.replace(temp / "complete.json", output_json)
-        except Exception:
-            output_mp4.unlink(missing_ok=True)
-            output_json.unlink(missing_ok=True)
-            raise
+        publish_bundle({
+            output_mp4: movie, output_json: temp / "complete.json",
+        }, suffixes={output_mp4: ".mp4", output_json: ".json"})
         return metadata
