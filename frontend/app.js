@@ -313,6 +313,11 @@
       else state.selected.delete(event.target.value);
       render();
     }
+    if(event.target.classList.contains('project-item')){
+      if(event.target.checked)state.projectSelected.add(event.target.value);
+      else state.projectSelected.delete(event.target.value);
+      render();
+    }
   });
   document.addEventListener('click',event=>{
     const route=event.target.closest('[data-route]');
@@ -333,11 +338,47 @@
     const remove=event.target.closest('[data-delete]');
     if(remove){state.modal={title:'删除视频',message:'确认将此视频移入回收站？',
       ids:[remove.dataset.delete]};render();return;}
+    const projectRename=event.target.closest('[data-rename-project]');
+    if(projectRename){
+      const p=state.projects.find(x=>x.id===projectRename.dataset.renameProject);
+      if(!p)return;
+      const title=window.prompt('项目名称',p.title);
+      if(!title||!title.trim())return;
+      exec(async()=>{await api('/projects/'+p.id,options('PATCH',{title:title.trim()}));await refresh();flash('已修改');});
+      return;
+    }
+    const projectDelete=event.target.closest('[data-delete-project]');
+    if(projectDelete){
+      state.modal={title:'删除项目',message:'所含视频也将移入回收站。确认删除？',
+        kind:'projects',ids:[projectDelete.dataset.deleteProject]};
+      render();return;
+    }
     const action=event.target.closest('[data-action]');
     if(!action)return;
     const id=action.dataset.action;
     if(id==='new'){state.route='work';render();}
     else if(id==='trash'){exec(async()=>{state.trash=await api('/trash');state.route='trash';});}
+    else if(id==='new-project'){
+      const title=window.prompt('项目名称','');
+      if(!title||!title.trim())return;
+      exec(async()=>{await api('/projects',options('POST',{title:title.trim()}));await refresh();flash('已创建项目');});
+    }
+    else if(id==='delete-projects'){
+      if(!state.projectSelected.size)return flash('请选择项目');
+      state.modal={title:'批量删除项目',message:'确认删除 '+state.projectSelected.size+' 个项目及其关联视频？',
+        kind:'projects',ids:[...state.projectSelected]};
+      render();
+    }
+    else if(id==='project-trash'){
+      exec(async()=>{
+        state.projectTrash=await api('/projects/trash');
+        if(!state.projectTrash.length)return flash('没有已删除的项目');
+        const titles=state.projectTrash.map(x=>x.title).join('、');
+        if(!window.confirm('恢复已删除项目及其关联视频？'+titles))return;
+        await api('/projects/restore',options('POST',{ids:state.projectTrash.map(x=>x.id)}));
+        await refresh();flash('已恢复项目');
+      });
+    }
     else if(id==='go-library'){state.route='library';exec(refresh);}
     else if(id==='clear-selection'){state.selected.clear();render();}
     else if(id==='batch-delete'){
@@ -348,8 +389,10 @@
     else if(id==='confirm-delete'){
       exec(async()=>{
         const ids=state.modal.ids;
-        await api('/videos/batch-delete',options('POST',{ids}));
-        state.modal=null;state.selected.clear();
+        const projects=state.modal.kind==='projects';
+        await api(projects?'/projects/batch-delete':'/videos/batch-delete',
+          options('POST',{ids}));
+        state.modal=null;state.selected.clear();state.projectSelected.clear();
         await refresh();flash('已移入回收站');
       });
     } else if(id==='export'){
