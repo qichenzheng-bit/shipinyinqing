@@ -139,8 +139,10 @@ def compact_tts_boundary_silence(pcm: bytes, *,
                 if before > MIN_TRIMMABLE_SILENCE_SECONDS else 0)
     cut_tail = (min(len(samples), last + round(MAX_TRAILING_SILENCE_SECONDS * sample_rate))
                 if after > MIN_TRIMMABLE_SILENCE_SECONDS else len(samples))
-    if cut_tail - cut_head < max(sample_rate // 5, last - first):
-        raise LongboardError("VOICE_BOUNDARY_TRIM_WOULD_REMOVE_SPEECH")
+    if cut_tail - cut_head < max(round(sample_rate * 0.50), last - first):
+        # A tiny utterance must not become too short for the existing
+        # source-action/time-axis invariant. Keep its original silence.
+        return pcm
     return samples[cut_head:cut_tail].tobytes()
 
 
