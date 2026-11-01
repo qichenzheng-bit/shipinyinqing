@@ -13,7 +13,7 @@ from animation_engine.iterative_edit_engine import (
 )
 from animation_engine.spoken_classroom import checked_spoken
 from animation_engine.v27_teacher_contract import (
-    export_spoken_script, require_prerender_script,
+    export_spoken_script, require_prerender_script, approve_prerender_script,
 )
 
 
@@ -55,6 +55,10 @@ def _session(tmp_path):
         output_json=package / "lesson_script.json",
         output_md=package / "lesson_script.md",
         source_document=json.loads(source.read_text(encoding="utf-8")),
+    )
+    approve_prerender_script(
+        checked_spoken(source, adaptive=False), source,
+        reviewer="trusted-test-teacher", confirmed=True,
     )
     movie = tmp_path / "baseline.mp4"
     movie.write_bytes(b"NONRENDER-BASELINE")
