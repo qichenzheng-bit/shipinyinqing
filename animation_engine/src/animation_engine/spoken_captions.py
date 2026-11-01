@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .longboard_plan import LongboardError
 from .mathtex_renderer import validate_math_latex
+from .classroom_compositor import _cjk_text_font_family
 
 
 def _safe_math_caption_break(tex: str) -> tuple[str, str] | None:
@@ -68,7 +69,7 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
                         glyph=MathTex(display,color=BLACK).scale(.53)
                     else:
                         glyph=Text(
-                            display,font="Noto Sans CJK SC",
+                            display,font=_cjk_text_font_family(),
                             color="#111827",font_size=23,
                         )
                     plate_height = .56
