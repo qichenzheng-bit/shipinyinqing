@@ -339,6 +339,7 @@ def run_edit(
                 from .spoken_classroom import checked_spoken
                 from .v27_teacher_contract import (
                     export_spoken_script, require_prerender_script,
+                    approve_prerender_script,
                 )
                 reviewed = checked_spoken(source, adaptive=state["adaptive"])
                 if "spoken_classroom.json" in changed:
@@ -350,10 +351,24 @@ def run_edit(
                     script_md = source.parent / "lesson_script.md"
                     export_spoken_script(
                         reviewed, output_json=script_json, output_md=script_md,
-                        source_document=_load(source),
+                        source_document=_load(source), source_path=source,
                     )
                     if script_reviewer(script_md, script_json) is not True:
                         raise EditEngineError("EDIT_V27_SCRIPT_REVIEW_REJECTED")
+                    reviewer_id = (
+                        getattr(script_reviewer, "__module__", "trusted") + ":"
+                        + getattr(script_reviewer, "__qualname__", "callable")
+                    )
+                    review = approve_prerender_script(
+                        reviewed, source, reviewer=reviewer_id, confirmed=True,
+                    )
+                    attempt["v27_script_review"] = {
+                        "status": "approved",
+                        "reviewer": review["reviewer"],
+                        "reviewed_at": review["approved_at"],
+                        "source_spoken_sha256": review["source_spoken_sha256"],
+                        "script_sha256": review["script_sha256"],
+                    }
                 require_prerender_script(reviewed, source)
             from .edit_impact import analyze_impact
             attempt["impact"]=analyze_impact(
