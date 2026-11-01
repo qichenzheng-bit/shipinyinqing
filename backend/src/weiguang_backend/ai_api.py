@@ -20,7 +20,7 @@ class ProviderCreate(BaseModel):
     model_config=ConfigDict(extra="forbid")
     name: str=Field(min_length=1,max_length=120)
     preset: str=Field(min_length=1,max_length=64)
-    protocol: Literal["openai_chat","anthropic_messages","gemini_generate"]
+    protocol: Literal["openai_chat","openai_responses","anthropic_messages","gemini_generate"]
     base_url: str=Field(min_length=8,max_length=600)
     api_key: str=Field(min_length=1,max_length=4096)
     json_mode: bool=False
@@ -29,7 +29,7 @@ class ProviderCreate(BaseModel):
 class ProviderPatch(BaseModel):
     model_config=ConfigDict(extra="forbid")
     name: str | None=Field(default=None,min_length=1,max_length=120)
-    protocol: Literal["openai_chat","anthropic_messages","gemini_generate"] | None=None
+    protocol: Literal["openai_chat","openai_responses","anthropic_messages","gemini_generate"] | None=None
     base_url: str | None=Field(default=None,min_length=8,max_length=600)
     api_key: str | None=Field(default=None,max_length=4096)
     json_mode: bool | None=None
