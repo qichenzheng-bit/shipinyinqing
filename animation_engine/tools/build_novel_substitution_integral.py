@@ -157,9 +157,9 @@ def build(root: Path):
             "event_id": "e_intro",
             "opening_text": "同学们大家好，我们先来看一下这道定积分题。",
             "question_segments": [
-                {"source_text": "计算定积分：", "spoken_text": "题目要求计算"},
+                {"source_text": "计算定积分：", "spoken_text": "题目要求计算从零到二的定积分。"},
                 {"source_text": r"\quad I=\int_0^2 2x e^{x^2}\,dx",
-                 "spoken_text": "I 等于从零到二"},
+                 "spoken_text": READINGS["m_intro"]},
             ],
         },
         "strategy": {
