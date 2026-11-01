@@ -39,6 +39,7 @@ class VoicedSpan:
     frames: int
     math_start_frame: int | None
     diagram_beats: tuple[dict, ...] = ()
+    emphasis_beats: tuple[dict, ...] = ()
 
     def duration(self, fps: int) -> float:
         return self.frames / fps
@@ -242,8 +243,30 @@ async def synthesize_voiced_spans(contract: SpokenContract, root: Path,
                             raise LongboardError("VOICE_DIAGRAM_BEAT_TOO_SHORT")
                         beats.append({"object_id": ident, "start_frame": a, "end_frame": b})
                 beats.sort(key=lambda b: b["start_frame"])
+            emphasis=[]
+            if span.emphasis_cues:
+                phrases={}
+                offset=0
+                for chunk in built:
+                    if chunk.kind=="text":
+                        phrases.setdefault(chunk.display,[]).append(
+                            (offset,offset+chunk.frames)
+                        )
+                    offset+=chunk.frames
+                for mark in span.emphasis_cues:
+                    matches=phrases.get(mark["spoken_phrase"],[])
+                    if len(matches)!=1:
+                        raise LongboardError("VOICE_EMPHASIS_PHRASE_NOT_UNIQUE")
+                    start,end=matches[0]
+                    if end>start_math:
+                        raise LongboardError("VOICE_EMPHASIS_MUST_PRECEDE_NEW_MATH")
+                    emphasis.append({
+                        **mark, "start_frame":start,"end_frame":end,
+                    })
+                emphasis.sort(key=lambda x:x["start_frame"])
             collected.append(VoicedSpan(
-                span.kind,span.object_id,tuple(built),total,start_math,tuple(beats)
+                span.kind,span.object_id,tuple(built),total,start_math,
+                tuple(beats),tuple(emphasis)
             ))
         result.setdefault(event.stage_id,{})[event.event_id]=tuple(collected)
     return result
@@ -274,6 +297,13 @@ def build_render_schedules(voiced: dict, *, fps: int) -> dict:
                     # pronunciation window, not an arbitrary first 2.4s
                     # followed by a static image while TTS continues.
                     data["math_end_delay"]=spoken_windows[-1][1]/fps
+                if span.kind=="math" and span.emphasis_beats:
+                    data["math_emphasis_beats"] = [{
+                        **{k:v for k,v in b.items()
+                           if k not in ("start_frame","end_frame")},
+                        "start_offset":b["start_frame"]/fps,
+                        "end_offset":b["end_frame"]/fps,
+                    } for b in span.emphasis_beats]
                 if span.kind=="diagram" and span.diagram_beats:
                     data["diagram_beats"] = [{
                         "object_id": b["object_id"],
