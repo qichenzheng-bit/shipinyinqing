@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none';"/>
+  <title>微光数学 · 桌面工作台</title>
+  <link rel="stylesheet" href="./launcher.css"/>
+</head>
+<body>
+  <main class="shell">
+    <div class="brand"><img src="./brand.svg" alt="微光数学"/></div>
+    <h1>微光数学</h1>
+    <p class="sub">考研数学 · 教学视频工作台</p>
+    <div class="switch" role="tablist" aria-label="连接方式">
+      <button id="local-tab" class="active" type="button" role="tab" aria-selected="true">本地视频引擎</button>
+      <button id="remote-tab" type="button" role="tab" aria-selected="false">连接服务器</button>
+    </div>
+    <section id="local-panel" class="panel" aria-label="本地视频引擎">
+      <div class="panel-heading">在 Windows 运行</div>
+      <p>使用 Docker Desktop + WSL2 运行原有数学引擎、数据库和视频任务。首次启动需下载依赖。</p>
+      <button class="primary" type="button" id="start-local">启动并进入工作台</button>
+      <button class="secondary" type="button" id="connect-local">连接已启动的本地服务</button>
+    </section>
+    <section id="remote-panel" class="panel hidden" aria-label="连接现有服务器">
+      <div class="panel-heading">已有网页服务</div>
+      <label for="server-url">服务器 HTTPS 地址</label>
+      <input id="server-url" type="url" autocomplete="url" spellcheck="false" placeholder="https://math.example.com"/>
+      <p>可连接已部署的微光数学后台；账号通过原网页安全登录。</p>
+      <button class="primary" type="button" id="connect-remote">连接服务器</button>
+    </section>
+    <div class="status" role="status" aria-live="polite" id="status">准备就绪</div>
+    <footer>微光数学 · Windows Desktop 1.0</footer>
+  </main>
+  <script src="./launcher.js" defer></script>
+</body>
+</html>
