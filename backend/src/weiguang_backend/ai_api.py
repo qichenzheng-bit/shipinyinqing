@@ -146,6 +146,7 @@ def build_ai_router(SessionLocal,auth):
                 raise HTTPException(409,"MODEL_PROVIDER_IN_USE_CLEAR_SELECTION_FIRST")
             row=provider_get(db,id)
             row.deleted_at=now()
+            row.encrypted_key=""  # Destroy saved credential, retain audit identity.
             row.revision+=1
             db.commit()
             return {"deleted":id}
