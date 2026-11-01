@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import pytest
 
-SAMPLE = Path(__file__).resolve().parents[1] / "examples" / "limit_teaching_package.json"
+SAMPLE = Path(__file__).resolve().parent / "fixtures" / "limit_teaching_package.json"
 
 @pytest.fixture
 def teacher_package():
