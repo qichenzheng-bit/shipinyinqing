@@ -1,0 +1,6 @@
+{
+  "kind": "openai_compatible",
+  "model": "REPLACE_WITH_YOUR_MODEL",
+  "endpoint": "https://YOUR_PROVIDER/v1/chat/completions",
+  "key_environment": "WEIGUANG_EDIT_AI_KEY"
+}

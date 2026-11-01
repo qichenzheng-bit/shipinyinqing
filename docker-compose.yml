@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: weiguang
+      POSTGRES_USER: weiguang
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U weiguang"]
+      interval: 10s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server","--appendonly","yes"]
+    volumes:
+      - redisdata:/data
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://weiguang:${POSTGRES_PASSWORD}@db:5432/weiguang
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      WEIGUANG_API_TOKEN: ${WEIGUANG_API_TOKEN:?Set WEIGUANG_API_TOKEN}
+      WEIGUANG_STORAGE: /data
+      WEIGUANG_TEACHER_ENABLED: ${WEIGUANG_TEACHER_ENABLED:-0}
+      WEIGUANG_EDIT_AI_ENABLED: ${WEIGUANG_EDIT_AI_ENABLED:-0}
+    volumes:
+      - lessondata:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports: ["127.0.0.1:8000:8000"]
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["celery","-A","weiguang_backend.worker.celery_app","worker","--loglevel=INFO","--concurrency=1"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://weiguang:${POSTGRES_PASSWORD}@db:5432/weiguang
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      WEIGUANG_STORAGE: /data
+      WEIGUANG_EDIT_AI_CONFIG: /config/edit_ai.json
+      WEIGUANG_EDIT_AI_KEY: ${WEIGUANG_EDIT_AI_KEY:-}
+      MATH_TEACHER_API_KEY: ${MATH_TEACHER_API_KEY:-}
+      MATH_TEACHER_MODEL: ${MATH_TEACHER_MODEL:-}
+      MATH_TEACHER_BASE_URL: ${MATH_TEACHER_BASE_URL:-https://api.openai.com/v1}
+      WEIGUANG_MATH_REVIEWER: ${WEIGUANG_MATH_REVIEWER:-}
+      WEIGUANG_SCRIPT_REVIEWER: ${WEIGUANG_SCRIPT_REVIEWER:-}
+    volumes:
+      - lessondata:/data
+      - ./config:/config:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+volumes:
+  pgdata: {}
+  redisdata: {}
+  lessondata: {}

@@ -1,0 +1,14 @@
+# Private deployment secrets / local runtime
+.env
+.env.*
+!.env.example
+config/edit_ai.json
+config/*.secret.json
+*.pem
+*.key
+.weiguang_data/
+data/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.DS_Store

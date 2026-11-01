@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="92" viewBox="0 0 390 92" role="img" aria-label="微光数学">
+<g fill="none" stroke-linejoin="round">
+  <path d="M10 58 Q30 45 52 49 Q67 52 78 65 Q89 52 104 49 Q126 45 146 58" stroke="#343638" stroke-width="9" stroke-linecap="round"/>
+  <path d="M10 70 Q37 59 56 65 Q70 68 78 78 Q86 68 100 65 Q119 59 146 70" stroke="#83868a" stroke-width="6" stroke-linecap="round"/>
+  <path d="M10 81 Q38 73 56 76 Q71 80 78 87 Q85 80 100 76 Q118 73 146 81" stroke="#a5a6a5" stroke-width="3.3" stroke-linecap="round"/>
+</g>
+<path d="M78 6 C80 21 84 25 96 27 C83 29 80 33 78 46 C76 33 72 29 60 27 C73 25 76 21 78 6Z" fill="#b39a62"/>
+<path d="M47 18 L55 22 M107 18 L99 22 M78 0 L78 4" stroke="#bdb8ad" stroke-width="2" stroke-linecap="round"/>
+<text x="160" y="58" fill="#242424" font-family="Noto Serif CJK SC, Songti SC, SimSun, serif" font-size="46" font-weight="700" letter-spacing="3">微光数学</text>
+<text x="162" y="79" fill="#797979" font-family="Georgia, serif" font-size="12.5" letter-spacing="3.3">WEIGUANG MATH</text>
+</svg>

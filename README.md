@@ -250,5 +250,30 @@ math-animation edit-export \
 
 **最终状态边界**：当前已提供结构化引擎与 CLI，但没有交付 Web 前端、HTTP 后端、视频下载按钮或跨会话微调一键导出。新工程修复通过非渲染测试，**不等于**最新版本已经通过真实 60 FPS 音画验收。
 
+## 微光数学 Web 工作台（PR #44 开发分支）
+
+此功能新增在 `frontend/`、`backend/`、`docker-compose.yml`，原有教师、视觉导演和动画引擎保持独立。**PR 合并前，`main` 仍不包括 Web 代码**。
+
+- **前端**：白底、黑字、浅灰分隔线，书页星芒 Logo；工作台、视频库、视频详情、人工审核、设置与回收站。支持创建/修改/搜索/单个与批量删除、恢复，在线播放和 MP4 下载、连续微调及**一个全局微调记录 JSON 导出按钮**。
+- **后端**：FastAPI、PostgreSQL、Redis + Celery、同源登录 Cookie、SSE 任务进度、按任务 ID 独立的不可变输出文件、所有历史 edit session 归档索引。新题依次进入 MathTeacher A/B/C、课堂编排候选、审核后编译完整 V2.7 数据、审核讲稿，再调用真实视频引擎。数学审查未获批准时不得渲染。
+- **品牌水印**：白色课堂视频右上角、透明石墨灰书页 + 低饱和暖金星芒；FFmpeg 最终合成后对音频/视频流验证。静态一帧编码测试**不等于**真实 Manim/TTS 全片验收。
+- **验收**：动画引擎非渲染测试、数学教师/视觉导演测试、后端接口/原生 Windows 回归、Chromium 逐页截图和点击测试。无真实 AI 密钥/语音联网/Manim 运行时，只能证明测试桩协议联通，不能宣称生成了真实新题教学视频。
+
+### Windows + Docker Desktop / WSL2 启动
+
+项目根目录复制 `.env.example` 为 `.env`，填写足够长的 `POSTGRES_PASSWORD` 与 `WEIGUANG_API_TOKEN`。使用真实数学教师时开启 `WEIGUANG_TEACHER_ENABLED=1` 并填写 `MATH_TEACHER_MODEL`、`MATH_TEACHER_API_KEY`。启用微调时复制 `config/edit_ai.example.json` 到 `config/edit_ai.json`，设置模型 HTTPS 地址与 `WEIGUANG_EDIT_AI_KEY`，并设置 `WEIGUANG_EDIT_AI_ENABLED=1`。Worker 专用密钥不进入浏览器或导出的训练 JSON。
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item config/edit_ai.example.json config/edit_ai.json
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps
+```
+
+浏览器访问 `http://127.0.0.1:8000/`，使用 `WEIGUANG_API_TOKEN` 登录。Docker API 默认只在宿主机本地回环监听；华为云公网访问请配合 Nginx + 有效 HTTPS 证书，示例见 `deploy/nginx/weiguang.conf.example`，**不要直接把 HTTP 端口开放到公网**。
+
+启动前检查 FFmpeg、TeX/dvisvgm、Manim、中文字体以及实际 TTS 网络连接。定期备份 `pgdata`、`lessondata`、`redisdata` 数据卷；只保留 MP4 不能恢复审核及微调记录。源码与脚本验证不代替实际数学教师复核。更改 `Lesson` 版本来源后，需要重新审核，旧视频归档但不会冒充新来源的结果。
+
 ---
 最后更新：2026-11-01。主线以 GitHub `main` 的实际合并状态和统一质量门禁为准。

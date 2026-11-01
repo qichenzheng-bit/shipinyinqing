@@ -17,12 +17,20 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install teacher, director, engine (no media dependencies)
-        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]'
       - name: Validate animation, teacher and director without rendering
         run: |
           (cd animation_engine && python -m pytest -q -m 'not render')
           (cd teacher_module && python -m pytest -q)
           (cd visual_director && python -m pytest -q)
+          (cd backend && python -m pytest -q)
+      - name: Validate frontend JavaScript syntax
+        run: node --check frontend/app.js
+      - name: Validate Docker Compose with placeholder secrets (no containers)
+        env:
+          POSTGRES_PASSWORD: ci_only_url_safe_password
+          WEIGUANG_API_TOKEN: ci_only_do_not_deploy
+        run: docker compose config --quiet
       - name: Validate single human-facing README and four runtime prompts
         run: |
           python - <<'PY'
@@ -75,7 +83,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install source packages without video-render extras
-        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]'
+        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]'
+      - name: Validate Windows frontend JavaScript syntax
+        run: node --check frontend/app.js
       - name: Run Windows Python source and regression checks
         shell: pwsh
         run: |
@@ -88,6 +98,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
           Push-Location visual_director
+          python -m pytest -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          Push-Location backend
           python -m pytest -q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
