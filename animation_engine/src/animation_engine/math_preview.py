@@ -36,6 +36,8 @@ def render_math_preview(
 ) -> MathPreviewResult:
     if pixel_width < 320 or pixel_height < 180:
         raise MathPreviewError("INVALID_FRAME_SIZE: preview must be legible")
+    from .safe_output import validate_output_targets, publish_bundle
+    validate_output_targets({Path(output_png): ".png", Path(output_json): ".json"})
     if output_png.resolve() == output_json.resolve():
         raise MathPreviewError("INVALID_OUTPUT: PNG and metadata paths must differ")
     try:
@@ -113,12 +115,11 @@ def render_math_preview(
                 json.dumps(metadata, indent=2, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
-            os.replace(temp_png, output_png)
-            os.replace(temp_json, output_json)
+            publish_bundle({
+                output_png: temp_png, output_json: temp_json,
+            }, suffixes={output_png: ".png", output_json: ".json"})
         except (OSError, ValueError, RuntimeError, TypeError) as exc:
-            # A failed commit of a pair must not leave half an apparent success.
-            output_png.unlink(missing_ok=True)
-            output_json.unlink(missing_ok=True)
+            # Source and prior outputs remain intact after any failure.
             raise MathPreviewError(
                 f"PREVIEW_RENDER_FAILED: event={request.event_id!r} object={request.object_id!r} "
                 f"{type(exc).__name__}: {str(exc)[:180]}"
