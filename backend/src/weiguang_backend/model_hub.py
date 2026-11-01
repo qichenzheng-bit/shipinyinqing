@@ -182,7 +182,7 @@ def public_selection(db, task: str) -> dict | None:
     if selected is None:
         return None
     provider=db.get(AiProvider,selected.provider_id)
-    if provider is None:
+    if provider is None or provider.deleted_at is not None:
         return None
     return {
         "task":task,"provider_id":provider.id,
@@ -199,7 +199,7 @@ def pin_job_selection(db, job, kind: str):
     if selected is None:
         return  # Backward-compatible env-based configuration.
     provider=db.get(AiProvider,selected.provider_id)
-    if provider is None:
+    if provider is None or provider.deleted_at is not None:
         raise ModelHubError("MODEL_PROVIDER_REMOVED")
     db.flush()
     db.add(AiJobSelection(
@@ -387,7 +387,7 @@ def pinned_client(db, job_id: str) -> HubClient | None:
     if selected is None:
         return None
     provider=db.get(AiProvider,selected.provider_id)
-    if provider is None:
+    if provider is None or provider.deleted_at is not None:
         raise ModelHubError("MODEL_PROVIDER_REMOVED")
     if selected.provider_revision!=provider.revision:
         raise ModelHubError("MODEL_PROVIDER_CHANGED_AFTER_JOB_QUEUED")
@@ -399,7 +399,7 @@ def task_client(db, task: str) -> HubClient | None:
     if selected is None:
         return None
     provider=db.get(AiProvider,selected.provider_id)
-    if provider is None:
+    if provider is None or provider.deleted_at is not None:
         raise ModelHubError("MODEL_PROVIDER_REMOVED")
     return HubClient.from_provider(provider,selected.model_id)
 
