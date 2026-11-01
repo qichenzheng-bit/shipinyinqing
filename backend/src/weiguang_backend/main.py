@@ -609,6 +609,10 @@ def create_app(
                 "ai_configured":bool(os.environ.get("WEIGUANG_EDIT_AI_CONFIG"))}
 
     app.include_router(api)
+    from fastapi.staticfiles import StaticFiles
+    frontend = Path(__file__).resolve().parents[3] / "frontend"
+    if frontend.is_dir() and (frontend / "index.html").exists():
+        app.mount("/", StaticFiles(directory=frontend, html=True), name="web")
     return app
 
 
