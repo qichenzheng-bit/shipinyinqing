@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 CACHE_SCHEMA = "v2.6.6.1"
-NAMESPACES = frozenset({"speech_pcm", "subtitle_png", "raw_stage", "composed_stage", "transition"})
+NAMESPACES = frozenset({"speech_pcm", "subtitle_png", "raw_stage", "composed_stage", "transition", "event_clip"})
 
 
 def digest(data: Any) -> str:
@@ -185,8 +185,12 @@ class ArtifactCache:
         return True
 
     def restore_stage(self, key: str, video: Path, manifest: Path, *, fps: int,
-                      source_storyboard_sha256: str) -> dict | None:
-        found = self.read("raw_stage", key, filenames=("video.mp4","manifest.json"))
+                      source_storyboard_sha256: str, namespace: str="raw_stage",
+                      expected_event_id: str | None=None,
+                      expected_event_index: int | None=None) -> dict | None:
+        if namespace not in ("raw_stage","event_clip"):
+            raise ValueError("CACHE_STAGE_NAMESPACE")
+        found = self.read(namespace, key, filenames=("video.mp4","manifest.json"))
         if not found:
             return None
         try:
@@ -196,6 +200,12 @@ class ArtifactCache:
                     report["voice_status"] != "not_recorded" or
                     not report["event_timing"]):
                 raise ValueError("CACHE_STAGE_PROVENANCE")
+            if namespace=="event_clip":
+                if (len(report["event_timing"])!=1 or
+                        report["event_timing"][0]["event_id"]!=expected_event_id
+                        or report.get("rendered_event_index")!=expected_event_index
+                        or not report.get("event_window_entry_verified")):
+                    raise ValueError("CACHE_EVENT_ENTRY_PROVENANCE")
             video.parent.mkdir(parents=True, exist_ok=True)
             manifest.parent.mkdir(parents=True, exist_ok=True)
             video.write_bytes(found["video.mp4"])
@@ -203,18 +213,23 @@ class ArtifactCache:
             # This verifies actual video frames/fps via ffprobe; a content
             # hash alone is not proof of a valid or compatible movie.
             from .unified_classroom_flow import _video_frames
-            frames = _video_frames(video, fps)
+            frames = _video_frames(
+                video, fps, min_frames=(1 if namespace=="event_clip" else 20)
+            )
             if frames <= 0:
                 raise ValueError("CACHE_STAGE_VIDEO_EMPTY")
             return report
         except (OSError, ValueError, KeyError, TypeError):
             video.unlink(missing_ok=True)
             manifest.unlink(missing_ok=True)
-            self.counts["raw_stage_invalid"] += 1
+            self.counts[namespace+"_invalid"] += 1
             return None
 
-    def store_stage(self, key: str, video: Path, manifest: Path):
-        self.write("raw_stage", key, {
+    def store_stage(self, key: str, video: Path, manifest: Path,
+                    *, namespace: str="raw_stage"):
+        if namespace not in ("raw_stage","event_clip"):
+            raise ValueError("CACHE_STAGE_NAMESPACE")
+        self.write(namespace, key, {
             "video.mp4": video.read_bytes(),
             "manifest.json": manifest.read_bytes(),
         })
