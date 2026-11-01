@@ -68,6 +68,9 @@ class EditRecord(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     satisfied: Mapped[int] = mapped_column(Integer, default=0)
+    review_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reviewer: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
