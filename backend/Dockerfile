@@ -6,6 +6,7 @@ COPY teacher_module ./teacher_module
 COPY visual_director ./visual_director
 COPY animation_engine ./animation_engine
 COPY backend ./backend
+COPY frontend ./frontend
 RUN pip install --no-cache-dir -e ./teacher_module -e ./visual_director \
     -e "./animation_engine[speech]" -e ./backend
 EXPOSE 8000
