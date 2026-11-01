@@ -63,7 +63,7 @@ KNOWLEDGE_CATALOG = {
         "title": "三阶泰勒展开", "kind": "formula",
         "formulae": [{
             "object_id": "m_knowledge",
-            "latex": r"\ln(1+t)=t-\frac{t^2}{2}+\frac{t^3}{3}+o(t^3)",
+            "latex": r"\ln(1+x)=x-\frac{x^2}{2}+\frac{x^3}{3}+o(x^3)",
         }],
         "used_in": ["e_substitute"],
     }],
