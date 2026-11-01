@@ -5,6 +5,8 @@ never a phonetic 'ai ke si' or unrendered TeX string on the screen.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import shutil
 import tempfile
 from pathlib import Path
@@ -54,7 +56,7 @@ def render_caption_png(kind: str, display: str, output: Path) -> None:
         with tempconfig({
             "pixel_width":1280,"pixel_height":720,
             "frame_width":1280/90,"frame_height":8,
-            "frame_rate":30, "background_color":"#FFFFFF",
+            "frame_rate":DEFAULT_VIDEO_FPS, "background_color":"#FFFFFF",
             "transparent":True, "format":"png",
             "save_last_frame":True,"media_dir":str(root),
             "output_file":"source_math_subtitle",
