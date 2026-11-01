@@ -23,7 +23,7 @@ jobs:
           python -m playwright install chromium --with-deps
       - name: Test navigation, CRUD and render every frontend screen
         run: |
-          if [ ! -f frontend/screenshots/08-login.png ]; then
+          if [ ! -f frontend/screenshots/09-teacher-draft.png ]; then
             python backend/tests/capture_pages.py
           else
             echo "Screen captures already committed on this branch"
