@@ -229,3 +229,87 @@ def test_keys_and_network_endpoint_security(studio,monkeypatch):
     })
     assert changed.status_code==422
     assert "KEY" in changed.text
+
+
+
+def test_selected_version_is_used_by_both_teacher_and_curriculum(studio,monkeypatch,tmp_path):
+    import importlib
+    module=importlib.import_module("weiguang_backend.main")
+    compiler=importlib.import_module("weiguang_backend.compiler")
+    client,_=studio
+    provider=save_provider(client,protocol="openai_chat",preset="openai",
+        name="统一模型",base_url="https://api.openai.com/v1")
+    version="my-mathematics-version-2026-11"
+    assert client.put("/api/v1/ai/selections",json={"bindings":[
+        {"task":task,"provider_id":provider["id"],"model_id":version}
+        for task in ("teacher","curriculum")
+    ]}).status_code==200
+    calls=[]
+    def teacher(*,problem,reference_solution,output,provider):
+        calls.append(("teacher",provider.model_id))
+        output.parent.mkdir(parents=True,exist_ok=True)
+        output.write_text(json.dumps({"source":{"problem":problem}}),encoding="utf-8")
+        return {"status":"teacher_draft_needs_review"}
+    def curriculum(problem,reference_solution,teacher_package,candidate_path,*,provider):
+        calls.append(("curriculum",provider.model_id))
+        candidate_path.write_text("{}",encoding="utf-8")
+        return {"status":"curriculum_candidate_waiting_review"}
+    monkeypatch.setattr(module,"prepare_teacher_draft",teacher)
+    monkeypatch.setattr(compiler,"draft_curriculum",curriculum)
+    lesson=client.post("/api/v1/lessons",json={
+        "title":"统一 API 课","problem":"求导数",
+        "reference_solution":"先求极限再求导",
+    }).json()
+    first=client.post(f"/api/v1/lessons/{lesson['id']}/prepare")
+    assert first.status_code==202,first.text
+    assert first.json()["status"]=="queued"
+    client.app.state.run_job(first.json()["id"])
+    assert client.get("/api/v1/jobs/"+first.json()["id"]).json()["status"]=="succeeded"
+    assert client.post(
+        f"/api/v1/lessons/{lesson['id']}/teaching/review",
+        json={"reviewer":"课程审核老师","confirmed":True},
+    ).status_code==200
+    second=client.post(f"/api/v1/lessons/{lesson['id']}/curriculum/prepare")
+    assert second.status_code==202,second.text
+    client.app.state.run_job(second.json()["id"])
+    assert client.get("/api/v1/jobs/"+second.json()["id"]).json()["status"]=="succeeded"
+    assert calls==[("teacher",version),("curriculum",version)]
+
+
+def test_selected_model_is_used_for_micro_edit_candidates(studio,monkeypatch,tmp_path):
+    import importlib
+    module=importlib.import_module("weiguang_backend.edit_review")
+    client,_=studio
+    provider=save_provider(client,protocol="openai_chat",preset="openai",
+        name="微调模型",base_url="https://api.openai.com/v1")
+    version="unit-edit-model-version-2"
+    assert client.put("/api/v1/ai/selections",json={"bindings":[{
+        "task":"edit","provider_id":provider["id"],"model_id":version,
+    }]}).status_code==200
+    lesson=client.post("/api/v1/lessons",json={
+        "title":"待微调","problem":"1+1","reference_solution":"2",
+    }).json()
+    src=tmp_path/"package"
+    src.mkdir()
+    (src/"spoken_classroom.json").write_text('{"mode":"test"}',encoding="utf-8")
+    with client.app.state.SessionLocal() as db:
+        item=db.get(Lesson,lesson["id"])
+        item.status="ready";item.session_path=str(tmp_path/"session")
+        db.commit()
+    captured=[]
+    def fake_generation(self,*,system,user_json,timeout=150):
+        captured.append((self.model_id,json.loads(user_json)["exact_user_instruction"]))
+        return {"schema_version":"1.0","requirements":[],"operations":[]}
+    def fake_prepare(session,instruction,*,agent):
+        result=agent(instruction,src,[])
+        assert result["model"]==version
+        return {"review_path":str(tmp_path),"status":"review_pending"}
+    monkeypatch.setattr(HubClient,"generate_json",fake_generation)
+    monkeypatch.setattr(module,"prepare_edit_review",fake_prepare)
+    accepted=client.post(f"/api/v1/videos/{lesson['id']}/edits",
+        json={"instruction":"只修改语音衔接"})
+    assert accepted.status_code==202,accepted.text
+    client.app.state.run_job(accepted.json()["job"]["id"])
+    status=client.get("/api/v1/jobs/"+accepted.json()["job"]["id"]).json()
+    assert status["status"]=="succeeded",status
+    assert captured==[(version,"只修改语音衔接")]
