@@ -8,6 +8,8 @@ missing case coverage.
 """
 from __future__ import annotations
 
+from .video_settings import DEFAULT_VIDEO_FPS
+
 import json
 import shutil
 from dataclasses import dataclass
@@ -315,7 +317,7 @@ def plan_memory(input_file: Path | str, *, measure=None,
 
 def render_memory(input_file: Path | str, *,
                   output_mp4: Path, output_json: Path,
-                  fps: int = 30, adaptive: bool = False) -> dict:
+                  fps: int = DEFAULT_VIDEO_FPS, adaptive: bool = False) -> dict:
     memory = checked_memory(input_file)
     plan = plan_memory(input_file, adaptive=adaptive)
     # Both render paths run the existing authentic Manim/MathTex math contract.
