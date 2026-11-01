@@ -90,11 +90,7 @@ jobs:
             adb shell am start -W -n cn.weiguang.math/.MainActivity
             sleep 5
             adb logcat -d -s AndroidRuntime:E | tee android_app/screenshots/launch-runtime.log
-            if ! adb shell pidof cn.weiguang.math; then
-              echo "ANDROID_APP_EXITED_AFTER_LAUNCH"
-              cat android_app/screenshots/launch-runtime.log
-              exit 1
-            fi
+            adb shell pidof cn.weiguang.math || (echo "ANDROID_APP_EXITED_AFTER_LAUNCH"; cat android_app/screenshots/launch-runtime.log; exit 1)
             adb shell screencap -p /sdcard/weiguang-android-launch.png
             adb pull /sdcard/weiguang-android-launch.png android_app/screenshots/00-android-native-launcher.png
             test -s android_app/screenshots/00-android-native-launcher.png
