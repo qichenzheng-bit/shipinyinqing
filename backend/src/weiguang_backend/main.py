@@ -924,6 +924,75 @@ def create_app(
         dispatch(job.id)
         return result
 
+    @api.get("/videos/{id}/edits/pending")
+    def pending_edit_review(id: str):
+        from .edit_review import view_edit_review
+        with SessionLocal() as db:
+            lesson_get(db,id)
+            record=db.scalars(select(EditRecord).where(
+                EditRecord.lesson_id==id,
+                EditRecord.status.in_(("review_pending","approved")),
+            ).order_by(EditRecord.created_at.desc())).first()
+            if record is None:
+                return {"pending":None}
+            if not record.review_path:
+                raise HTTPException(409,"EDIT_CANDIDATE_NOT_READY")
+            record_id=record.id
+            phase=record.status
+            path=Path(record.review_path)
+        return {"pending":{
+            "edit_id":record_id,"status":phase,**view_edit_review(path),
+        }}
+
+    @api.post("/videos/{id}/edits/{edit_id}/approve",status_code=202)
+    def approve_edit_review(id: str,edit_id: str,data: Review):
+        from .edit_review import mark_edit_review
+        from animation_engine.iterative_edit_engine import _state,session_lock
+        if not data.confirmed:
+            raise HTTPException(422,"EDIT_CONFIRMATION_REQUIRED")
+        with SessionLocal() as db:
+            lesson=lesson_get(db,id)
+            record=db.get(EditRecord,edit_id)
+            if record is None or record.lesson_id!=id:
+                raise HTTPException(404,"EDIT_RECORD_NOT_FOUND")
+            if record.status!="review_pending" or not record.review_path:
+                raise HTTPException(409,"EDIT_RECORD_NOT_AWAITING_REVIEW")
+            if record.source_revision!=lesson.revision:
+                raise HTTPException(409,"EDIT_REVIEW_STALE_LESSON")
+            session=Path(lesson.session_path)
+            with session_lock(session):
+                current=_state(session)["revision"]
+                try:
+                    mark_edit_review(
+                        Path(record.review_path),reviewer=data.reviewer,
+                        confirmed=True,current_revision=current,
+                    )
+                except Exception as exc:
+                    raise HTTPException(409,str(exc)[:350]) from exc
+            record.reviewer=data.reviewer.strip()
+            record.status="approved"
+            db.commit()
+            job=job_add(db,lesson,"edit_reviewed",edit_id=edit_id)
+            result={"edit_id":edit_id,"job":describe_job(job)}
+        dispatch(job.id)
+        return result
+
+    @api.post("/videos/{id}/edits/{edit_id}/reject")
+    def reject_edit_review(id: str,edit_id: str):
+        from .edit_review import reject_edit_review
+        with SessionLocal() as db:
+            lesson_get(db,id)
+            record=db.get(EditRecord,edit_id)
+            if not record or record.lesson_id!=id:
+                raise HTTPException(404,"EDIT_RECORD_NOT_FOUND")
+            if record.status!="review_pending" or not record.review_path:
+                raise HTTPException(409,"EDIT_RECORD_NOT_AWAITING_REVIEW")
+            reject_edit_review(Path(record.review_path))
+            record.status="rejected"
+            record.error="USER_REJECTED_CANDIDATE"
+            db.commit()
+            return {"status":"rejected","edit_id":edit_id}
+
     @api.post("/videos/{id}/feedback")
     def video_feedback(id:str,data:Feedback):
         from animation_engine.iterative_edit_engine import record_feedback
