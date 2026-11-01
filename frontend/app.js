@@ -7,6 +7,8 @@
     route:'work', lessons:[], videos:[], projects:[], selected:new Set(), projectSelected:new Set(), search:'',
     lesson:null, script:'', teacher:null, curriculum:null, pendingEdit:null, job:null, loading:false, error:'',
     modal:null, notice:'', trash:[], projectTrash:[], settings:null,
+    ai:{catalog:[],providers:[],bindings:{},status:null,providerId:'',preset:'openai',
+        versions:[],discovery:'',modelId:'',targetTask:'all',testStatus:''},
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, s => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
@@ -208,6 +210,7 @@
     '<h2 style="margin-top:40px">系统</h2>'+
     '<div class="setting-row"><span>数学教师模型</span><span class="muted">'+(state.settings?.teacher_ai_configured?'已配置':'需要后端配置')+'</span></div>'+
     '<div class="setting-row"><span>微调模型</span><span class="muted">'+(state.settings?.ai_configured?'已配置':'需要后端配置')+'</span></div>'+
+    '<div class="setting-row"><span>统一 API / 模型版本</span>'+button('管理模型 API','open-ai-settings')+'</div>'+
     '<div class="setting-row"><span>任务并发</span><span class="muted">1 个渲染任务</span></div>'+
     '<div style="margin-top:26px">'+button('保存偏好','save-settings','primary')+'</div>'+
     '<hr class="hr"/><div class="row spread"><h2 style="margin-bottom:0">项目</h2><div class="actions">'+
@@ -236,7 +239,7 @@
       state.route==='work'?work():state.route==='library'?library():
       state.route==='detail'?detail():state.route==='review'?review():
       state.route==='teacher'?teacherView():state.route==='curriculum'?curriculumView():
-      state.route==='edit-review'?editReview():
+      state.route==='edit-review'?editReview():state.route==='ai'?modelSettings():
       state.route==='trash'?trash():state.route==='login'?login():settings()
     )+'</main>'+modal();
     if(state.route==='work') {
@@ -249,6 +252,21 @@
       if(prefs.voice)$('#setting-voice').value=prefs.voice;
       if(prefs.fps)$('#setting-fps').value=String(prefs.fps);
     }
+  };
+  const refreshAI = async (selectedId) => {
+    const [catalog,providers,bindings,status]=await Promise.all([
+      api('/ai/catalog'),api('/ai/providers'),api('/ai/selections'),api('/ai/status'),
+    ]);
+    state.ai.catalog=catalog.providers;
+    state.ai.providers=providers;
+    state.ai.bindings=bindings;
+    state.ai.status=status;
+    state.ai.providerId=selectedId!==undefined?selectedId:
+      (providers.some(p=>p.id===state.ai.providerId)?state.ai.providerId:
+       (providers[0]?.id||''));
+    state.ai.versions=[];
+    state.ai.discovery='';
+    state.ai.testStatus='';
   };
   const refresh = async () => {
     [state.lessons,state.videos,state.projects]=await Promise.all([
@@ -342,6 +360,29 @@
       if(event.target.checked)state.projectSelected.add(event.target.value);
       else state.projectSelected.delete(event.target.value);
       render();
+    }
+    if(event.target.id==='ai-provider-choice'){
+      state.ai.providerId=event.target.value;
+      state.ai.versions=[];
+      state.ai.modelId='';
+      state.ai.testStatus='';
+      render();
+    }
+    if(event.target.id==='ai-preset'){
+      const item=state.ai.catalog.find(p=>p.id===event.target.value);
+      if(item){
+        state.ai.preset=item.id;
+        $('#ai-name').value=item.label;
+        $('#ai-url').value=item.base_url;
+        $('#ai-protocol').value=item.protocol;
+      }
+    }
+    if(event.target.id==='ai-versions' && event.target.value){
+      state.ai.modelId=event.target.value;
+      $('#ai-manual-model').value=event.target.value;
+    }
+    if(event.target.id==='ai-target'){
+      state.ai.targetTask=event.target.value;
     }
   });
   document.addEventListener('click',event=>{
