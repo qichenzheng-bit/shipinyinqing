@@ -86,7 +86,8 @@ def checked_cues(source: dict, storyboard, execution) -> list[dict]:
                 )
         references = item["source_step_ids"]
         known = {s for a in state.actions for s in a.source_step_ids}
-        if (not isinstance(references,list) or not references
+        if (not isinstance(references,list)
+                or (not references and (item["phase"]!="summary" or known))
                 or any(type(s) is not str or s not in known for s in references)
                 or len(set(references))!=len(references)):
             raise LongboardError(f"CLASSROOM_CUE_PROVENANCE: {scene.event_id}")
