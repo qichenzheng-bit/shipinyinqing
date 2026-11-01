@@ -105,8 +105,7 @@ def _cache_full_stage_events(
                 "ffmpeg","-hide_banner","-loglevel","error","-y",
                 "-i",str(stage_movie),
                 "-vf",f"trim=start_frame={a}:end_frame={b},setpts=PTS-STARTPTS",
-                "-an","-fps_mode","passthrough",
-                "-c:v","libx264","-pix_fmt","yuv420p",
+                "-an","-c:v","libx264","-pix_fmt","yuv420p",
                 "-r",str(fps),"-frames:v",str(b-a),
                 str(movie),
             ]
