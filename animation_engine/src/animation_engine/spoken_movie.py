@@ -125,6 +125,10 @@ def render_spoken_classroom(
             or Path(output_json).suffix.lower()!=".json"):
         raise LongboardError("SPOKEN_RENDER_ARGUMENTS")
     checked=checked_spoken(path,adaptive=adaptive)
+    from .unified_classroom_flow import _load
+    if "lesson_contract" in _load(path):
+        from .v27_teacher_contract import require_prerender_script
+        require_prerender_script(checked, path)
     if adaptive:
         from .adaptive_classroom_flow import checked_adaptive_flow
         checked_adaptive_flow(path.parent/"adaptive_layout.json")
