@@ -1149,6 +1149,7 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                         start=self.time
                         action_timings=[]
                         diagram_reveal_timings=[]
+                        emphasis_timings=[]
                         clips=(narration_events or {}).get(row["event_id"],[])
                         clip_cursor=[0]
                         def perform_sync(kind,ident,paint):
@@ -1364,11 +1365,20 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                                 duration=min(.7,max(.15,window*.55),remaining_intro)
                                                 if duration<.08:
                                                     raise LongboardError("CHALKBOARD_MARK_TOO_LATE")
+                                                highlighted_at=self.time
                                                 self.play(
                                                     *[Indicate(t,color=RED,scale_factor=1.06)
                                                       for t in targets],
                                                     run_time=duration,rate_func=linear
                                                 )
+                                                for mark in group:
+                                                    emphasis_timings.append({
+                                                        "source_object_id":mark["source_object_id"],
+                                                        "latex_fragment":mark["latex_fragment"],
+                                                        "spoken_phrase":mark["spoken_phrase"],
+                                                        "start_preview_second":highlighted_at,
+                                                        "end_preview_second":self.time,
+                                                    })
                                         if before+intro>self.time+1e-5:
                                             self.wait(before+intro-self.time)
                                         # Math ink progresses throughout the
@@ -1427,6 +1437,8 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                         self.timing.append({
                             "action_timing":action_timings,
                             "diagram_reveal_timing":diagram_reveal_timings,
+                            "math_emphasis_timing":emphasis_timings,
+                            "carry_object_ids":list(row.get("carry_object_ids",[])),
                             "event_id":row["event_id"],"page_index":row["page_index"],
                             "erase_before":row["erase_before"],
                             "math_write_count":row["math_write_count"],
