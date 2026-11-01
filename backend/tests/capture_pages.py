@@ -16,6 +16,8 @@ from urllib.request import urlopen
 
 import uvicorn
 from playwright.sync_api import sync_playwright
+from cryptography.fernet import Fernet
+from weiguang_backend.model_hub import HubClient
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/
     "animation_engine"/"tests"/"fixtures"))
@@ -111,6 +113,20 @@ def main():
     shots.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="weiguang-browser-") as tmp:
         data=Path(tmp)
+        os.environ["WEIGUANG_MODEL_MASTER_KEY"]=Fernet.generate_key().decode()
+        # Browser-only stub: exercises the real authenticated API and UI without
+        # contacting a paid provider or pretending any model was actually called.
+        old_hub_request=HubClient._request
+        def screenshot_model_provider(self,suffix,body=None,timeout=90):
+            if suffix=="/models":
+                return {"data":[
+                    {"id":"demo-math-model-2026-06"},
+                    {"id":"demo-math-model-2026-11"},
+                ]}
+            if suffix=="/chat/completions":
+                return {"choices":[{"message":{"content":'{"ok":true}'}}]}
+            raise AssertionError("Unexpected screenshot provider endpoint")
+        HubClient._request=screenshot_model_provider
         app=create_app(data_dir=data,local_dev=True,eager=True)
         ready,review,other,teaching,curriculum=seed(app,data)
         config=uvicorn.Config(app,host="127.0.0.1",port=PORT,
@@ -155,6 +171,20 @@ def main():
             page.get_by_role("button",name="设置").click()
             page.get_by_role("heading",name="设置").wait_for()
             page.screenshot(path=str(shots/"05-settings.png"),full_page=True)
+            page.get_by_role("button",name="管理模型 API").click()
+            page.get_by_role("heading",name="模型 API").wait_for()
+            page.locator("#ai-name").fill("教学 API 验收连接")
+            page.locator("#ai-key").fill("ONLY_BROWSER_FIXTURE_NOT_REAL_API_KEY")
+            page.get_by_role("button",name="保存连接").click()
+            page.get_by_role("button",name="读取模型列表").click()
+            page.locator("#ai-versions").select_option("demo-math-model-2026-11")
+            page.get_by_role("button",name="测试模型连接").click()
+            page.get_by_text("连接成功 · JSON 输出验证通过",exact=True).wait_for()
+            page.get_by_role("button",name="应用模型版本").click()
+            page.locator("#ai-manual-model").wait_for()
+            assert page.locator("#ai-key").input_value()==""
+            page.screenshot(path=str(shots/"14-model-api-settings.png"),full_page=True)
+            page.get_by_role("button",name="返回设置").click()
             page.once("dialog",lambda dialog: dialog.accept("视频项目管理测试"))
             page.get_by_role("button",name="新建",exact=True).click()
             page.get_by_text("视频项目管理测试",exact=True).wait_for()
@@ -209,6 +239,8 @@ def main():
             browser.close()
         server.should_exit=True
         thread.join(timeout=5)
+        HubClient._request=old_hub_request
+        os.environ.pop("WEIGUANG_MODEL_MASTER_KEY",None)
     print("BROWSER_ACCEPTANCE_OK",len(list(shots.glob("*.png"))),
           "actual frontend screens and CRUD/review navigation")
 
