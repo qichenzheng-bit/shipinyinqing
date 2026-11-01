@@ -365,9 +365,25 @@ def create_app(
     def dispatch(job_id):
         if eager:
             run_job(job_id)
-        else:
+            return
+        try:
             from .worker import celery_app
             celery_app.send_task("weiguang.run_job",args=[job_id])
+        except Exception as exc:
+            # No endlessly queued phantom task if Redis is unavailable.
+            with SessionLocal() as db:
+                job=db.get(Job,job_id)
+                if job is not None and job.status=="queued":
+                    job.status="failed"
+                    job.phase="排队失败"
+                    job.error="TASK_QUEUE_UNAVAILABLE"
+                    if job.edit_id:
+                        record=db.get(EditRecord,job.edit_id)
+                        if record:
+                            record.status="failed"
+                            record.error="TASK_QUEUE_UNAVAILABLE"
+                    db.commit()
+            raise HTTPException(503,"TASK_QUEUE_UNAVAILABLE") from exc
 
     @app.get("/health")
     def health():
@@ -498,7 +514,9 @@ def create_app(
 
     @api.post("/lessons/{id}/prepare",status_code=202)
     def teacher_prepare(id: str):
-        if not os.environ.get("MATH_TEACHER_MODEL") or not os.environ.get("MATH_TEACHER_API_KEY"):
+        if (os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() not in ("1","true")
+                and not (os.environ.get("MATH_TEACHER_MODEL")
+                         and os.environ.get("MATH_TEACHER_API_KEY"))):
             raise HTTPException(409,"MATH_TEACHER_MODEL_OR_KEY_NOT_CONFIGURED")
         with SessionLocal() as db:
             lesson=lesson_get(db,id)
@@ -538,8 +556,9 @@ def create_app(
 
     @api.post("/lessons/{id}/curriculum/prepare",status_code=202)
     def curriculum_prepare(id: str):
-        if not (os.environ.get("MATH_TEACHER_MODEL")
-                and os.environ.get("MATH_TEACHER_API_KEY")):
+        if (os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() not in ("1","true")
+                and not (os.environ.get("MATH_TEACHER_MODEL")
+                         and os.environ.get("MATH_TEACHER_API_KEY"))):
             raise HTTPException(409,"CURRICULUM_AI_NOT_CONFIGURED")
         with SessionLocal() as db:
             lesson=lesson_get(db,id)
@@ -775,7 +794,9 @@ def create_app(
 
     @api.post("/videos/{id}/edits",status_code=202)
     def edit_submit(id: str,data: EditRequest):
-        if edit_runner is None and not os.environ.get("WEIGUANG_EDIT_AI_CONFIG"):
+        if (edit_runner is None
+                and os.environ.get("WEIGUANG_EDIT_AI_ENABLED","").lower() not in ("1","true")
+                and not os.environ.get("WEIGUANG_EDIT_AI_CONFIG")):
             raise HTTPException(409,"EDIT_AI_CONFIGURATION_REQUIRED")
         with SessionLocal() as db:
             l=lesson_get(db,id)
@@ -873,9 +894,15 @@ def create_app(
         return {"default_fps":60,"default_resolution":"1280x720",
                 "voices":["zh-CN-YunxiNeural","zh-CN-XiaoxiaoNeural"],
                 "max_render_jobs":1,
-                "ai_configured":bool(os.environ.get("WEIGUANG_EDIT_AI_CONFIG")),
-                "teacher_ai_configured":bool(os.environ.get("MATH_TEACHER_MODEL")
-                                             and os.environ.get("MATH_TEACHER_API_KEY"))}
+                "ai_configured":bool(
+                    os.environ.get("WEIGUANG_EDIT_AI_ENABLED","").lower() in ("1","true")
+                    or os.environ.get("WEIGUANG_EDIT_AI_CONFIG")
+                ),
+                "teacher_ai_configured":bool(
+                    os.environ.get("WEIGUANG_TEACHER_ENABLED","").lower() in ("1","true")
+                    or (os.environ.get("MATH_TEACHER_MODEL")
+                        and os.environ.get("MATH_TEACHER_API_KEY"))
+                )}
 
     app.include_router(api)
     from fastapi.staticfiles import StaticFiles
