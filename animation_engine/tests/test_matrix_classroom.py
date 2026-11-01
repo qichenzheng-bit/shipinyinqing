@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"tools"))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"fixtures"))
 
 from build_matrix_classroom_lesson import build_variant
 from animation_engine.matrix_steps import (
