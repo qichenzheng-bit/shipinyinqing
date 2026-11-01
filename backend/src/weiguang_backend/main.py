@@ -417,19 +417,69 @@ def create_app(
             if not p or p.deleted_at:raise HTTPException(404,"PROJECT_NOT_FOUND")
             p.title=data.title;db.commit();return {"id":p.id,"title":p.title}
 
+    @api.post("/projects/batch-delete")
+    def project_batch_delete(data: DeleteBatch):
+        ids=list(dict.fromkeys(data.ids))
+        with SessionLocal() as db:
+            projects=list(db.scalars(select(Project).where(
+                Project.id.in_(ids),Project.deleted_at.is_(None)
+            )))
+            if len(projects)!=len(ids):
+                raise HTTPException(404,"PROJECT_BATCH_NOT_FOUND")
+            active=db.scalars(select(Job).join(
+                Lesson,Lesson.id==Job.lesson_id
+            ).where(
+                Lesson.project_id.in_(ids),
+                Job.status.in_(("queued","running")),
+            )).first()
+            if active:
+                raise HTTPException(409,"PROJECT_ACTIVE_JOBS")
+            for p in projects:
+                p.deleted_at=now()
+            linked=db.scalars(select(Lesson).where(
+                Lesson.project_id.in_(ids),
+                Lesson.deleted_at.is_(None),
+            ))
+            affected=0
+            for lesson in linked:
+                lesson.deleted_at=now()
+                lesson.deleted_by_project=True
+                affected+=1
+            db.commit()
+            return {"deleted":ids,"count":len(ids),"lessons_affected":affected}
+
     @api.delete("/projects/{id}")
     def project_delete(id: str):
+        return project_batch_delete(DeleteBatch(ids=[id]))
+
+    @api.get("/projects/trash")
+    def deleted_projects():
         with SessionLocal() as db:
-            p=db.get(Project,id)
-            if not p or p.deleted_at:raise HTTPException(404,"PROJECT_NOT_FOUND")
-            active=db.scalars(select(Job).join(Lesson,Lesson.id==Job.lesson_id).where(
-                Lesson.project_id==id,Job.status.in_(("queued","running"))
-            )).first()
-            if active:raise HTTPException(409,"PROJECT_ACTIVE_JOBS")
-            p.deleted_at=now()
-            for l in db.scalars(select(Lesson).where(Lesson.project_id==id)):
-                l.deleted_at=now()
-            db.commit();return {"deleted":[id]}
+            return [{"id":p.id,"title":p.title} for p in db.scalars(
+                select(Project).where(Project.deleted_at.is_not(None))
+            )]
+
+    @api.post("/projects/restore")
+    def restore_projects(data: DeleteBatch):
+        ids=list(dict.fromkeys(data.ids))
+        with SessionLocal() as db:
+            projects=list(db.scalars(select(Project).where(
+                Project.id.in_(ids),Project.deleted_at.is_not(None),
+            )))
+            if len(projects)!=len(ids):
+                raise HTTPException(404,"PROJECT_BATCH_NOT_IN_TRASH")
+            for p in projects:
+                p.deleted_at=None
+            restored=0
+            for lesson in db.scalars(select(Lesson).where(
+                Lesson.project_id.in_(ids),
+                Lesson.deleted_by_project.is_(True),
+            )):
+                lesson.deleted_at=None
+                lesson.deleted_by_project=False
+                restored+=1
+            db.commit()
+            return {"restored":ids,"lessons_restored":restored}
 
     @api.get("/lessons")
     def lessons(q: str="",include_deleted: bool=False,
@@ -497,7 +547,9 @@ def create_app(
                 Job.lesson_id.in_(ids),Job.status.in_(("queued","running"))
             )).first()
             if active:raise HTTPException(409,"BATCH_HAS_ACTIVE_JOBS")
-            for l in rows:l.deleted_at=now()
+            for l in rows:
+                l.deleted_at=now()
+                l.deleted_by_project=False
             db.commit();return {"deleted":ids,"count":len(ids)}
 
     @api.delete("/lessons/{id}")
@@ -513,12 +565,22 @@ def create_app(
 
     @api.post("/trash/restore")
     def trash_restore(data: DeleteBatch):
+        ids=list(dict.fromkeys(data.ids))
         with SessionLocal() as db:
             rows=list(db.scalars(select(Lesson).where(
-                Lesson.id.in_(data.ids),Lesson.deleted_at.is_not(None)
+                Lesson.id.in_(ids),Lesson.deleted_at.is_not(None)
             )))
-            for l in rows:l.deleted_at=None
-            db.commit();return {"restored":[l.id for l in rows]}
+            if len(rows)!=len(ids):
+                raise HTTPException(404,"TRASH_ITEMS_NOT_FOUND")
+            for lesson in rows:
+                if lesson.project_id:
+                    parent=db.get(Project,lesson.project_id)
+                    if parent is None or parent.deleted_at is not None:
+                        raise HTTPException(409,"RESTORE_PROJECT_FIRST")
+            for l in rows:
+                l.deleted_at=None
+                l.deleted_by_project=False
+            db.commit();return {"restored":ids}
 
     @api.post("/lessons/{id}/prepare",status_code=202)
     def teacher_prepare(id: str):
