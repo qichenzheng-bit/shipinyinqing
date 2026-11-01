@@ -998,6 +998,9 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             or not math.isfinite(x["math_start_delay"])
                             or x["math_start_delay"] < 0
                             or x["math_start_delay"] >= x["duration"]
+                            or type(x.get("math_end_delay")) not in (int,float)
+                            or not math.isfinite(x["math_end_delay"])
+                            or not x["math_start_delay"] < x["math_end_delay"] <= x["duration"]
                         )) for x in spans)):
                 raise LongboardError("CHALKBOARD_NARRATION_ACTION_MISMATCH")
     from .diagram_classroom import DIAGRAM_PANEL
@@ -1309,11 +1312,19 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                         intro=speech["math_start_delay"]
                                         if intro>1e-5:
                                             self.wait(intro)
-                                        speaking=duration-intro
-                                        writing=min(speaking*.78,2.4*len(obj))
-                                        each=writing/len(obj)
+                                        # Math ink progresses throughout the
+                                        # *measured math-reading audio*, and
+                                        # finishes at that audio boundary.
+                                        # Earlier versions capped each line at
+                                        # 2.4s, displaying long equations
+                                        # before the teacher had read them.
+                                        math_window=speech["math_end_delay"]-intro
+                                        each=math_window/len(obj)
                                         for frag in obj:
-                                            self.play(Write(frag),run_time=each)
+                                            self.play(
+                                                Write(frag),run_time=each,
+                                                rate_func=linear
+                                            )
                                         remaining=duration-(self.time-before)
                                         if remaining>1e-5:
                                             self.wait(remaining)
