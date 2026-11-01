@@ -396,3 +396,136 @@ def test_composed_stage_and_transition_cache_verify_frames(tmp_path,monkeypatch)
         assert not cache.restore_video(
             namespace,different,dest,fps=30,expected_frames=21
         )
+
+
+
+def test_source_restored_event_clip_reuses_unchanged_events(tmp_path,monkeypatch):
+    """Unit-only: one changed event must not rerender the other event."""
+    from animation_engine import incremental_render,unified_classroom_flow
+    source="d"*64
+    stage=SimpleNamespace(
+        stage_id="long_math_stage",engine="standard",
+        package={"id":"math-source"},storyboard={"id":"same_equation"},
+        execution={"source_storyboard_sha256":source},
+        cues={"teaching":True},policy={},special=None,
+        handoff=(),events=("event1","event2"),kwargs=lambda:{},
+    )
+    cache=ArtifactCache(tmp_path/"cache")
+    schedules={
+        "event1":[{"kind":"math","object_id":"math1","duration":1.0,
+                    "math_start_delay":0.2}],
+        "event2":[{"kind":"math","object_id":"math2","duration":1.2,
+                    "math_start_delay":0.2}],
+    }
+    unchanged=incremental_render._event_key(
+        stage,0,"event1",fps=30,layout_hint=None,
+        narration_events=schedules,cache=cache,
+    )
+    video=tmp_path/"source_event.mp4"
+    video.write_bytes(b"MOCK-ONLY-A-VERIFIED-MATHEMATICAL-EVENT")
+    manifest=tmp_path/"source_event.json"
+    manifest.write_text(json.dumps({
+        "source_storyboard_sha256":source,
+        "voice_status":"not_recorded",
+        "event_timing":[{
+            "event_id":"event1","start_preview_second":0,
+            "end_preview_second":1.0,
+            "action_timing":[{
+                "kind":"math","object_id":"math1",
+                "start_preview_second":0,"end_preview_second":1
+            }],
+        }],
+        "rendered_event_index":0,
+        "event_window_entry_verified":True,
+        "page_count":1,"event_count":2,
+    }))
+    cache.store_stage(unchanged,video,manifest,namespace="event_clip")
+    rendered=[]
+    def fake_render(storyboard,execution,cues,policy,*,event_index,
+                    output_mp4,output_json,**kwargs):
+        rendered.append(event_index)
+        assert event_index==1
+        Path(output_mp4).write_bytes(b"MOCK-SECOND-EVENT-ONLY")
+        event={
+            "event_id":"event2","start_preview_second":0,
+            "end_preview_second":1.2,
+            "action_timing":[{
+                "kind":"math","object_id":"math2",
+                "start_preview_second":0.1,"end_preview_second":1.2,
+            }],
+        }
+        record={
+            "source_storyboard_sha256":source,
+            "voice_status":"not_recorded",
+            "event_timing":[event],
+            "rendered_event_index":event_index,
+            "event_window_entry_verified":True,
+            "page_count":1,"event_count":2,
+        }
+        Path(output_json).write_text(json.dumps(record))
+        return record
+    monkeypatch.setattr(incremental_render,
+                        "render_persistent_chalkboard",fake_render)
+    monkeypatch.setattr(unified_classroom_flow,
+                        "_video_frames",lambda *args,**kwargs:30)
+    def concat(playlist,output,*,fps,expected_frames):
+        Path(output).write_bytes(b"MOCK-REASSEMBLED-STAGE-ONLY")
+        assert expected_frames==60
+        return expected_frames,"verified_mock_concat"
+    monkeypatch.setattr(unified_classroom_flow,
+                        "_concat_verified_clips",concat)
+    output=tmp_path/"assembled.mp4"
+    report=incremental_render._rebuild_stage_from_events(
+        stage,output_mp4=output,output_json=tmp_path/"assembled.json",
+        fps=30,layout_hint=None,narration_events=schedules,cache=cache,
+    )
+    assert rendered==[1]
+    assert len(report["event_timing"])==2
+    assert [row["event_id"] for row in report["event_timing"]]==[
+        "event1","event2"
+    ]
+    assert report["event_timing"][1]["start_preview_second"]==1.0
+    assert abs(report["event_timing"][1]["action_timing"][0][
+        "start_preview_second"]-1.1)<1e-6
+    assert cache.stats()["event_clip_hit"]>=1
+    assert output.read_bytes().startswith(b"MOCK-")
+
+
+def test_event_source_hash_or_edit_duration_invalidates_event_clip(tmp_path):
+    from animation_engine.incremental_render import _event_key,_event_frame_bounds
+    cache=ArtifactCache(tmp_path/"cache")
+    stage=SimpleNamespace(
+        stage_id="intro",engine="standard",package={},
+        storyboard={"math":"x"},execution={"source_storyboard_sha256":"s"*64},
+        cues={},policy={},special=None,handoff=(),events=("e1","e2"),
+        kwargs=lambda:{},
+    )
+    one={"e1":[{"duration":1.0}],"e2":[{"duration":2.0}]}
+    initial=_event_key(
+        stage,1,"e2",fps=30,layout_hint=None,
+        narration_events=one,cache=cache,
+    )
+    changed={"e1":[{"duration":6.0}],"e2":[{"duration":2.0}]}
+    assert initial==_event_key(
+        stage,1,"e2",fps=30,layout_hint=None,
+        narration_events=changed,cache=cache,
+    )
+    changed["e2"]=[{"duration":2.4}]
+    assert initial!=_event_key(
+        stage,1,"e2",fps=30,layout_hint=None,
+        narration_events=changed,cache=cache,
+    )
+    stage.execution={"source_storyboard_sha256":"z"*64}
+    assert initial!=_event_key(
+        stage,1,"e2",fps=30,layout_hint=None,
+        narration_events=one,cache=cache,
+    )
+    assert _event_frame_bounds([
+        {"start_preview_second":0},
+        {"start_preview_second":1.0},
+    ],60,30)==[0,30,60]
+    with pytest.raises(ValueError,match="CACHE_EVENT_NONCONTIGUOUS"):
+        _event_frame_bounds([
+            {"start_preview_second":0},
+            {"start_preview_second":0},
+        ],60,30)
