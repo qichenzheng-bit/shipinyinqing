@@ -1,7 +1,7 @@
 """Persistent metadata only: large artifacts stay in per-lesson directories."""
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import String, Text, Integer, DateTime, ForeignKey
+from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -42,6 +42,7 @@ class Lesson(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_by_project: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
 class Job(Base):
