@@ -72,7 +72,7 @@
 
 ## 4. 安装、输入与常用命令
 
-Python 3.10+；有声视频制作另需 Manim、LaTeX/dvisvgm、FFmpeg/ffprobe、中文字体，以及可访问的 Edge TTS。单纯测试、生成讲稿不需要 TTS/Manim/FFmpeg。
+Python 3.11+（建议 3.11 或 3.12；完整渲染依赖 Manim 0.22.1）；有声视频制作另需 Manim、LaTeX/dvisvgm、FFmpeg/ffprobe、中文字体，以及可访问的 Edge TTS。单纯测试、生成讲稿不需要 TTS/Manim/FFmpeg。
 
 ```bash
 # 开发安装与不渲染的完整回归
