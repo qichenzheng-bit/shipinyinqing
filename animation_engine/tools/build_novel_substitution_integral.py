@@ -80,7 +80,7 @@ NARRATION = {
     ("e_substitution", "math"):
         "结合本题，令 u 等于 x 的平方。于是微分关系是：",
     ("e_pitfall", "note"):
-        "最容易错的是只换函数，忘了换上下限。正确做法是把原来的端点代入 u 等于 x 平方。这里上限从二变成四。",
+        "最容易错的是只换函数，忘了换上下限。正确做法是把原端点代入换元关系，重新计算积分限。这里上限从二变成四。",
     ("e_pitfall", "math"): "因此，新变量对应的积分上下限是：",
     ("e_rewrite", "math"): "把变量、微分和上下限都换好，原积分就变成：",
     ("e_primitive", "math"): "指数函数的原函数还是指数函数。按新变量积分，得到：",
@@ -176,7 +176,7 @@ def build(root: Path):
             "event_id": "e_pitfall", "typical_mistake": "换元后仍写旧积分限二",
             "correction": "将新上限算为四并同步更换",
             "spoken_mistake": "最容易错的是只换函数，忘了换上下限。",
-            "spoken_correction": "正确做法是把原来的端点代入 u 等于 x 平方。",
+            "spoken_correction": "正确做法是把原端点代入换元关系，重新计算积分限。",
         }],
         "conclusion": {
             "event_id": "e_conclusion",
