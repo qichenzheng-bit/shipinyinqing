@@ -282,3 +282,67 @@ def test_compiled_curriculum_approval_to_reviewed_video_and_download(studio,tmp_
     job=client.get("/api/v1/jobs/"+rendered.json()["id"]).json()
     assert job["status"]=="succeeded",job
     assert client.get(f"/api/v1/videos/{ident}/download").status_code==200
+
+
+def test_failed_rerender_keeps_old_video_and_all_history_after_source_change(studio):
+    from weiguang_backend.models import EditSessionArchive
+    client,source,archive=studio
+    ident=create_verified(studio)
+    first=client.post(f"/api/v1/lessons/{ident}/render")
+    assert client.get("/api/v1/jobs/"+first.json()["id"]).json()["status"]=="succeeded"
+    with client.app.state.SessionLocal() as db:
+        original=db.get(__import__(
+            "weiguang_backend.models",fromlist=["Lesson"]
+        ).Lesson,ident)
+        prior_movie=Path(original.latest_video)
+        prior_session=Path(original.session_path)
+    assert prior_movie.is_file() and prior_session.exists()
+    changed=client.patch(f"/api/v1/lessons/{ident}",json={
+        "voice":"zh-CN-XiaoxiaoNeural",
+    })
+    assert changed.status_code==200,changed.text
+    assert changed.json()["status"]=="draft"
+    assert client.get(f"/api/v1/videos/{ident}/stream").status_code==404
+    # The old artifacts remain stored and indexed for the global export.
+    assert prior_movie.is_file() and prior_session.is_dir()
+    upload=client.post(f"/api/v1/lessons/{ident}/package",
+        files={"file":("reviewed.zip",archive,"application/zip")})
+    assert upload.status_code==200,upload.text
+    source_file=Path(client.app.state.root)/"lessons"/ident/"package"/"spoken_classroom.json"
+    assert json.loads(source_file.read_text(encoding="utf-8"))["voice"]=="zh-CN-XiaoxiaoNeural"
+    script=client.get(f"/api/v1/lessons/{ident}/script")
+    assert script.status_code==200,script.text
+    approved=client.post(f"/api/v1/lessons/{ident}/approve",json={
+        "reviewer":"source-reviewer","confirmed":True,
+    })
+    assert approved.status_code==200,approved.text
+    second=client.post(f"/api/v1/lessons/{ident}/render")
+    assert second.status_code==202,second.text
+    job=client.get("/api/v1/jobs/"+second.json()["id"]).json()
+    assert job["status"]=="succeeded",job
+    with client.app.state.SessionLocal() as db:
+        lesson=db.get(__import__(
+            "weiguang_backend.models",fromlist=["Lesson"]
+        ).Lesson,ident)
+        assert Path(lesson.latest_video)!=prior_movie
+        assert Path(lesson.session_path)!=prior_session
+        entries=list(db.query(EditSessionArchive).filter_by(lesson_id=ident))
+        assert len(entries)==2
+    assert prior_movie.is_file()
+    assert len(client.get("/api/v1/system/edit-history/export").json()["sessions"])==2
+
+
+def test_api_rejects_unsupported_voice_and_phantom_ai_teacher(tmp_path,monkeypatch):
+    monkeypatch.delenv("WEIGUANG_TEACHER_ENABLED",raising=False)
+    monkeypatch.delenv("MATH_TEACHER_MODEL",raising=False)
+    monkeypatch.delenv("MATH_TEACHER_API_KEY",raising=False)
+    client=TestClient(create_app(data_dir=tmp_path/"store",local_dev=True,eager=True))
+    bad=client.post("/api/v1/lessons",json={
+        "title":"非法音色","problem":"1+1","reference_solution":"2",
+        "voice":"nonexistent-voice",
+    })
+    assert bad.status_code==422
+    item=client.post("/api/v1/lessons",json={
+        "title":"等待模型","problem":"1+1","reference_solution":"2",
+    }).json()
+    assert client.post(f"/api/v1/lessons/{item['id']}/prepare").status_code==409
