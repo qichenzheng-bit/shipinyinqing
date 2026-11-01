@@ -33,6 +33,7 @@ EVENT = frozenset({
 SPAN = frozenset({"kind", "object_id", "parts"})
 TEXT_PART = frozenset({"kind", "value"})
 MATH_PART = frozenset({"kind", "latex", "reading"})
+MATH_PART_WITH_CAPTION = MATH_PART | {"spoken_math_latex"}
 KINDS = frozenset({"diagram", "note", "math"})
 # These are references to an external solution, never legitimate reasons for
 # a mathematical classroom derivation. Saying the answer *is* a number is fine.
@@ -49,7 +50,7 @@ FORBIDDEN = re.compile(
 CLASSROOM_META = re.compile(
     r"(?:上一|下一)(?:页|屏|幕)"
     r"|(?:上|下)一(?:个)?(?:画面|场景|镜头)"
-    r"|(?:计算|展示|演示|公式|板书|答题)区"
+    r"|(?:计算|展示|演示|公式|板书|答题)区(?!间)"
     r"|(?:把|将)[^。！？]{0,20}(?:搬到|移到|接到)(?:计算|展示|板书|公式)区"
 )
 STILTED_TRANSITION = re.compile(
@@ -208,9 +209,16 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
                     text_count += 1
                     voice.append(val)
                     parts.append(dict(p))
-                elif p.get("kind") == "math" and set(p) == MATH_PART:
+                elif p.get("kind") == "math" and set(p) in (MATH_PART, MATH_PART_WITH_CAPTION):
                     from .mathtex_renderer import validate_math_latex
                     validate_math_latex(p["latex"])
+                    if "spoken_math_latex" in p:
+                        caption_math = p["spoken_math_latex"]
+                        if (not isinstance(caption_math, str) or
+                                caption_math == p["latex"] or
+                                caption_math not in p["latex"]):
+                            raise LongboardError("SPOKEN_CAPTION_MATH_NOT_A_REVIEWED_SOURCE_FRAGMENT")
+                        validate_math_latex(caption_math)
                     reading = p["reading"]
                     if (type(reading) is not str or not reading.strip()
                             or "\\" in reading or "$" in reading

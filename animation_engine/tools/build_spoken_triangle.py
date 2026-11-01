@@ -92,7 +92,7 @@ def export_spoken_triangle(root: Path):
                     raise ValueError("SPOKEN_MATH_PRONUNCIATION_NOT_AUTHORED: "+obj)
                 parts=[
                     {"kind":"text","value":text},
-                    {"kind":"math","latex":latex,"reading":reading},
+                    {"kind":"math","latex":latex,"reading":reading, **({"spoken_math_latex":r"8^2+6^2"} if obj=="m_square_handoff" else {})},
                 ]
             else:
                 parts=[{"kind":"text","value":text}]

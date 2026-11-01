@@ -37,17 +37,29 @@ def _now() -> str:
 
 @contextmanager
 def session_lock(root: Path):
+    """OS-held lock: automatically released after crashes, unlike O_EXCL files."""
     flag = root / ".edit_lock"
+    fd = os.open(flag, os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        fd = os.open(flag, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError as exc:
-        raise EditEngineError("EDIT_SESSION_LOCKED") from exc
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(f"{os.getpid()}\n")
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            try:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            except OSError as exc:
+                raise EditEngineError("EDIT_SESSION_LOCKED") from exc
+        else:
+            import fcntl
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise EditEngineError("EDIT_SESSION_LOCKED") from exc
+        os.ftruncate(fd, 0)
+        os.write(fd, f"{os.getpid()}\n".encode())
         yield
     finally:
-        flag.unlink(missing_ok=True)
+        os.close(fd)
+        # The lockfile may remain; kernel-held locks never remain after death.
 
 
 def _state(root: Path) -> dict:

@@ -118,7 +118,7 @@ def checked_flow(input_file: Path | str) -> Flow:
             or len(source["reference_solution_sha256"]) != 64):
         raise LongboardError("FLOW_INVALID_MANIFEST")
     rows = source["stages"]
-    if not isinstance(rows, list) or not 2 <= len(rows) <= 10:
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 64:
         raise LongboardError("FLOW_BAD_STAGE_COUNT")
     stages = []
     names = set()
@@ -255,8 +255,6 @@ def checked_flow(input_file: Path | str) -> Flow:
         ))
         previous_math = maths
         previous_written = written
-    if len({st.engine for st in stages}) < 2:
-        raise LongboardError("FLOW_REQUIRES_DIFFERENT_ENGINES")
     return Flow(source["lesson_id"], source["problem"], canonical_sha(source),
                 tuple(stages))
 

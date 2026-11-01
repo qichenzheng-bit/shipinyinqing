@@ -14,9 +14,15 @@ import json
 import os
 from pathlib import Path
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 from .iterative_edit_ops import EditEngineError
+
+
+class _RejectCredentialRedirects(HTTPRedirectHandler):
+    """Never forward a model API bearer token to a redirected endpoint."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 _SYSTEM = """You are editing the SOURCE of a mathematical classroom video, not
@@ -112,7 +118,7 @@ def make_openai_compatible_agent(config: Path):
                      "Content-Type": "application/json"},
         )
         try:
-            with urlopen(req,timeout=150) as res:
+            with build_opener(_RejectCredentialRedirects()).open(req,timeout=150) as res:
                 if res.status != 200:
                     raise EditEngineError("EDIT_AI_PROVIDER_HTTP_ERROR")
                 doc=json.load(res)
