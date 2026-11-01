@@ -45,7 +45,7 @@ def test_full_necessary_calculation_remains_and_recap_writes_no_new_formula():
     assert by_id["conclusion"]["math"][0]["latex"] == r"I=e^4-1"
     assert by_id["summary"]["math"] == []
     assert "e 的零次方等于一" in NARRATION["e_conclusion", "note"]
-    assert "上限" in NARRATION["e_pitfall", "note"]
+    assert "上下限" in NARRATION["e_pitfall", "note"]
     assert "积分限" in NARRATION["e_summary", "note"] or "上下限" in NARRATION["e_summary", "note"]
 
 
