@@ -219,3 +219,21 @@ def test_approved_narration_uses_maths_not_renderer_as_transition(example):
                if span["object_id"]=="m_hypotenuse_recall")
     assert recap["parts"][0]["value"].endswith("，")
     assert checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_normal_mathematical_interval_word_is_not_interface_meta(example):
+    data=get(example)
+    data["events"][0]["spans"][0]["parts"][0]["value"]="下面计算区间长度。"
+    put(example,data)
+    assert checked_spoken(example/"spoken_classroom.json",adaptive=True)
+
+
+def test_reduced_source_math_caption_is_reviewed_subexpression(example):
+    data=get(example)
+    match=next(s for e in data["events"] for s in e["spans"]
+               if s["object_id"]=="m_square_handoff")
+    assert match["parts"][-1]["spoken_math_latex"]==r"8^2+6^2"
+    match["parts"][-1]["spoken_math_latex"]=r"x=9"
+    put(example,data)
+    with pytest.raises(LongboardError,match="SPOKEN_CAPTION_MATH_NOT_A_REVIEWED_SOURCE_FRAGMENT"):
+        checked_spoken(example/"spoken_classroom.json",adaptive=True)

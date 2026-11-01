@@ -194,31 +194,6 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
             if not isinstance(row, dict) or set(row) not in (SPAN, SPAN_WITH_DIAGRAM_CUES):
                 raise LongboardError("SPOKEN_SPAN_FIELDS")
             diagram_cues = row.get("diagram_phrase_cues", [])
-            if diagram_cues:
-                from .spoken_audio import split_natural_phrases
-                if kind != "diagram" or not isinstance(diagram_cues, list):
-                    raise LongboardError("SPOKEN_DIAGRAM_BEATS_INVALID")
-                candidates = [
-                    phrase for part in row["parts"] if part.get("kind") == "text"
-                    for phrase in split_natural_phrases(part.get("value", ""))
-                ]
-                actual_ids = []
-                phrase_positions = []
-                for cue in diagram_cues:
-                    if (not isinstance(cue, dict) or
-                            set(cue) != {"object_id", "phrase"} or
-                            cue["object_id"] not in planned["diagram_reveal_ids"] or
-                            cue["phrase"] not in candidates):
-                        raise LongboardError("SPOKEN_DIAGRAM_BEATS_UNSOURCED")
-                    actual_ids.append(cue["object_id"])
-                    phrase_positions.append(candidates.index(cue["phrase"]))
-                ordered_ids = planned["diagram_reveal_ids"]
-                if (len(set(actual_ids)) != len(actual_ids) or
-                        actual_ids != sorted(actual_ids, key=ordered_ids.index) or
-                        phrase_positions != sorted(phrase_positions)):
-                    raise LongboardError("SPOKEN_DIAGRAM_BEATS_ORDER")
-            elif "diagram_phrase_cues" in row and kind != "diagram":
-                raise LongboardError("SPOKEN_DIAGRAM_BEATS_INVALID")
             if (row["kind"], row["object_id"]) != (kind, ident):
                 raise LongboardError("SPOKEN_ACTION_ORDER")
             if not isinstance(row["parts"], list) or not row["parts"]:
@@ -273,6 +248,44 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
                 raise LongboardError("SPOKEN_CLASSROOM_META_LANGUAGE")
             if STILTED_TRANSITION.search(actual):
                 raise LongboardError("SPOKEN_STILTED_TRANSITION")
+            if diagram_cues:
+                from .spoken_audio import split_natural_phrases
+                if kind != "diagram" or not isinstance(diagram_cues, list):
+                    raise LongboardError("SPOKEN_DIAGRAM_BEATS_INVALID")
+                candidates = [
+                    phrase for part in parts if part["kind"] == "text"
+                    for phrase in split_natural_phrases(part["value"])
+                ]
+                requested = []
+                positions = []
+                missing_phrase = False
+                for cue in diagram_cues:
+                    if (not isinstance(cue, dict) or
+                            set(cue) != {"object_id", "phrase"} or
+                            cue["object_id"] not in planned["diagram_reveal_ids"] or
+                            type(cue["phrase"]) is not str):
+                        raise LongboardError("SPOKEN_DIAGRAM_BEATS_UNSOURCED")
+                    if cue["phrase"] not in candidates:
+                        missing_phrase = True
+                    else:
+                        positions.append(candidates.index(cue["phrase"]))
+                    requested.append(cue["object_id"])
+                ids = planned["diagram_reveal_ids"]
+                if (len(set(requested)) != len(requested) or
+                        requested != sorted(requested, key=ids.index)):
+                    raise LongboardError("SPOKEN_DIAGRAM_BEATS_ORDER")
+                if missing_phrase:
+                    # A free-language edit can replace the whole explanation.
+                    # If it makes no promise to draw or label anything, fall
+                    # back to event timing instead of rejecting unrelated text.
+                    # Any actual drawing command MUST keep reviewed anchors.
+                    if re.search(r"画出|绘制|连接|连线|标出|标上|画直角|画线", actual):
+                        raise LongboardError("SPOKEN_DIAGRAM_BEATS_UNSOURCED")
+                    diagram_cues = []
+                elif positions != sorted(positions):
+                    raise LongboardError("SPOKEN_DIAGRAM_BEATS_ORDER")
+            elif "diagram_phrase_cues" in row and kind != "diagram":
+                raise LongboardError("SPOKEN_DIAGRAM_BEATS_INVALID")
             checked.append(SpokenSpan(kind, ident, tuple(parts), actual, latex,
                                      tuple(dict(c) for c in diagram_cues)))
         validated.append(SpokenEvent(

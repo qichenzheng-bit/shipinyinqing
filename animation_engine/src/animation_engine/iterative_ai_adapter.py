@@ -25,6 +25,11 @@ class _RejectCredentialRedirects(HTTPRedirectHandler):
         return None
 
 
+def urlopen(req, timeout):
+    """Compatibility injection seam, with secure no-redirect default."""
+    return build_opener(_RejectCredentialRedirects()).open(req, timeout=timeout)
+
+
 _SYSTEM = """You are editing the SOURCE of a mathematical classroom video, not
 writing an ordinary chat answer. The current fully-verified package is provided
 as JSON files, and the user's EXACT request may contain ANY language and ANY
@@ -118,7 +123,7 @@ def make_openai_compatible_agent(config: Path):
                      "Content-Type": "application/json"},
         )
         try:
-            with build_opener(_RejectCredentialRedirects()).open(req,timeout=150) as res:
+            with urlopen(req,timeout=150) as res:
                 if res.status != 200:
                     raise EditEngineError("EDIT_AI_PROVIDER_HTTP_ERROR")
                 doc=json.load(res)

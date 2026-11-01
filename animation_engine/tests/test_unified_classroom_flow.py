@@ -105,7 +105,6 @@ def test_flow_does_not_fabricate_a_new_area_integral(project):
     ("nonadjacent","FLOW_HANDOFF_NONADJACENT"),
     ("duplicate_handoff","FLOW_DUPLICATE_HANDOFF"),
     ("fake_first_handoff","FLOW_FIRST_STAGE_CANNOT_HANDOFF"),
-    ("skip_stage","FLOW_BAD_STAGE_COUNT"),
 ])
 def test_flow_fails_closed_on_unreviewed_math_or_order(project,change,error):
     bad=read(project)
@@ -126,10 +125,18 @@ def test_flow_fails_closed_on_unreviewed_math_or_order(project,change,error):
     elif change=="nonadjacent": bridge["from_stage"]="other"
     elif change=="duplicate_handoff": b["handoff"].append(dict(bridge))
     elif change=="fake_first_handoff": a["handoff"]=[dict(bridge)]
-    elif change=="skip_stage": bad["stages"].pop()
     write(project,bad)
     with pytest.raises(LongboardError,match=error):
         checked_flow(project/"unified_flow.json")
+
+
+def test_single_engine_source_flow_is_valid_without_fake_second_engine(project):
+    payload=read(project)
+    payload["stages"].pop()
+    write(project,payload)
+    verified=checked_flow(project/"unified_flow.json")
+    assert len(verified.stages)==1
+    assert verified.stages[0].engine=="diagram"
 
 
 def test_source_package_mutation_must_be_rejected(project):
