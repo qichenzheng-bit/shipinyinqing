@@ -223,6 +223,88 @@
       '<button class="iconbtn" data-delete-project="'+escapeHTML(p.id)+'">删除</button></td></tr>'
     ).join(''):'<tr><td colspan="3">暂无项目</td></tr>')+
     '</tbody></table></div></div>';
+  const modelSettings = () => {
+    const current=state.ai.providers.find(x=>x.id===state.ai.providerId);
+    const preset=state.ai.catalog.find(p=>p.id===state.ai.preset)||
+      state.ai.catalog[0]||{id:'custom',label:'自定义',base_url:'',protocol:'openai_chat'};
+    const family=current||preset;
+    const protocols=[
+      ['openai_chat','OpenAI 兼容接口'],
+      ['anthropic_messages','Claude Messages'],
+      ['gemini_generate','Gemini GenerateContent'],
+    ];
+    const tasks=[
+      ['teacher','数学教师 A / B / C'],
+      ['curriculum','课堂编排'],
+      ['edit','视频微调'],
+    ];
+    return head('模型 API',button('返回设置','back-ai-settings'))+
+      '<div class="api-layout"><section class="panel">'+
+      '<h2>服务商连接</h2>'+
+      '<div class="field"><label for="ai-provider-choice">已保存连接</label>'+
+      '<select class="select" id="ai-provider-choice">'+
+      '<option value="">＋ 新建连接</option>'+
+      state.ai.providers.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
+        (state.ai.providerId===p.id?'selected':'')+'>'+escapeHTML(p.name)+'</option>').join('')+
+      '</select></div>'+
+      '<div class="field"><label for="ai-preset">服务商</label>'+
+      '<select class="select" id="ai-preset" '+(current?'disabled':'')+'>'+
+      state.ai.catalog.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
+        (family.id===p.id||(!current&&state.ai.preset===p.id)?'selected':'')+'>'+
+        escapeHTML(p.label)+'</option>').join('')+'</select></div>'+
+      '<div class="field"><label for="ai-name">连接名称</label>'+
+      '<input class="input" id="ai-name" value="'+escapeHTML(family.name||preset.label)+'" maxlength="120"></div>'+
+      '<div class="field"><label for="ai-protocol">接口协议</label>'+
+      '<select class="select" id="ai-protocol">'+protocols.map(([id,label])=>
+        '<option value="'+id+'" '+(family.protocol===id?'selected':'')+'>'+label+'</option>'
+      ).join('')+'</select></div>'+
+      '<div class="field"><label for="ai-url">API Base URL</label>'+
+      '<input class="input" id="ai-url" spellcheck="false" value="'+
+      escapeHTML(family.base_url||'')+'" placeholder="https://.../v1"></div>'+
+      '<div class="field"><label for="ai-key">API Key</label>'+
+      '<input class="input" type="password" autocomplete="new-password" id="ai-key" '+
+      'placeholder="'+(current?.has_key?'密钥已安全保存；留空则不修改':'仅提交至后端加密保存')+'"></div>'+
+      '<label class="api-check"><input id="ai-json-mode" type="checkbox" '+
+      (current?.json_mode?'checked':'')+'> 启用服务商 JSON 模式（可选）</label>'+
+      '<div class="actions" style="margin-top:20px">'+
+      button('保存连接','ai-save-provider','primary')+
+      (current?button('删除连接','ai-delete-provider','danger'):'')+'</div>'+
+      (state.ai.status&&!state.ai.status.secret_store_ready?
+        '<div class="notice">服务器尚未配置模型密钥加密主钥。</div>':'')+
+      '</section><section class="panel">'+
+      '<h2>模型与版本</h2>'+
+      (current?'<div class="actions" style="margin-bottom:17px">'+
+        button('读取模型列表','ai-discover')+'</div>':
+        '<div class="notice">请先保存一个服务商连接。</div>')+
+      '<div class="field"><label for="ai-versions">服务商返回的模型版本</label>'+
+      '<select class="select" id="ai-versions">'+
+      '<option value="">手动输入模型 ID</option>'+
+      state.ai.versions.map(m=>'<option value="'+escapeHTML(m.id)+'" '+
+        (state.ai.modelId===m.id?'selected':'')+'>'+
+        escapeHTML(m.label===m.id?m.id:m.label+' · '+m.id)+'</option>').join('')+
+      '</select></div>'+
+      '<div class="field"><label for="ai-manual-model">模型 ID / 精确版本</label>'+
+      '<input class="input" id="ai-manual-model" spellcheck="false" maxlength="200" value="'+
+      escapeHTML(state.ai.modelId)+'" placeholder="如服务商控制台中的完整模型 ID"></div>'+
+      (state.ai.discovery?'<div class="muted small api-hint">'+escapeHTML(state.ai.discovery)+'</div>':'')+
+      '<div class="field"><label for="ai-target">应用到</label>'+
+      '<select class="select" id="ai-target">'+
+      [['all','全部三个模块'],...tasks].map(([task,label])=>
+        '<option value="'+task+'" '+(state.ai.targetTask===task?'selected':'')+'>'+
+        label+'</option>').join('')+'</select></div>'+
+      '<div class="actions">'+button('测试模型连接','ai-test')+
+      button('应用模型版本','ai-assign','primary')+'</div>'+
+      (state.ai.testStatus?'<div class="notice">'+escapeHTML(state.ai.testStatus)+'</div>':'')+
+      '<h2 style="margin-top:32px">当前使用</h2>'+
+      tasks.map(([task,label])=>{
+        const selected=state.ai.bindings[task];
+        return '<div class="setting-row api-task-row"><span>'+label+'</span>'+
+          '<span class="muted">'+escapeHTML(selected?
+            selected.provider_name+' / '+selected.model_id:'未设置')+'</span></div>';
+      }).join('')+
+      '</section></div>'+
+      '<div class="muted small api-footnote">模型以当前账号实际开放的版本为准；列表不可用时可以手动输入。只有通过 JSON 输出验证的文本模型适合本系统的数学课程流程。</div>';
+  };
   const trash = () => head('回收站',button('返回视频库','go-library'))+
     '<div class="table-wrap"><table><thead><tr><th>序号</th><th>视频名称</th><th>操作</th></tr></thead><tbody>'+
     (state.trash.length?state.trash.map((l,i)=>
