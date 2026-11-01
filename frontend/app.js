@@ -4,9 +4,9 @@
   const root = document.getElementById('app');
   const $ = sel => document.querySelector(sel);
   const state = {
-    route:'work', lessons:[], videos:[], selected:new Set(), search:'',
+    route:'work', lessons:[], videos:[], projects:[], selected:new Set(), projectSelected:new Set(), search:'',
     lesson:null, script:'', teacher:null, curriculum:null, job:null, loading:false, error:'',
-    modal:null, notice:'', trash:[], settings:null,
+    modal:null, notice:'', trash:[], projectTrash:[], settings:null,
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, s => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
@@ -74,6 +74,9 @@
     '<div class="field"><label for="title">视频名称</label><input class="input" id="title" name="title" required maxlength="180" placeholder="例如：定积分与换元法"></div>'+
     '<div class="field"><label for="problem">数学题目</label><textarea class="area" id="problem" name="problem" required placeholder="输入题目、条件及设问"></textarea></div>'+
     '<div class="field"><label for="solution">参考解析</label><textarea class="area" id="solution" name="reference_solution" required placeholder="输入完整参考解析"></textarea></div>'+
+    '<div class="field"><label for="project">所属项目</label><select class="select" id="project" name="project_id"><option value="">未分组</option>'+
+    state.projects.map(p=>'<option value="'+escapeHTML(p.id)+'">'+escapeHTML(p.title)+'</option>').join('')+
+    '</select></div>'+
     '<div class="cols"><div class="field"><label for="voice">音色</label><select class="select" id="voice" name="voice">'+
     '<option value="zh-CN-YunxiNeural">云希</option><option value="zh-CN-XiaoxiaoNeural">晓晓</option></select></div>'+
     '<div class="field"><label for="fps">帧率</label><select class="select" id="fps" name="fps">'+
@@ -217,8 +220,9 @@
     }
   };
   const refresh = async () => {
-    state.lessons=await api('/lessons');
-    state.videos=await api('/videos');
+    [state.lessons,state.videos,state.projects]=await Promise.all([
+      api('/lessons'),api('/videos'),api('/projects'),
+    ]);
   };
   const selectLesson = async id => {
     state.lesson=await api('/lessons/'+encodeURIComponent(id));
@@ -270,6 +274,7 @@
       const l=await api('/lessons',options('POST',{
         title:form.get('title'),problem:form.get('problem'),
         reference_solution:form.get('reference_solution'),
+        project_id:form.get('project_id')||null,
         voice:form.get('voice'),fps:Number(form.get('fps')),
       }));
       await refresh();
