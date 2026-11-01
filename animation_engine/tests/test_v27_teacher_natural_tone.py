@@ -7,7 +7,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "fixtures"))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures"))
 
 from animation_engine.spoken_audio import split_natural_phrases
 from build_novel_substitution_integral import UNITS, NARRATION, AFTER_MATH, READINGS
