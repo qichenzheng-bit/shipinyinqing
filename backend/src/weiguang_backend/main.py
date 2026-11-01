@@ -205,6 +205,13 @@ def create_app(
         return root/"lessons"/ident
 
     def job_add(db: Session, lesson: Lesson,kind: str,edit_id=None):
+        # PostgreSQL row-lock serializes concurrent submissions for one lesson.
+        # A second request cannot enqueue while the first one commits.
+        locked=db.scalar(select(Lesson).where(
+            Lesson.id==lesson.id,
+        ).with_for_update())
+        if locked is None or locked.deleted_at is not None:
+            raise HTTPException(404,"LESSON_NOT_FOUND")
         existing=db.scalars(select(Job).where(
             Job.lesson_id==lesson.id,Job.status.in_(("queued","running"))
         )).first()
@@ -912,7 +919,7 @@ def create_app(
             if pending:
                 raise HTTPException(409,"EDIT_PREVIOUS_REVIEW_PENDING")
             row=EditRecord(lesson_id=id,original_instruction=data.instruction)
-            db.add(row);db.commit();db.refresh(row)
+            db.add(row);db.flush()
             trusted=bool(
                 os.environ.get("WEIGUANG_MATH_REVIEWER")
                 and os.environ.get("WEIGUANG_SCRIPT_REVIEWER")
