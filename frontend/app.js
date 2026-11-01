@@ -5,7 +5,7 @@
   const $ = sel => document.querySelector(sel);
   const state = {
     route:'work', lessons:[], videos:[], projects:[], selected:new Set(), projectSelected:new Set(), search:'',
-    lesson:null, script:'', teacher:null, curriculum:null, job:null, loading:false, error:'',
+    lesson:null, script:'', teacher:null, curriculum:null, pendingEdit:null, job:null, loading:false, error:'',
     modal:null, notice:'', trash:[], projectTrash:[], settings:null,
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, s => ({
@@ -139,6 +139,8 @@
         '</div><div class="upload"><input type="file" id="package-upload" accept=".zip"/>'+
         button('上传已审核课程包','upload-package')+'</div></div>':'')+
       (l.status==='script_pending'?'<div class="edit-section"><h2>讲稿审核</h2>'+button('查看完整讲稿','open-review','primary')+'</div>':'')+
+      (state.pendingEdit?'<div class="notice"><div class="row spread"><span>微调候选：'+escapeHTML(label(state.pendingEdit.status))+'</span>'+
+        button('审核修改','view-edit-review')+'</div></div>':'')+
       (l.has_video?'<section class="edit-section"><h2>继续微调</h2>'+
         '<textarea class="area" id="instruction" placeholder="输入要修改的地方，可一次提出多个要求"></textarea>'+
         '<div class="row spread" style="margin-top:14px"><span class="muted small">只显示最新成功视频</span>'+
@@ -169,6 +171,23 @@
     '<input class="input" id="curriculum-reviewer" placeholder="填写审核人"></div>'+
     '<label class="row" style="margin-bottom:22px"><input class="check" type="checkbox" id="curriculum-check">已核对数学、板书与口播</label>'+
     button('确认课堂编排','approve-curriculum','primary')+'</div>';
+  const editReview = () => {
+    const p=state.pendingEdit;
+    if(!p)return head('微调审核')+blank('没有待审核的微调');
+    return head('微调审核',button('返回视频','back-to-detail'))+
+      '<div class="video-card"><h2>本轮要求</h2><div class="script">'+
+      escapeHTML(p.original_instruction)+'</div>'+
+      '<h2 style="margin-top:30px">修改计划</h2><div class="script">'+
+      (p.requirements||[]).map((x,i)=>(i+1)+'. '+escapeHTML(x.instruction)+
+      ' · '+escapeHTML(x.target)).join('<hr class="hr"/>')+'</div>'+
+      (p.script?'<h2 style="margin-top:30px">完整口播与板书脚本</h2>'+
+      '<div class="script">'+escapeHTML(p.script)+'</div>':'')+
+      '<div class="field" style="margin-top:24px"><label for="edit-reviewer">审核人</label>'+
+      '<input class="input" id="edit-reviewer" placeholder="填写审核人"></div>'+
+      '<label class="row" style="margin-bottom:20px"><input class="check" type="checkbox" id="edit-review-check">已检查本轮数学与讲稿</label>'+
+      '<div class="actions">'+button('批准并生成视频','approve-edit','primary')+
+      button('退回修改','reject-edit')+'</div></div>';
+  };
   const review = () => head('讲稿审核',button('返回课程','back-to-detail'))+
     '<div class="video-card"><div class="row spread" style="margin-bottom:17px"><h2>完整教师讲稿</h2><span class="muted small">待审核</span></div>'+
     '<div class="script" id="script-content">'+escapeHTML(state.script)+'</div>'+
@@ -217,6 +236,7 @@
       state.route==='work'?work():state.route==='library'?library():
       state.route==='detail'?detail():state.route==='review'?review():
       state.route==='teacher'?teacherView():state.route==='curriculum'?curriculumView():
+      state.route==='edit-review'?editReview():
       state.route==='trash'?trash():state.route==='login'?login():settings()
     )+'</main>'+modal();
     if(state.route==='work') {
@@ -236,9 +256,14 @@
     ]);
   };
   const selectLesson = async id => {
-    state.lesson=await api('/lessons/'+encodeURIComponent(id));
-    const jobs=await api('/jobs?lesson_id='+encodeURIComponent(id)+'&limit=1');
+    const [lesson,jobs,pending]=await Promise.all([
+      api('/lessons/'+encodeURIComponent(id)),
+      api('/jobs?lesson_id='+encodeURIComponent(id)+'&limit=1'),
+      api('/videos/'+encodeURIComponent(id)+'/edits/pending'),
+    ]);
+    state.lesson=lesson;
     state.job=jobs[0]||null;
+    state.pendingEdit=pending.pending;
     state.route='detail';render();
     if(state.job && ['queued','running'].includes(state.job.status)){
       watch(state.job.id);
@@ -252,7 +277,7 @@
         if(state.job.status==='succeeded' || state.job.status==='failed' ||
            state.job.status==='cancelled'){
           await refresh();
-          if(state.lesson)state.lesson=await api('/lessons/'+state.lesson.id);
+          if(state.lesson)await selectLesson(state.lesson.id);
           render();
           flash(state.job.status==='succeeded'?'任务完成':state.job.error||'任务失败',
                 state.job.status!=='succeeded');
@@ -484,6 +509,32 @@
         const result=await api('/lessons/'+state.lesson.id+'/render',options('POST',{}));
         state.job=result;
         watch(result.id);flash('渲染任务已创建');
+      });
+    } else if(id==='view-edit-review'){
+      state.route='edit-review';render();
+    } else if(id==='approve-edit'){
+      const reviewer=$('#edit-reviewer')?.value?.trim();
+      if(!reviewer||!$('#edit-review-check')?.checked)
+        return flash('请核对修改内容并填写审核人',true);
+      exec(async()=>{
+        const record=state.pendingEdit;
+        const response=await api(
+          '/videos/'+state.lesson.id+'/edits/'+record.edit_id+'/approve',
+          options('POST',{reviewer,confirmed:true}),
+        );
+        state.job=response.job;
+        await selectLesson(state.lesson.id);
+        watch(response.job.id);
+        flash('审核已通过，开始生成新版视频');
+      });
+    } else if(id==='reject-edit'){
+      exec(async()=>{
+        const record=state.pendingEdit;
+        await api('/videos/'+state.lesson.id+'/edits/'+record.edit_id+'/reject',
+          options('POST',{}));
+        state.pendingEdit=null;
+        await selectLesson(state.lesson.id);
+        flash('已退回此轮修改');
       });
     } else if(id==='send-edit'){
       const instruction=$('#instruction')?.value?.trim();
