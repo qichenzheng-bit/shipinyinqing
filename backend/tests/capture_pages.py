@@ -78,6 +78,12 @@ def seed(app,base):
                 "schema_version":"1.0","status":"pending",
                 "instruction":"结尾总结再简洁一点",
                 "source_revision":0,
+                "changed":["spoken_classroom.json"],
+                "candidate_digests":{},
+                "script_sha256":None,
+                "source_spoken_sha256":"fixture",
+                "reviewer":None,
+                "reviewer_required":True,
                 "plan":{"requirements":[{
                     "id":"r1","instruction":"结尾总结再简洁一点",
                     "target":"归纳总结","operation_ids":["o1"],
