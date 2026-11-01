@@ -179,3 +179,32 @@ def run_real_edit(session: Path, instruction: str, *, ai_config: Path,
         session,instruction,make_openai_compatible_agent(ai_config),
         math_reviewer=math_reviewer,script_reviewer=script_reviewer,
     )
+
+
+
+def prepare_teacher_draft(
+    *, problem: str, reference_solution: str, output: Path,
+) -> dict:
+    """Run authentic MathTeacher A/B/C; never mislabel it an engine package.
+
+    A complete source-approved voiced course still requires conversion to the
+    strict unified-flow/spoken-classroom contract and teacher review.
+    """
+    from math_teacher.models import TeacherInput
+    from math_teacher.pipeline import MathTeacherPipeline
+    from math_teacher.provider import OpenAICompatibleJsonModel
+    provider=OpenAICompatibleJsonModel()
+    candidate=MathTeacherPipeline(provider).run(
+        TeacherInput(problem=problem,reference_solution=reference_solution),
+        allow_needs_review=True,
+    )
+    output=Path(output)
+    output.parent.mkdir(parents=True,exist_ok=True)
+    payload=candidate.model_dump(mode="json")
+    from animation_engine.iterative_edit_ops import atomic_json
+    atomic_json(output,payload)
+    return {
+        "status":"teacher_draft_needs_review",
+        "validation":payload["validation"],
+        "candidate_sha256":candidate.validated_content_sha256,
+    }
