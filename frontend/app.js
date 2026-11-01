@@ -124,7 +124,9 @@
       '<span class="muted small">1280 × 720 · '+escapeHTML(l.fps)+' FPS</span>'+
       '<div class="actions">'+actions+'</div></div>'+
       (state.job&&state.job.lesson_id===l.id?
-      '<div class="notice">任务：'+escapeHTML(state.job.phase||label(state.job.status))+'</div>':'')+
+      '<div class="notice">任务：'+escapeHTML(state.job.phase||label(state.job.status))+
+      (state.job.status==='failed'?'<div style="margin-top:12px">'+
+      button('重试任务','retry-job')+'</div>':'')+'</div>':'')+
       ((l.status==='draft'||l.status==='package_needed'||l.status==='teacher_review_pending')?
         '<div class="edit-section"><h2>课程资料</h2><div class="actions" style="margin-bottom:19px">'+
         (l.status==='draft'?button('生成教学草稿','generate-teacher','primary'):'')+
@@ -206,7 +208,12 @@
   };
   const selectLesson = async id => {
     state.lesson=await api('/lessons/'+encodeURIComponent(id));
+    const jobs=await api('/jobs?lesson_id='+encodeURIComponent(id)+'&limit=1');
+    state.job=jobs[0]||null;
     state.route='detail';render();
+    if(state.job && ['queued','running'].includes(state.job.status)){
+      watch(state.job.id);
+    }
   };
   const watch = id => {
     let rounds=0;
@@ -370,6 +377,12 @@
           options('POST',{reviewer,confirmed:true}));
         await selectLesson(state.lesson.id);
         await refresh();flash('讲稿审核通过');
+      });
+    } else if(id==='retry-job'){
+      if(!state.job)return;
+      exec(async()=>{
+        const retry=await api('/jobs/'+state.job.id+'/retry',options('POST',{}));
+        state.job=retry;watch(retry.id);flash('已重新排队');
       });
     } else if(id==='start-render'){
       exec(async()=>{
