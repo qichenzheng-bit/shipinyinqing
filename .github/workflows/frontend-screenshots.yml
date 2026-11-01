@@ -19,6 +19,8 @@ jobs:
           python -m playwright install chromium --with-deps
       - name: Click every frontend screen against real FastAPI
         run: python backend/tests/capture_pages.py
+      - name: Capture actual Windows launcher local and HTTPS screens
+        run: python desktop/tests/capture_launcher.py
       - name: Install CJK font and FFmpeg
         run: |
           sudo apt-get update -qq
@@ -28,5 +30,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: weiguang-browser-and-ffmpeg-watermark-frames
-          path: frontend/screenshots/*.png
+          path: |
+            frontend/screenshots/*.png
+            desktop/screenshots/*.png
           if-no-files-found: error
