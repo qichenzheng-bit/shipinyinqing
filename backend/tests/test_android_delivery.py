@@ -33,6 +33,8 @@ def test_android_server_origin_is_single_remote_https_source():
     assert "setAllowFileAccess(false)" in source
     assert "setAcceptThirdPartyCookies(view, false)" in source
     assert "handler.cancel()" in source
+    assert "getWindow().getInsetsController()" not in source
+    assert "root.post(() ->" in source
     assert "onShowFileChooser" in source
     assert "setDownloadListener" in source
     assert "addJavascriptInterface" not in source
