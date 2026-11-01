@@ -418,7 +418,6 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
     events=[]
     all_math=set()
     last_event_id=None
-    last_conclusion_ids=[]
     opening_readout_ids=set()
     pending_proof_row=None
     shown_diagram=[]
@@ -465,6 +464,36 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         if knowledge_id is not None and not paired:
             raise LongboardError(
                 "COMPUTATION_KNOWLEDGE_LAYOUT_MISMATCH: "+scene.event_id
+            )
+        # Summary is a compact visual review. Only refer to *already shown*
+        # knowledge and risk notes, never fabricate a new result or reread
+        # the full explanation. Keep the actual answer in the conclusion.
+        recap_references=[]
+        if cue["phase"] == "summary":
+            prior_knowledge=[]
+            prior_pitfalls=[]
+            for earlier_index,earlier in enumerate(events):
+                older_cue=sequence[earlier_index][2]
+                if older_cue["phase"] not in ("knowledge","pitfall"):
+                    continue
+                older_note=next(
+                    (b for b in earlier["added_blocks"]
+                     if b["kind"]=="teacher_note" and not b.get("carry")),None
+                )
+                older_math=[
+                    b["block_id"] for b in earlier["added_blocks"]
+                    if b["kind"]=="math" and not b.get("carry")
+                    and b["block_id"] in written
+                ]
+                if older_cue["phase"]=="knowledge" and older_math:
+                    prior_knowledge.append((older_cue,older_note,older_math))
+                elif older_cue["phase"]=="pitfall" and older_note:
+                    prior_pitfalls.append((older_cue,older_note,[]))
+            # At most the latest 2 core facts and 2 genuine pitfalls;
+            # adapt if a lesson has no such events. No answer is carried.
+            recap_references=(
+                [("knowledge",*item) for item in prior_knowledge[-2:]]
+                + [("pitfall",*item) for item in prior_pitfalls[-2:]]
             )
         note_needed=(cue["phase"] in BOARD_GUIDANCE_PHASES
                      and cue["phase"] != "conclusion"
@@ -584,7 +613,38 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                         )
                     additions.append({"kind":"math","block_id":mid,**item})
                     y+=item["h"]+BOARD_ROW_GAP
-            if note_needed and not newids:
+            if cue["phase"]=="summary" and recap_references:
+                for phase,source_cue,source_note,source_math in recap_references:
+                    caption=(
+                        "核心知识："+source_cue["heading"]
+                        if phase=="knowledge"
+                        else "易错点："+source_cue["heading"]
+                    )
+                    detail=source_cue["detail"] if phase=="pitfall" else ""
+                    recap_lines=_note_lines(detail) if detail else []
+                    recap_h=NOTE_HEIGHT+len(recap_lines)*NOTE_DETAIL_LINE_HEIGHT+5
+                    additions.append({
+                        "kind":"teacher_note",
+                        "block_id":"recap:note:"+source_cue["event_id"],
+                        "event_id":scene.event_id,
+                        "phase":phase,
+                        "heading":caption,"detail":detail,"lines":recap_lines,
+                        "source_step_ids":list(source_cue["source_step_ids"]),
+                        "source_block_id":source_note["block_id"] if source_note else None,
+                        "carry":True,"recap_review":True,
+                        "x":BOARD_X,"y":y,"w":BOARD_WIDTH,"h":recap_h,
+                    })
+                    y+=recap_h+BOARD_ROW_GAP
+                    for mid in source_math:
+                        item=_math_placement(
+                            mid,sources,selected,size_of,size_cache,y
+                        )
+                        additions.append({
+                            "kind":"math","block_id":mid,"carry":True,
+                            "recap_review":True,"source_object_id":mid,**item,
+                        })
+                        y+=item["h"]+BOARD_ROW_GAP
+            if note_needed and not newids and not recap_references:
                 y+=BOARD_ROW_GAP
             return additions,y
         proof_layout_mode="stacked"
@@ -640,7 +700,9 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
         clear=False
         carry_rows=[]
         diagram_carry_ids=[]
-        if next_y>BOARD_BOTTOM_Y:
+        if next_y>BOARD_BOTTOM_Y or (
+                cue["phase"]=="summary" and bool(active)
+            ):
             if not active:
                 raise LongboardError(
                     f"CHALKBOARD_EVENT_TOO_TALL: {scene.event_id}"
@@ -664,19 +726,13 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             # Copying results follows a real classroom's new page and never
             # implies calculating them before the original teacher event.
             carryids=(
+                [] if cue["phase"]=="summary" else
                 proof.carry_at(scene.event_id,written)
                 if proof is not None
                 else computation.carry_at(scene.event_id,written)
                 if computation is not None
                 else [mid for mid in selected.result_ids if mid in written]
             )
-            if cue["phase"] == "summary" and last_conclusion_ids:
-                # Even when a generic board policy does not enumerate
-                # result_ids, the *actual verified* conclusion is mandatory
-                # context for a recap. No answer is recomputed or invented.
-                carryids = list(dict.fromkeys(
-                    list(carryids) + [m for m in last_conclusion_ids if m in written]
-                ))
             carried=[]
             carry_rows=[]
             if proof is not None and carryids:
@@ -712,8 +768,10 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
                          else "COMPUTATION_MANDATORY_CARRY_OVERFLOW: ")+
                         scene.event_id
                     )
-                if cue["phase"] == "summary" and last_conclusion_ids:
-                    raise LongboardError("CHALKBOARD_RECAP_RESULT_MUST_SURVIVE")
+                # Optional historical result carry may be skipped.
+                # Summary reviews are source-backed; never silently omit them.
+                if cue["phase"]=="summary" and recap_references:
+                    raise LongboardError("CHALKBOARD_RECAP_REVIEW_OVERFLOW")
                 # Legacy classroom mode: optional carry may be skipped.
                 carried=[]
                 cursor=page_start_y
@@ -798,10 +856,12 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "speech_only_actions":speech_only_actions,
             "visible_block_ids":[a["block_id"] for a in active],
             "pause_seconds":cue["pause_seconds"],
+            "recap_review_source_ids":[
+                b.get("source_object_id",b.get("source_block_id"))
+                for b in added if b.get("recap_review")
+            ],
             "write_seconds":cue["write_seconds"],
         })
-        if cue["phase"] == "conclusion":
-            last_conclusion_ids = list(newids)
         last_event_id=scene.event_id
     if pending_proof_row is not None:
         raise LongboardError("PROOF_UNFINISHED_HORIZONTAL_ROW")
@@ -1294,7 +1354,14 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             if ident in active:
                                 raise LongboardError("CHALKBOARD_DUPLICATE_LIVE_OBJECT")
                             if block.get("carry"):
-                                obj=build_math(block)
+                                if block["kind"]=="teacher_note":
+                                    from manim import ImageMobject
+                                    obj=ImageMobject(str(
+                                        temp/(ident.replace(":","_")+".png")
+                                    ))
+                                    obj.scale_to_fit_width(fw).move_to([0,0,0])
+                                else:
+                                    obj=build_math(block)
                                 self.add(obj)
                                 active[ident]=obj
                                 continue
