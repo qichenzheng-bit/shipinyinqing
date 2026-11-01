@@ -22,7 +22,7 @@ ROOT = frozenset({
     "schema_version", "mode", "teacher_reviewed", "source_flow_sha256",
     "voice", "events",
 })
-OPTIONAL_ROOT = frozenset({"speech_rate"})
+OPTIONAL_ROOT = frozenset({"speech_rate", "lesson_contract"})
 # Previously approved Yunxi speech used -4%. +1% is approximately 5.2%
 # faster in the Edge TTS speed setting; exact acoustic duration is measured.
 DEFAULT_SPEECH_RATE = "+1%"
@@ -152,7 +152,7 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
                    measure=None) -> SpokenContract:
     path = Path(input_file).resolve()
     doc = _load(path)
-    if (set(doc) not in (ROOT, ROOT | OPTIONAL_ROOT) or doc["schema_version"] != "1.0"
+    if (not ROOT.issubset(doc) or not set(doc).issubset(ROOT | OPTIONAL_ROOT) or doc["schema_version"] != "1.0"
             or doc["mode"] != "verified_spoken_classroom"
             or doc["teacher_reviewed"] is not True):
         raise LongboardError("SPOKEN_INVALID_MANIFEST")
@@ -310,6 +310,9 @@ def checked_spoken(input_file: Path | str, *, adaptive=False,
         validated.append(SpokenEvent(
             recorded["stage_id"], recorded["event_id"], tuple(checked)
         ))
+    if "lesson_contract" in doc:
+        from .v27_teacher_contract import check_v27_teacher_contract
+        check_v27_teacher_contract(flow, tuple(validated), doc["lesson_contract"])
     return SpokenContract(flow, canonical_sha(doc), doc["voice"], tuple(validated), rate)
 
 
