@@ -258,8 +258,10 @@ def test_history_export_is_revision_locked(session, tmp_path):
 
 @pytest.mark.parametrize("protected", [
     "edit_session.json",
+    "latest_manifest.json",
     "versions/0000/movie_manifest.json",
     "attempts/0001/accidental.json",
+    "render_cache/raw_stage/ab/record.json",
 ])
 def test_history_export_never_overwrites_edit_session_files(session, protected):
     destination = session / protected
