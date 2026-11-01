@@ -1003,9 +1003,17 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                             or not x["math_start_delay"] < x["math_end_delay"] <= x["duration"]
                         )) for x in spans)):
                 raise LongboardError("CHALKBOARD_NARRATION_ACTION_MISMATCH")
+    emphasis_fragments={}
+    if narration_events:
+        for action_list in narration_events.values():
+            for action in action_list:
+                for beat in action.get("math_emphasis_beats", []):
+                    emphasis_fragments.setdefault(beat["source_object_id"],set()).add(
+                        beat["latex_fragment"]
+                    )
     from .diagram_classroom import DIAGRAM_PANEL
     from manim import (Scene,MathTex,VGroup,Write,FadeIn,Rectangle,WHITE,
-                       tempconfig,linear)
+                       tempconfig,linear,Indicate,RED)
     fw=8*1280/720
     fh=8.
     def place(rect):
@@ -1014,7 +1022,14 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
     def build_math(block):
         pieces=[]
         for f in block["fragments"]:
-            glyph=MathTex(f["latex"],color=BOARD_DERIVATION_INK)
+            isolates=sorted((
+                token for token in emphasis_fragments.get(block["block_id"],())
+                if token in f["latex"]
+            ),key=lambda x:-len(x))
+            glyph=MathTex(
+                f["latex"],color=BOARD_DERIVATION_INK,
+                **({"substrings_to_isolate":isolates} if isolates else {})
+            )
             glyph.scale(block["scale"])
             glyph.move_to(place(f))
             if (abs(glyph.width*90-f["w"])>2 or
@@ -1310,8 +1325,47 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                         # actual *math* audio chunk, not at
                                         # the start of the spoken preamble.
                                         intro=speech["math_start_delay"]
-                                        if intro>1e-5:
-                                            self.wait(intro)
+                                        # Visual cancellation/highlights are
+                                        # source-authorized and triggered by the
+                                        # exact spoken phrase, BEFORE the new
+                                        # simplified formula begins to write.
+                                        marks=speech.get("math_emphasis_beats",[])
+                                        if marks:
+                                            groups={}
+                                            for mark in marks:
+                                                if mark["end_offset"]>intro+1/fps:
+                                                    raise LongboardError("CHALKBOARD_MARK_AFTER_NEW_MATH")
+                                                groups.setdefault(mark["start_offset"],[]).append(mark)
+                                            for mark_start, group in sorted(groups.items()):
+                                                if self.time > before+mark_start+2/fps:
+                                                    raise LongboardError("CHALKBOARD_MARK_BEAT_ORDER")
+                                                if self.time < before+mark_start:
+                                                    self.wait(before+mark_start-self.time)
+                                                targets=[]
+                                                for mark in group:
+                                                    source=active.get(mark["source_object_id"])
+                                                    if source is None:
+                                                        raise LongboardError("CHALKBOARD_MARK_SOURCE_NOT_VISIBLE")
+                                                    matches=[]
+                                                    for glyph in source:
+                                                        matches.extend(glyph.get_parts_by_tex(
+                                                            mark["latex_fragment"],substring=False
+                                                        ))
+                                                    if mark["occurrence"] >= len(matches):
+                                                        raise LongboardError("CHALKBOARD_MARK_GLYPH_NOT_FOUND")
+                                                    targets.append(matches[mark["occurrence"]])
+                                                window=min(m["end_offset"] for m in group)-mark_start
+                                                remaining_intro=before+intro-self.time
+                                                duration=min(.7,max(.15,window*.55),remaining_intro)
+                                                if duration<.08:
+                                                    raise LongboardError("CHALKBOARD_MARK_TOO_LATE")
+                                                self.play(
+                                                    *[Indicate(t,color=RED,scale_factor=1.06)
+                                                      for t in targets],
+                                                    run_time=duration,rate_func=linear
+                                                )
+                                        if before+intro>self.time+1e-5:
+                                            self.wait(before+intro-self.time)
                                         # Math ink progresses throughout the
                                         # *measured math-reading audio*, and
                                         # finishes at that audio boundary.
