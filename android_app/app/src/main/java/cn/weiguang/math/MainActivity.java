@@ -140,7 +140,7 @@ public final class MainActivity extends Activity {
     private Button action(String value, boolean primary) {
         Button button = new Button(this);
         button.setText(value);
-        button.setTextAllCaps(false);
+        button.setAllCaps(false);
         button.setTextSize(14);
         button.setTextColor(primary ? Color.WHITE : INK);
         button.setBackground(background(
