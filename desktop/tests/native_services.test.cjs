@@ -112,3 +112,22 @@ test('failed compilation from an existing TeX binary never causes another long i
     assert.equal(calls.filter(x=>path.basename(x.executable).startsWith('basic-miktex-')).length,0);
   } finally { fs.rmSync(f.root,{recursive:true,force:true}); }
 });
+
+
+test('PostgreSQL cluster stays outside Chinese userData, without losing a previous database',()=>{
+  const f=fixture();
+  try {
+    const localStateRoot=path.join(f.root,'AsciiLocal','WeiGuangMath');
+    const instance=new NativeServices({
+      serviceRoot:f.root,runtimeRoot:f.runtimeRoot,userDir:f.userDir,
+      localStateRoot,secrets:{POSTGRES_PASSWORD:'fixture'},
+    });
+    assert.equal(instance.postgresDirectory(),path.join(localStateRoot,'postgresql17'));
+    assert.ok(!instance.postgresDirectory().includes('微光数学'));
+    const legacy=path.join(f.userDir,'postgresql17');
+    fs.mkdirSync(legacy,{recursive:true});
+    fs.writeFileSync(path.join(legacy,'PG_VERSION'),'17');
+    assert.equal(instance.postgresDirectory(),legacy);
+    assert.equal(fs.readFileSync(path.join(legacy,'PG_VERSION'),'utf8'),'17');
+  } finally { fs.rmSync(f.root,{force:true,recursive:true}); }
+});

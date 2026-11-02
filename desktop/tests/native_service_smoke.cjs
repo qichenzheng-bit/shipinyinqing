@@ -37,8 +37,10 @@ const manager = new NativeServices({
       await new Promise(resolve=>setTimeout(resolve,1500));
     }
     if(!healthy)throw new Error('NATIVE_WINDOWS_BACKEND_DID_NOT_START');
-    if(!fs.existsSync(path.join(working,'postgresql17','PG_VERSION')))
+    if(!fs.existsSync(path.join(manager.postgresDirectory(),'PG_VERSION')))
       throw new Error('NATIVE_POSTGRESQL_CLUSTER_MISSING');
+    if (manager.postgresDirectory().includes('微光数学'))
+      throw new Error('POSTGRESQL_CLUSTER_ROOT_STILL_LOCALIZED');
     console.log('NATIVE_WINDOWS_API_POSTGRESQL_MIKTEX_COMPILE_SMOKE_PASSED');
   }finally{await manager.stop();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

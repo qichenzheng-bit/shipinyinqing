@@ -15,7 +15,7 @@ GitHub Actions 的 [Windows 桌面构建](.github/workflows/windows-desktop.yml)
 
 ## Windows 原生工作方式
 
-**不需要安装 Docker Desktop、WSL2、Ubuntu、Redis 或外部 Python 环境。** 本地使用模式由桌面程序直接启动 Windows 原生 PostgreSQL 17、Python FastAPI、Manim 和 FFmpeg。原来的 Celery/Redis 容器队列在本地模式改为单进程顺序执行，并使用 PostgreSQL 持久化任务状态。首次打开 App 时，从安装包中自动初始化 MiKTeX 以及专属 PostgreSQL 数据目录；无需另行下载上述基础运行时。MiKTeX 可能为缺失的 LaTeX 宏包按需联网下载，在线 AI 与语音服务同样需要网络。
+**不需要安装 Docker Desktop、WSL2、Ubuntu、Redis 或外部 Python 环境。** 本地使用模式由桌面程序直接启动 Windows 原生 PostgreSQL 17、Python FastAPI、Manim 和 FFmpeg。原来的 Celery/Redis 容器队列在本地模式改为单进程顺序执行，并使用 PostgreSQL 持久化任务状态。首次打开 App 时，从安装包中自动初始化 MiKTeX 以及专属 PostgreSQL 数据目录；无需另行下载上述基础运行时。MiKTeX 可能为缺失的 LaTeX 宏包按需联网下载，在线 AI 与语音服务同样需要网络。 Windows 的 PostgreSQL 原生工具在某些系统语言下不能正确处理中文路径，因此数据库集群及其初始化临时文件默认放在 `%LOCALAPPDATA%\WeiGuangMath\native-services`；视频和其他应用用户数据保持原路径。如果发现旧版已初始化数据库，则优先复用并保留，不自动覆盖。
 
 安装后打开「微光数学」→「本地视频引擎」→「启动并进入工作台」，桌面 App 将完成初始化、服务健康检查及本地登录。数据库、课程、用户视频、微调记录和加密凭据不放在程序安装目录，后续正常更新不能覆盖或删除这些用户数据。
 

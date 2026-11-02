@@ -98,7 +98,7 @@ async function run(exe, args, options = {}) {
   });
 }
 class NativeServices {
-  constructor({ serviceRoot, runtimeRoot, userDir, secrets, progress = () => {}, skipTexBootstrap = false, texRunner = run }) {
+  constructor({ serviceRoot, runtimeRoot, userDir, secrets, progress = () => {}, skipTexBootstrap = false, texRunner = run, localStateRoot = null }) {
     this.serviceRoot = serviceRoot;
     this.runtimeRoot = runtimeRoot;
     this.userDir = userDir;
@@ -109,6 +109,10 @@ class NativeServices {
     this.stopRequested = false;
     this.skipTexBootstrap = skipTexBootstrap;
     this.texRunner = texRunner;
+    // Native PostgreSQL CLI may not decode non-ASCII paths on some Windows locales.
+    this.localStateRoot = localStateRoot || path.join(
+      process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+      'WeiGuangMath', 'native-services');
   }
   engine() { return path.join(this.runtimeRoot, 'engine'); }
   /** An actual one-page LaTeX compile, not just an exe existence check.
@@ -200,18 +204,25 @@ class NativeServices {
       PGPASSWORD: this.secrets.POSTGRES_PASSWORD,
     };
   }
+  postgresDirectory() {
+    const legacy = path.join(this.userDir, 'postgresql17');
+    // Preserve old, initialized clusters rather than silently switching data.
+    if (fs.existsSync(path.join(legacy, 'PG_VERSION'))) return legacy;
+    return path.join(this.localStateRoot, 'postgresql17');
+  }
   async startPostgres(env) {
     const engine = this.engine();
     const pgctl = executable(engine, 'pg_ctl.exe');
-    const pgdir = path.join(this.userDir, 'postgresql17');
-    const logfile = path.join(this.userDir, 'postgresql.log');
+    const pgdir = this.postgresDirectory();
+    const logfile = path.join(this.localStateRoot, 'postgresql.log');
+    fs.mkdirSync(this.localStateRoot, { recursive: true });
     fs.mkdirSync(this.userDir, { recursive: true });
     if (!fs.existsSync(path.join(pgdir, 'PG_VERSION'))) {
       if (fs.existsSync(pgdir) && fs.readdirSync(pgdir).length) {
         throw new Error('PostgreSQL 数据目录存在未完成的初始化，已保留原始数据，请先备份检查。');
       }
       this.progress('初始化本地 PostgreSQL 17 数据库…');
-      const passfile = path.join(this.userDir, 'initdb-' + crypto.randomBytes(8).toString('hex') + '.tmp');
+      const passfile = path.join(this.localStateRoot, 'initdb-' + crypto.randomBytes(8).toString('hex') + '.tmp');
       fs.writeFileSync(passfile, this.secrets.POSTGRES_PASSWORD + '\n', { flag: 'wx', mode: 0o600 });
       try {
         await run(executable(engine, 'initdb.exe'), [
@@ -290,7 +301,7 @@ class NativeServices {
       this.startedPostgres = false;
       try {
         await run(executable(this.engine(), 'pg_ctl.exe'),
-          ['-D', path.join(this.userDir, 'postgresql17'), '-m', 'fast', '-w', 'stop'],
+          ['-D', this.postgresDirectory(), '-m', 'fast', '-w', 'stop'],
           { env: this.processEnv(''), timeout: 30000 });
       } catch { /* retain the database directory and never destroy data */ }
     }
