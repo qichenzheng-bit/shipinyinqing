@@ -175,7 +175,7 @@ async function showStudio(origin) {
     await studio.loadURL(origin + '/');
   } catch {
     if (studio && !studio.isDestroyed()) studio.destroy();
-    throw new Error('工作台页面未能加载，请检查服务端地址和证书。');
+    throw new Error('工作台未能加载，请检查服务端地址和证书。');
   }
 }
 
