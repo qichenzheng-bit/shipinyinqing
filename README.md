@@ -15,7 +15,7 @@ GitHub Actions 的 [Windows 桌面构建](.github/workflows/windows-desktop.yml)
 
 ## Windows 原生工作方式
 
-**不需要安装 Docker Desktop、WSL2、Ubuntu、Redis 或外部 Python 环境。** 本地使用模式由桌面程序直接启动 Windows 原生 PostgreSQL 17、Python FastAPI、Manim 和 FFmpeg。原来的 Celery/Redis 容器队列在本地模式改为单进程顺序执行，并使用 PostgreSQL 持久化任务状态。首次打开 App 时，从安装包中自动初始化 MiKTeX Portable 以及专属 PostgreSQL 数据目录；无需另行下载上述基础运行时。MiKTeX 可能为缺失的 LaTeX 宏包按需联网下载，在线 AI 与语音服务同样需要网络。
+**不需要安装 Docker Desktop、WSL2、Ubuntu、Redis 或外部 Python 环境。** 本地使用模式由桌面程序直接启动 Windows 原生 PostgreSQL 17、Python FastAPI、Manim 和 FFmpeg。原来的 Celery/Redis 容器队列在本地模式改为单进程顺序执行，并使用 PostgreSQL 持久化任务状态。首次打开 App 时，从安装包中自动初始化 MiKTeX 以及专属 PostgreSQL 数据目录；无需另行下载上述基础运行时。MiKTeX 可能为缺失的 LaTeX 宏包按需联网下载，在线 AI 与语音服务同样需要网络。
 
 安装后打开「微光数学」→「本地视频引擎」→「启动并进入工作台」，桌面 App 将完成初始化、服务健康检查及本地登录。数据库、课程、用户视频、微调记录和加密凭据不放在程序安装目录，后续正常更新不能覆盖或删除这些用户数据。
 
