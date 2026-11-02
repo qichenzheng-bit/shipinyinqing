@@ -18,7 +18,9 @@ def test_windows_setup_only_version_and_app_launcher():
     assert pkg["scripts"]["build:windows"].endswith("--x64")
     assert pkg["build"]["nsis"]["createDesktopShortcut"]
     assert "nsis" in str(pkg["build"]["win"]["target"])
-    assert "portable" not in str(pkg["build"]["win"]["target"]).lower()\n    assert "portable" not in pkg["build"]\n    assert "portable" not in pkg["scripts"]["build:windows"].lower()
+    assert "portable" not in str(pkg["build"]["win"]["target"]).lower()
+    assert "portable" not in pkg["build"]
+    assert "portable" not in pkg["scripts"]["build:windows"].lower()
 
 
 def test_only_required_runtime_modules_shipped_without_source_tests_or_keys():
