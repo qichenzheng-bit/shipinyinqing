@@ -13,9 +13,9 @@ test('login launches only an exact vendor CLI in separate Windows console',async
     launch:(cmd,args,opts)=>{invocation={cmd,args,opts};
       return {pid:123,unref:()=>{unref=true;}};}});
   assert.equal(result.authentication,'pending');
-  assert.deepEqual(invocation.args,['/d','/k','gemini']);
+  assert.deepEqual(invocation.args,['/d','/c','start "" cmd.exe /d /k gemini']);
   assert.equal(invocation.cmd,'cmd.exe');
-  assert.equal(invocation.opts.windowsHide,false);
+  assert.equal(invocation.opts.windowsHide,true);
   assert.ok(unref);
   await assert.rejects(a.login('codex_cli',{platform:'win32',check:async()=>false}),
     /CLI_NOT_INSTALLED/);
