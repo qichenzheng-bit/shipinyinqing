@@ -4,11 +4,12 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { execFile } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 const { promisify } = require('node:util');
 const { normalizeEndpoint, allowedNavigation } = require('./url_policy.cjs');
 const { createBridge } = require('./cli_bridge.cjs');
 const { login: startVendorLogin, status: vendorAuthStatus, models: vendorModels } = require('./ai_auth.cjs');
+const { runSetup, dependencyScript, withLocalTools } = require('./dependency_setup.cjs');
 
 const run = promisify(execFile);
 const APP_ID = 'cn.weiguang.math';
@@ -192,6 +193,77 @@ async function showStudio(origin) {
   }
 }
 
+function desktopRuntimePath(){
+  // Only required tool locations are added; all provider arguments remain
+  // validated in the isolated CLI bridge.
+  const environment=withLocalTools(process.env);
+  process.env.Path=environment.Path;
+}
+async function ensureWindowsDependencies(){
+  desktopRuntimePath();
+  const script=dependencyScript({
+    packaged:app.isPackaged,resourcesPath:process.resourcesPath,
+  });
+  progress('正在检查 WSL2、Docker、Node.js 和三个 AI CLI…');
+  const check=await runSetup({mode:'Check',script});
+  const value=check.status;
+  if(value.wsl && value.docker && value.node && value.ai_clis){
+    progress('所有运行依赖已经安装');
+    return;
+  }
+  progress('正在自动下载并安装缺少的依赖；如出现管理员授权请求请确认…');
+  const result=await runSetup({
+    mode:'Install',script,
+    onProgress:message=>progress(String(message).slice(0,180)),
+  });
+  desktopRuntimePath();
+  if(result.needs_reboot)
+    throw new Error('WSL2 已安装，请重启 Windows 后再次打开微光数学；程序会自动继续，无需重新下载。');
+  const checked=await runSetup({mode:'Check',script});
+  if(!Object.values({
+      wsl:checked.status.wsl,docker:checked.status.docker,
+      node:checked.status.node,ai_clis:checked.status.ai_clis,
+    }).every(Boolean))throw new Error('仍有依赖尚未就绪，请检查网络并点击重试。');
+}
+function dockerDesktopExecutable(){
+  const local=process.env.LOCALAPPDATA||'';
+  const programFiles=process.env.ProgramFiles||'C:\\Program Files';
+  for(const file of [
+    path.join(local,'Programs','DockerDesktop','Docker Desktop.exe'),
+    path.join(programFiles,'Docker','Docker','Docker Desktop.exe'),
+  ])if(fs.existsSync(file))return file;
+  return null;
+}
+async function ensureDockerRunning(){
+  try {
+    await run('docker',['compose','version'],{timeout:12000,windowsHide:true});
+  }catch{
+    throw new Error('未检测到 Docker Desktop CLI。请重新运行依赖自动安装。');
+  }
+  const online=async()=>{
+    try{await run('docker',['info','--format','{{.ServerVersion}}'],
+      {timeout:10000,windowsHide:true,maxBuffer:10000});return true;}
+    catch{return false;}
+  };
+  if(await online())return;
+  const executable=dockerDesktopExecutable();
+  if(!executable)throw new Error('Docker Desktop 安装未完成，请重新运行自动安装。');
+  progress('正在自动启动 Docker Desktop，等待 Linux 容器引擎就绪…');
+  try {
+    const child=spawn(executable,[],{
+      detached:true,stdio:'ignore',windowsHide:false,
+    });
+    child.on('error',()=>{});child.unref();
+  }catch{
+    throw new Error('Docker Desktop 启动失败，请检查系统权限。');
+  }
+  for(let count=0;count<50;count++){
+    if(await online())return;
+    if(count%5===0)progress('等待 Docker Desktop 初始化；首次打开请完成其官方许可确认…');
+    await new Promise(resolve=>setTimeout(resolve,3600));
+  }
+  throw new Error('Docker Desktop 尚未就绪。首次运行可能需要确认官方许可或重启 Windows；完成后点击重试。');
+}
 function startLocalCliBridge(secrets) {
   if (cliBridge) cliBridge.stop();
   cliBridge = createBridge({origin:LOCAL_URL,authToken:secrets.WEIGUANG_API_TOKEN,
@@ -214,14 +286,8 @@ async function launchLocal() {
       }
     }
     const secrets = keyMaterial();
-    progress('检查 Docker Desktop…');
-    try {
-      await run('docker', ['compose', 'version'], {
-        timeout: 15000, windowsHide: true,
-      });
-    } catch {
-      throw new Error('未检测到 Docker Desktop。请安装并启动 Docker Desktop（启用 WSL2）。');
-    }
+    await ensureWindowsDependencies();
+    await ensureDockerRunning();
     progress('构建并启动本地视频服务（首次安装需下载依赖）…');
     try {
       await run('docker', [
@@ -254,6 +320,7 @@ async function launchLocal() {
   }
 }
 async function connectLocal() {
+  desktopRuntimePath();
   const secrets = keyMaterial();
   await waitForHealth(LOCAL_URL);
   await autoLogin(secrets.WEIGUANG_API_TOKEN);

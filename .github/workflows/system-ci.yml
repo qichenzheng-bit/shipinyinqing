@@ -22,6 +22,8 @@ jobs:
           python-version: '3.11'
       - name: Install source packages without video-render extras
         run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]'
+      - name: Validate installer bootstrap JavaScript syntax
+        run: node --check desktop/dependency_setup.cjs
       - name: Validate Windows frontend JavaScript syntax
         run: node --check frontend/app.js
       - name: Start isolated PostgreSQL 17 on Windows CI

@@ -18,8 +18,8 @@
     </div>
     <section id="local-panel" class="panel" aria-label="本地视频引擎">
       <div class="panel-heading">在 Windows 运行</div>
-      <p>使用 Docker Desktop + WSL2 运行原有数学引擎、数据库和视频任务。首次启动需下载依赖。</p>
-      <button class="primary" type="button" id="start-local">启动并进入工作台</button>
+      <p>首次使用将自动检测、下载并配置 WSL2、Docker Desktop、Node.js 和三个 AI CLI。重启后可继续安装，无需自行下载。</p>
+      <button class="primary" type="button" id="start-local">自动配置环境并进入工作台</button>
       <button class="secondary" type="button" id="connect-local">连接已启动的本地服务</button>
     </section>
     <section id="remote-panel" class="panel hidden" aria-label="连接现有服务器">
@@ -30,7 +30,7 @@
       <button class="primary" type="button" id="connect-remote">连接服务器</button>
     </section>
     <div class="status" role="status" aria-live="polite" id="status">准备就绪</div>
-    <footer>微光数学 · Windows Desktop 1.0.7</footer>
+    <footer>微光数学 · Windows Desktop 1.0.8</footer>
   </main>
   <script src="./launcher.js" defer></script>
 </body>

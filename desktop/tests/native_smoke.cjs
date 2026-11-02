@@ -14,7 +14,7 @@ const { _electron: electron }=require('playwright-core');
   try{
     const win=await app.firstWindow();
     await win.getByRole('heading',{name:'微光数学'}).waitFor();
-    await win.getByRole('button',{name:'启动并进入工作台'}).waitFor();
+    await win.getByRole('button',{name:'自动配置环境并进入工作台'}).waitFor();
     const snapshot=path.join(root,'screenshots');
     fs.mkdirSync(snapshot,{recursive:true});
     await win.screenshot({path:path.join(snapshot,'03-electron-native-local.png')});

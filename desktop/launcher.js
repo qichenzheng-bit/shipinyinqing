@@ -22,7 +22,7 @@ function show(mode) {
   byId('remote-tab').setAttribute('aria-selected',String(!local));
   byId('local-panel').classList.toggle('hidden',!local);
   byId('remote-panel').classList.toggle('hidden',local);
-  report(local?'可启动本地数学视频引擎':'输入已部署的服务器地址');
+  report(local?'点击下方按钮自动检查并配置运行依赖':'输入已部署的服务器地址');
 }
 async function action(callback) {
   if (busy) return;

@@ -1,6 +1,6 @@
 {
   "name": "weiguang-math-desktop",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "description": "微光数学 Windows 桌面工作台（前端与本地 Docker 视频服务）",
   "productName": "微光数学",
@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "test": "node --test tests/launcher.test.cjs tests/cli_bridge.test.cjs tests/ai_auth.test.cjs",
+    "test": "node --test tests/launcher.test.cjs tests/cli_bridge.test.cjs tests/ai_auth.test.cjs tests/dependency_setup.test.cjs",
     "build:windows": "electron-builder --win nsis --x64",
     "test:native": "node tests/native_smoke.cjs"
   },
@@ -34,6 +34,7 @@
       "url_policy.cjs",
       "cli_bridge.cjs",
       "ai_auth.cjs",
+      "dependency_setup.cjs",
       "studio_preload.cjs",
       "launcher.html",
       "launcher.js",
@@ -99,6 +100,10 @@
         "filter": [
           "docker-compose.yml"
         ]
+      },
+      {
+        "from": "setup-dependencies.ps1",
+        "to": "setup-dependencies.ps1"
       }
     ],
     "win": {
@@ -119,7 +124,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "微光数学",
-      "artifactName": "WeiGuang-Math-Setup-${version}-${arch}.${ext}"
+      "artifactName": "WeiGuang-Math-Setup-${version}-${arch}.${ext}",
+      "include": "installer.nsh"
     }
   }
 }
