@@ -182,7 +182,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--version", default="1.0.6")
+    parser.add_argument("--version", default="1.0.7")
     parser.add_argument("--source-sha", required=True)
     args = parser.parse_args()
     build_release(
