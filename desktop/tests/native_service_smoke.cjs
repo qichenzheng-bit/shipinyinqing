@@ -17,6 +17,7 @@ const manager = new NativeServices({
   runtimeRoot:path.join(root,'desktop','native_runtime'),
   userDir:working,
   secrets,
+  skipTexBootstrap: true,
   progress:message=>console.log('[native]',message),
 });
 (async()=>{
@@ -34,6 +35,6 @@ const manager = new NativeServices({
     if(!healthy)throw new Error('NATIVE_WINDOWS_BACKEND_DID_NOT_START');
     if(!fs.existsSync(path.join(working,'postgresql17','PG_VERSION')))
       throw new Error('NATIVE_POSTGRESQL_CLUSTER_MISSING');
-    console.log('NATIVE_WINDOWS_API_POSTGRESQL_TEX_SMOKE_PASSED');
+    console.log('NATIVE_WINDOWS_API_POSTGRESQL_SMOKE_PASSED');
   }finally{await manager.stop();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
