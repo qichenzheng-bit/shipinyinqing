@@ -8,7 +8,8 @@
     lesson:null, script:'', teacher:null, curriculum:null, pendingEdit:null, job:null, loading:false, error:'',
     modal:null, notice:'', trash:[], projectTrash:[], settings:null,
     ai:{catalog:[],providers:[],bindings:{},status:null,providerId:'',preset:'openai',
-        versions:[],discovery:'',modelId:'',targetTask:'all',testStatus:''},
+        versions:[],discovery:'',modelId:'',targetTask:'all',testStatus:'',
+        mode:'api',effort:'default',timeout:150,global:null,cliStatus:null},
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, s => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
@@ -210,7 +211,7 @@
     '<h2 style="margin-top:40px">系统</h2>'+
     '<div class="setting-row"><span>数学教师模型</span><span class="muted">'+(state.settings?.teacher_ai_configured?'已配置':'需要后端配置')+'</span></div>'+
     '<div class="setting-row"><span>微调模型</span><span class="muted">'+(state.settings?.ai_configured?'已配置':'需要后端配置')+'</span></div>'+
-    '<div class="setting-row"><span>统一 API / 模型版本</span>'+button('管理模型 API','open-ai-settings')+'</div>'+
+    '<div class="setting-row"><span>教学统一模型</span>'+button('配置 AI 模型','open-ai-settings')+'</div>'+
     '<div class="setting-row"><span>任务并发</span><span class="muted">1 个渲染任务</span></div>'+
     '<div style="margin-top:26px">'+button('保存偏好','save-settings','primary')+'</div>'+
     '<hr class="hr"/><div class="row spread"><h2 style="margin-bottom:0">项目</h2><div class="actions">'+
@@ -224,87 +225,84 @@
     ).join(''):'<tr><td colspan="3">暂无项目</td></tr>')+
     '</tbody></table></div></div>';
   const modelSettings = () => {
-    const current=state.ai.providers.find(x=>x.id===state.ai.providerId);
-    const preset=state.ai.catalog.find(p=>p.id===state.ai.preset)||
-      state.ai.catalog[0]||{id:'custom',label:'自定义',base_url:'',protocol:'openai_chat'};
+    const ai=state.ai;
+    const apiProviders=ai.providers.filter(p=>!p.protocol.endsWith('_cli'));
+    const current=apiProviders.find(p=>p.id===ai.providerId);
+    const preset=ai.catalog.find(p=>p.id===ai.preset)||ai.catalog[0]||
+      {id:'custom',label:'自定义',base_url:'',protocol:'openai_chat'};
     const family=current||preset;
-    const protocols=[
-      ['openai_chat','OpenAI 兼容接口'],
-      ['openai_responses','OpenAI Responses'],
-      ['anthropic_messages','Claude Messages'],
-      ['gemini_generate','Gemini GenerateContent'],
-    ];
-    const tasks=[
-      ['teacher','数学教师 A / B / C'],
-      ['curriculum','课堂编排'],
-      ['edit','视频微调'],
-    ];
-    return head('模型 API',button('返回设置','back-ai-settings'))+
+    const mode=ai.mode;
+    const isApi=mode==='api';
+    const cliState=ai.cliStatus?.cli?.[mode];
+    const efforts=isApi?['default','none','minimal','low','medium','high','xhigh','max']:
+      mode==='gemini_cli'?['default','low','medium','high']:
+      mode==='codex_cli'?['default','low','medium','high','xhigh','max']:
+      ['default','minimal','low','medium','high','xhigh','max'];
+    const effortLabels={default:'模型默认',none:'无',minimal:'最小',low:'低',medium:'中',high:'高',xhigh:'极高',max:'最高'};
+    const note=isApi?'原有 API 连接继续支持；推理参数仅在模型支持时生效。':
+      mode==='codebuddy_cli'?'通过 CodeBuddy CLI 调用，不代表 WorkBuddy 桌面所有模型可被外部指定。':
+      'Windows 上已登录的 CLI 账号执行；不需要额外填写模型 API Key。';
+    return head('统一 AI 模型',button('返回设置','back-ai-settings'))+
       '<div class="api-layout"><section class="panel">'+
-      '<h2>服务商连接</h2>'+
-      '<div class="field"><label for="ai-provider-choice">已保存连接</label>'+
-      '<select class="select" id="ai-provider-choice">'+
-      '<option value="">＋ 新建连接</option>'+
-      state.ai.providers.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
-        (state.ai.providerId===p.id?'selected':'')+'>'+escapeHTML(p.name)+'</option>').join('')+
-      '</select></div>'+
-      '<div class="field"><label for="ai-preset">服务商</label>'+
-      '<select class="select" id="ai-preset" '+(current?'disabled':'')+'>'+
-      state.ai.catalog.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
-        ((current?current.preset:state.ai.preset)===p.id?'selected':'')+'>'+
-        escapeHTML(p.label)+'</option>').join('')+'</select></div>'+
-      '<div class="field"><label for="ai-name">连接名称</label>'+
-      '<input class="input" id="ai-name" value="'+escapeHTML(family.name||preset.label)+'" maxlength="120"></div>'+
-      '<div class="field"><label for="ai-protocol">接口协议</label>'+
-      '<select class="select" id="ai-protocol">'+protocols.map(([id,label])=>
-        '<option value="'+id+'" '+(family.protocol===id?'selected':'')+'>'+label+'</option>'
-      ).join('')+'</select></div>'+
-      '<div class="field"><label for="ai-url">API Base URL</label>'+
-      '<input class="input" id="ai-url" spellcheck="false" value="'+
-      escapeHTML(family.base_url||'')+'" placeholder="https://.../v1"></div>'+
-      '<div class="field"><label for="ai-key">API Key</label>'+
-      '<input class="input" type="password" autocomplete="new-password" id="ai-key" '+
-      'placeholder="'+(current?.has_key?'密钥已安全保存；留空则不修改':'仅提交至后端加密保存')+'"></div>'+
-      '<label class="api-check"><input id="ai-json-mode" type="checkbox" '+
-      (current?.json_mode?'checked':'')+'> 启用服务商 JSON 模式（可选）</label>'+
-      '<div class="actions" style="margin-top:20px">'+
-      button('保存连接','ai-save-provider','primary')+
-      (current?button('删除连接','ai-delete-provider','danger'):'')+'</div>'+
-      (state.ai.status&&!state.ai.status.secret_store_ready?
-        '<div class="notice">服务器尚未配置模型密钥加密主钥。</div>':'')+
-      '</section><section class="panel">'+
-      '<h2>模型与版本</h2>'+
-      (current?'<div class="actions" style="margin-bottom:17px">'+
-        button('读取模型列表','ai-discover')+'</div>':
-        '<div class="notice">请先保存一个服务商连接。</div>')+
-      '<div class="field"><label for="ai-versions">服务商返回的模型版本</label>'+
-      '<select class="select" id="ai-versions">'+
-      '<option value="">手动输入模型 ID</option>'+
-      state.ai.versions.map(m=>'<option value="'+escapeHTML(m.id)+'" '+
-        (state.ai.modelId===m.id?'selected':'')+'>'+
-        escapeHTML(m.label===m.id?m.id:m.label+' · '+m.id)+'</option>').join('')+
-      '</select></div>'+
+      '<h2>模型调用入口</h2>'+
+      '<div class="field"><label for="ai-mode">选择服务</label><select class="select" id="ai-mode">'+
+      [['api','已保存 / 自定义 API'],['codex_cli','Codex CLI'],['gemini_cli','Gemini CLI'],
+       ['codebuddy_cli','CodeBuddy CLI（WorkBuddy 生态）']].map(([id,label])=>
+       '<option value="'+id+'" '+(mode===id?'selected':'')+'>'+label+'</option>').join('')+'</select></div>'+
+      '<div class="muted small">'+escapeHTML(note)+'</div>'+
+      (!isApi?'<div class="setting-row"><span>本地 CLI 状态</span><span class="muted">'+
+        escapeHTML(!ai.cliStatus?.bridge_connected?'请启动 Windows 本地引擎':
+         (cliState?.installed?'已检测到 · '+cliState.version:'尚未检测到 CLI'))+'</span></div>':'')+
+      (isApi?'<div class="field"><label for="ai-provider-choice">已保存 API 连接</label>'+
+        '<select class="select" id="ai-provider-choice"><option value="">＋ 新建连接</option>'+
+        apiProviders.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
+        (ai.providerId===p.id?'selected':'')+'>'+escapeHTML(p.name)+'</option>').join('')+
+        '</select></div><div class="field"><label for="ai-preset">服务商</label>'+
+        '<select class="select" id="ai-preset" '+(current?'disabled':'')+'>'+
+        ai.catalog.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
+        ((current?current.preset:ai.preset)===p.id?'selected':'')+'>'+escapeHTML(p.label)+'</option>').join('')+
+        '</select></div><div class="field"><label for="ai-name">连接名称</label>'+
+        '<input class="input" id="ai-name" value="'+escapeHTML(family.name||preset.label)+'"></div>'+
+        '<div class="field"><label for="ai-protocol">API 协议</label><select class="select" id="ai-protocol">'+
+        [['openai_chat','OpenAI 兼容'],['openai_responses','OpenAI Responses'],
+         ['anthropic_messages','Claude Messages'],['gemini_generate','Gemini Generate']].map(([id,label])=>
+          '<option value="'+id+'" '+(family.protocol===id?'selected':'')+'>'+label+'</option>').join('')+
+        '</select></div><div class="field"><label for="ai-url">API Base URL</label>'+
+        '<input class="input" id="ai-url" value="'+escapeHTML(family.base_url||'')+'"></div>'+
+        '<div class="field"><label for="ai-key">API Key</label><input type="password" '+
+        'autocomplete="new-password" class="input" id="ai-key" placeholder="'+
+        (current?.has_key?'密钥已保存，留空不修改':'仅发送给后端加密保存')+'"></div>'+
+        '<label class="api-check"><input type="checkbox" id="ai-json-mode" '+
+        (current?.json_mode?'checked':'')+'> JSON 输出模式</label>'+
+        '<div class="actions">'+button('保存 API 连接','ai-save-provider')+
+        (current?button('删除连接','ai-delete-provider','danger'):'')+'</div>':'')+
+      '</section><section class="panel"><h2>全局模型配置</h2>'+
       '<div class="field"><label for="ai-manual-model">模型 ID / 精确版本</label>'+
       '<input class="input" id="ai-manual-model" spellcheck="false" maxlength="200" value="'+
-      escapeHTML(state.ai.modelId)+'" placeholder="如服务商控制台中的完整模型 ID"></div>'+
-      (state.ai.discovery?'<div class="muted small api-hint">'+escapeHTML(state.ai.discovery)+'</div>':'')+
-      '<div class="field"><label for="ai-target">应用到</label>'+
-      '<select class="select" id="ai-target">'+
-      [['all','全部三个模块'],...tasks].map(([task,label])=>
-        '<option value="'+task+'" '+(state.ai.targetTask===task?'selected':'')+'>'+
-        label+'</option>').join('')+'</select></div>'+
-      '<div class="actions">'+button('测试模型连接','ai-test')+
-      button('应用模型版本','ai-assign','primary')+'</div>'+
-      (state.ai.testStatus?'<div class="notice">'+escapeHTML(state.ai.testStatus)+'</div>':'')+
-      '<h2 style="margin-top:32px">当前使用</h2>'+
-      tasks.map(([task,label])=>{
-        const selected=state.ai.bindings[task];
-        return '<div class="setting-row api-task-row"><span>'+label+'</span>'+
-          '<span class="muted">'+escapeHTML(selected?
-            selected.provider_name+' / '+selected.model_id:'未设置')+'</span></div>';
-      }).join('')+
-      '</section></div>'+
-      '<div class="muted small api-footnote">模型以当前账号实际开放的版本为准；列表不可用时可以手动输入。只有通过 JSON 输出验证的文本模型适合本系统的数学课程流程。</div>';
+      escapeHTML(ai.modelId)+'" placeholder="如 gpt-6.1-sol（以账号实际支持为准）"></div>'+
+      (isApi&&current?'<div class="actions">'+button('查询 API 模型列表','ai-discover')+'</div>'+
+        '<div class="field"><label for="ai-versions">模型列表</label><select class="select" id="ai-versions">'+
+        '<option value="">输入精确模型 ID</option>'+ai.versions.map(m=>
+         '<option value="'+escapeHTML(m.id)+'">'+escapeHTML(m.label)+'</option>').join('')+
+        '</select></div>':'')+
+      (ai.discovery?'<div class="muted small">'+escapeHTML(ai.discovery)+'</div>':'')+
+      '<div class="field"><label for="ai-effort">推理强度</label><select class="select" id="ai-effort">'+
+      efforts.map(x=>'<option value="'+x+'" '+(x===ai.effort?'selected':'')+'>'+effortLabels[x]+'</option>').join('')+
+      '</select></div><div class="field"><label for="ai-timeout">最长生成时间</label>'+
+      '<select class="select" id="ai-timeout">'+[60,90,150,180,210].map(x=>
+      '<option value="'+x+'" '+(x===ai.timeout?'selected':'')+'>'+x+' 秒</option>').join('')+'</select></div>'+
+      '<div class="muted small">Codex 只读沙盒；Gemini/CodeBuddy 计划模式。每个模型仅使用受支持的推理参数。</div>'+
+      '<div class="actions" style="margin-top:20px">'+button('测试当前模型','ai-test')+
+      button('应用到全部教学任务','ai-assign','primary')+'</div>'+
+      (ai.testStatus?'<div class="notice">'+escapeHTML(ai.testStatus)+'</div>':'')+
+      '<h2 style="margin-top:32px">统一应用范围</h2>'+
+      '<div class="setting-row"><span>数学解题、分析、正确性审核</span><span>统一模型</span></div>'+
+      '<div class="setting-row"><span>知识点、教师讲稿、课堂编排</span><span>统一模型</span></div>'+
+      '<div class="setting-row"><span>归纳总结、多轮自然语言微调</span><span>统一模型</span></div>'+
+      '<div class="muted small" style="margin-top:20px">已配置：'+
+       escapeHTML(ai.global?.configured?(ai.global.provider_name+' / '+ai.global.model_id+' · '+
+       ai.global.reasoning_effort):'尚未指定')+'</div></section></div>'+
+      '<div class="muted small api-footnote">仅用于之后提交的任务，旧任务保持原型号。WorkBuddy 桌面版未验证单次外部模型控制，不作为已连接入口。</div>';
   };
   const trash = () => head('回收站',button('返回视频库','go-library'))+
     '<div class="table-wrap"><table><thead><tr><th>序号</th><th>视频名称</th><th>操作</th></tr></thead><tbody>'+
@@ -337,16 +335,26 @@
     }
   };
   const refreshAI = async (selectedId) => {
-    const [catalog,providers,bindings,status]=await Promise.all([
+    const [catalog,providers,bindings,status,globalConfig,cliStatus]=await Promise.all([
       api('/ai/catalog'),api('/ai/providers'),api('/ai/selections'),api('/ai/status'),
+      api('/ai/global'),api('/ai/cli/status'),
     ]);
     state.ai.catalog=catalog.providers;
     state.ai.providers=providers;
     state.ai.bindings=bindings;
     state.ai.status=status;
+    state.ai.global=globalConfig;
+    state.ai.cliStatus=cliStatus;
+    if(globalConfig.configured && selectedId===undefined){
+      state.ai.mode=globalConfig.mode;
+      state.ai.modelId=globalConfig.model_id;
+      state.ai.effort=globalConfig.reasoning_effort;
+      state.ai.timeout=globalConfig.timeout_seconds||150;
+    }
+    const apiConnections=providers.filter(p=>!p.protocol.endsWith('_cli'));
     state.ai.providerId=selectedId!==undefined?selectedId:
-      (providers.some(p=>p.id===state.ai.providerId)?state.ai.providerId:
-       (providers[0]?.id||''));
+      (apiConnections.some(p=>p.id===state.ai.providerId)?state.ai.providerId:
+       (apiConnections[0]?.id||''));
     state.ai.versions=[];
     state.ai.discovery='';
     state.ai.testStatus='';
@@ -464,9 +472,14 @@
       state.ai.modelId=event.target.value;
       $('#ai-manual-model').value=event.target.value;
     }
-    if(event.target.id==='ai-target'){
-      state.ai.targetTask=event.target.value;
+    if(event.target.id==='ai-mode'){
+      state.ai.mode=event.target.value;
+      state.ai.effort='default';
+      state.ai.modelId=state.ai.global?.mode===state.ai.mode?state.ai.global.model_id:'';
+      state.ai.versions=[];state.ai.testStatus='';render();
     }
+    if(event.target.id==='ai-effort')state.ai.effort=event.target.value;
+    if(event.target.id==='ai-timeout')state.ai.timeout=Number(event.target.value);
   });
   document.addEventListener('click',event=>{
     const route=event.target.closest('[data-route]');
@@ -548,32 +561,32 @@
         flash('模型列表已更新');
       });
     } else if(id==='ai-test'){
-      const modelId=$('#ai-manual-model')?.value?.trim()||
-        $('#ai-versions')?.value;
-      if(!state.ai.providerId||!modelId)return flash('请选择服务商并填写模型 ID',true);
+      const modelId=$('#ai-manual-model')?.value?.trim()||$('#ai-versions')?.value;
+      if(!modelId)return flash('请填写精确模型 ID',true);
+      const mode=state.ai.mode;
+      if(mode==='api'&&!state.ai.providerId)return flash('请先保存 API 连接',true);
+      const payload={mode,model_id:modelId,reasoning_effort:$('#ai-effort').value,
+        timeout_seconds:Number($('#ai-timeout').value)};
+      if(mode==='api')payload.provider_id=state.ai.providerId;
       exec(async()=>{
-        const result=await api('/ai/providers/'+state.ai.providerId+'/test',
-          options('POST',{model_id:modelId}));
+        const result=await api('/ai/global/test',options('POST',payload));
         state.ai.modelId=modelId;
-        state.ai.testStatus=result.status==='connected'?
-          '连接成功 · JSON 输出验证通过':'连接尚未通过';
+        state.ai.testStatus=result.status==='connected'?'真实调用成功 · JSON 校验通过':'调用尚未成功';
         flash(state.ai.testStatus);
       });
     } else if(id==='ai-assign'){
-      const modelId=$('#ai-manual-model')?.value?.trim()||
-        $('#ai-versions')?.value;
-      if(!state.ai.providerId||!modelId)return flash('请先选择模型的精确版本',true);
-      const tasks=state.ai.targetTask==='all'?
-        ['teacher','curriculum','edit']:[state.ai.targetTask];
+      const modelId=$('#ai-manual-model')?.value?.trim()||$('#ai-versions')?.value;
+      if(!modelId)return flash('请输入模型的精确版本',true);
+      const mode=state.ai.mode;
+      if(mode==='api'&&!state.ai.providerId)return flash('请先保存 API 连接',true);
+      const payload={mode,model_id:modelId,reasoning_effort:$('#ai-effort').value,
+        timeout_seconds:Number($('#ai-timeout').value)};
+      if(mode==='api')payload.provider_id=state.ai.providerId;
       exec(async()=>{
-        state.ai.bindings=await api('/ai/selections',options('PUT',{
-          bindings:tasks.map(task=>({
-            task,provider_id:state.ai.providerId,model_id:modelId,
-          })),
-        }));
-        state.ai.modelId=modelId;
+        state.ai.global=await api('/ai/global',options('PUT',payload));
+        state.ai.modelId=modelId;state.ai.effort=payload.reasoning_effort;
         state.settings=await api('/settings');
-        flash('已应用模型版本');
+        flash('整个教学流程和多轮微调已切换到当前模型');
       });
     } else if(id==='new'){state.route='work';render();}
     else if(id==='trash'){exec(async()=>{state.trash=await api('/trash');state.route='trash';});}
