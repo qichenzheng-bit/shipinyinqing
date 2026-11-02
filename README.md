@@ -1,4 +1,4 @@
-# 微光数学 · Windows 电脑 App 1.0.5
+# 微光数学 · Windows 电脑 App 1.0.6
 
 **Windows 单平台最终交付。** 微光数学是一款考研数学教学视频制作程序，覆盖数学教师草稿、数学审核、课堂编排、教学讲稿审核、逐步板书、Manim/LaTeX 渲染、神经网络语音配音、字幕、视频下载与多轮微调。当前版本最终只发布 **Windows 安装版 EXE** 和 **完整源码维护 ZIP** 两份文件，不再发布免安装版、移动端或 Linux 安装包。
 
@@ -6,12 +6,12 @@
 
 ## 1. 下载安装
 
-打开 [Windows App 构建工作流](.github/workflows/windows-desktop.yml)，下载最新成功的 `main` 分支附件 `WeiGuang-Math-Windows-v1.0.5-Installer-and-Source`。附件里**只有两份最终文件**：
+打开 [Windows App 构建工作流](.github/workflows/windows-desktop.yml)，下载最新成功的 `main` 分支附件 `WeiGuang-Math-Windows-v1.0.6-Installer-and-Source`。附件里**只有两份最终文件**：
 
 | 文件 | 用途 |
 |---|---|
-| `WeiGuang-Math-Setup-1.0.5-x64.exe` | **使用版**：Windows 10/11 x64 安装程序，安装后从桌面启动，支持选择安装目录 |
-| `WeiGuang-Math-Source-1.0.5.zip` | **维护版**：完整的前后端、桌面客户端、数学/视频引擎、配置示例、持续集成脚本、必要回归测试源码和测试构造器；方便后续更新修改 |
+| `WeiGuang-Math-Setup-1.0.6-x64.exe` | **使用版**：Windows 10/11 x64 安装程序，安装后从桌面启动，支持选择安装目录 |
+| `WeiGuang-Math-Source-1.0.6.zip` | **维护版**：完整的前后端、桌面客户端、数学/视频引擎、配置示例、持续集成脚本、必要回归测试源码和测试构造器；方便后续更新修改 |
 
 这两份文件来源于同一个 GitHub 提交。源码 ZIP 的根目录内包含 `release-manifest.json`，注明 Git 提交、版本、安装包 SHA-256 和源码文件逐项 SHA-256，方便核对与维护。交付包内不会再单独提供便携版 EXE、测试成片、字幕、截图、数据库副本或演示数据。
 
@@ -50,15 +50,17 @@
 
 如果你已有部署的微光数学服务器，也可以在**同一个 Windows App** 中选择「连接服务器」，填写受信任的 `https://...` 地址。这是可选方案；本地模式不要求另购服务器。客户端禁止普通公网 HTTP 及不受信任的跳转。
 
-### 全局 AI 模型与 Windows CLI（v1.0.5）
+### 全局 AI 模型与 Windows CLI（v1.0.6）
 
 在「设置 → 配置 AI 模型」中**只选择一次模型**，统一应用到数学教师 A/B/C、解题与数学审核、知识点、教师口播、课堂编排、归纳总结和多轮自然语言微调。每项已提交任务会锁定当时的型号、推理强度和超时，切换型号只影响新任务。
 
-**四种模型入口：** Codex CLI（Windows 预先安装、ChatGPT 账号登录；可选具体模型与推理级别）、Gemini CLI（Windows 预先安装、Google 账号登录；Gemini 3 使用 thinkingLevel，2.5 使用 thinkingBudget）、CodeBuddy CLI（预先安装并登录，--model 与 reasoningEffort 按实际 CLI 支持范围使用），以及原先的 API 连接。**WorkBuddy 桌面版和 CodeBuddy CLI 是不同的产品接口**；尚未验证 WorkBuddy 桌面版是否允许外部请求逐次指定模型和推理强度，因此不把其内置模型冒充已经接通。CLI 的型号和权限以真实账号实际可用为准。
+**四种模型入口：** Codex CLI、Gemini CLI、CodeBuddy CLI，以及原有 API 连接。桌面 App 的「登录账号」按钮仅为这三家官方 CLI 发起登录，使用官方网页授权，不在微光数学收集账号密码。首次点击会自动启动该 CLI 的受控 Windows 登录控制台：Codex 通过 `codex login` 打开浏览器，Gemini 需要在官方向导中选择「Sign in with Google」，CodeBuddy 需要先选择国内、国际或企业登录方式，随后由官方 CLI 打开浏览器。**仅仅打开厂商官网并不会让 CLI 获得授权，因此不使用固定网站链接冒充登录完成。** 授权结束后需在微光数学里「检查登录状态」及「测试当前模型」；Gemini/CodeBuddy 在没有可靠非交互登录状态命令时显示「待验证」，不会擅自显示已登录。
+
+**模型版本使用下拉选择。** Codex / Gemini 默认提供候选型号；CodeBuddy 同时读取用户本机 `~/.codebuddy/models.json` 的型号 ID（不会读出密钥）。API 服务商支持查询实际返回的模型列表；没有列表接口时可以先通过「添加其他型号」加入下拉选项。候选型号不代表账号一定能用，最终需通过真实调用验证。仅保留以上三个 CLI 平台，不包含其他桌面助手的适配逻辑。
 
 **CLI 桥接安全**：Windows Electron 主进程调用本机 CLI。Docker Worker 只通过 PostgreSQL 私有任务队列提交教学 JSON，请求由 Windows App 以两个独立随机密钥主动轮询、领取和回传。不会复制 CLI 登录凭据到容器，不额外监听网络端口。Codex 使用只读沙盒，Gemini 和 CodeBuddy 使用计划模式；输入通过 stdin 传送，执行器只接受固定的工具名和受控模型 ID/参数。结果必须通过 JSON 和现有数学教学契约校验，未通过不能成为正式教学视频。**关闭 Windows App 将使 CLI 调用不可用**，并不影响已有 API 模式。
 
-安装版不会自动安装第三方 CLI，也不会提供第三方账号权限。在本地先确认 CLI 本身能登录并正常工作，然后用界面「测试当前模型」进行真实 JSON 测试，再应用到整个教学流程。自动化测试验证模型锁定、数据库队列、JSON 和安全性，但**不能代替你在自己 Windows 电脑上用真实 Codex/Gemini/CodeBuddy 账号做首次验收**。套餐、额度、地区限制以及型号开放情况由各服务商决定。
+安装版不会自动安装第三方 CLI，也不会提供第三方账号权限。在 Windows 本地 App 进入「配置 AI 模型」，选择三家 CLI 之一、点击「登录账号」并完成官方认证，再通过「测试当前模型」进行真实 JSON 测试，最后应用到整个教学流程。远程 HTTPS 模式不暴露任何 Windows 登录控制接口。自动化测试验证模型锁定、数据库队列、JSON 和安全性，但**不能代替你在自己 Windows 电脑上用真实 Codex/Gemini/CodeBuddy 账号做首次验收**。套餐、额度、地区限制以及型号开放情况由各服务商决定。
 
 ## 2. 已保留的视频教学规则
 
@@ -125,4 +127,4 @@ python tools/clean_generated.py --apply
 
 自动化通过不等于已在你的 Windows 电脑完成 Docker Desktop 初始化、实际大模型账单/接口验证或本地渲染；首次安装后请亲自完成一次完整题目的录制与下载。正常更新客户端不应主动清理原视频与数据库卷。
 
-发布时间：2026-11-02；两文件最终交付版本：**微光数学 Windows App v1.0.5**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。
+发布时间：2026-11-02；两文件最终交付版本：**微光数学 Windows App v1.0.6**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。

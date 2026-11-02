@@ -62,5 +62,12 @@ test('Electron preload is not exposed to the remote mathematical site',()=>{
   assert.match(source,/const expected = pathToFileURL/);
   const wIndex=source.indexOf('studio = new BrowserWindow');
   const webOptions=source.slice(wIndex,source.indexOf('installWebSecurity(studio',wIndex));
-  assert.ok(!webOptions.includes('preload:'),'preload must never be attached to remote page');
+  assert.match(webOptions,/preload: origin===LOCAL_URL/);
+  assert.match(webOptions,/studio_preload\.cjs/);
+  assert.match(webOptions,/\: undefined/,'preload is forbidden for remote HTTPS mode');
+  assert.match(source,/event\.senderFrame !== studio\.webContents\.mainFrame/);
+  assert.match(source,/new URL\(event\.senderFrame\.url\)\.origin !== LOCAL_URL/);
+  const preload=fs.readFileSync(path.join(__dirname,'..','studio_preload.cjs'),'utf8');
+  assert.match(preload,/window\.location\.origin==='http:\/\/127\.0\.0\.1:8000'/);
+  assert.ok(!preload.includes('password'));
 });

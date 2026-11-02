@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 
 
 def test_windows_setup_only_version_and_app_launcher():
@@ -14,7 +14,7 @@ def test_windows_setup_only_version_and_app_launcher():
     assert pkg["version"] == VERSION
     assert pkg["productName"] == "微光数学"
     assert pkg["build"]["appId"] == "cn.weiguang.math"
-    assert "Windows Desktop 1.0.5" in launcher
+    assert "Windows Desktop 1.0.6" in launcher
     assert pkg["scripts"]["build:windows"].endswith("--x64")
     assert pkg["build"]["nsis"]["createDesktopShortcut"]
     assert "nsis" in str(pkg["build"]["win"]["target"])
@@ -54,11 +54,11 @@ def test_windows_build_handoff_has_checksums_provenance_and_native_smoke():
     # the maintainable source ZIP, never as additional release sidecars.
     assert "SHA256SUMS.txt" not in workflow
     assert "app-manifest.json" not in workflow
-    assert "WeiGuang-Math-Setup-1.0.5-x64.exe" in workflow
-    assert "WeiGuang-Math-Source-1.0.5.zip" in workflow
+    assert "WeiGuang-Math-Setup-1.0.6-x64.exe" in workflow
+    assert "WeiGuang-Math-Source-1.0.6.zip" in workflow
     assert "EXACTLY_TWO_WINDOWS_RELEASE_FILES_ACCEPTED" in workflow
     assert "GITHUB_SHA" in workflow
-    assert "1.0.5" in workflow
+    assert "1.0.6" in workflow
     assert "actions/upload-artifact@v4" in workflow
     assert "npm run test:native" in workflow
     assert "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK" in workflow
