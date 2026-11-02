@@ -1,15 +1,15 @@
 {
   "name": "weiguang-math-desktop",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "private": true,
-  "description": "微光数学 Windows 桌面工作台（前端与本地 Docker 视频服务）",
+  "description": "微光数学 Windows 桌面工作台（内置 Windows 原生 Python、PostgreSQL 和视频引擎，不需要 Docker/WSL2）",
   "productName": "微光数学",
   "main": "main.cjs",
   "author": "WeiGuang Math",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "test": "node --test tests/launcher.test.cjs tests/cli_bridge.test.cjs tests/ai_auth.test.cjs tests/dependency_setup.test.cjs",
+    "test": "node --test tests/launcher.test.cjs tests/cli_bridge.test.cjs tests/ai_auth.test.cjs tests/native_services.test.cjs",
     "build:windows": "electron-builder --win nsis --x64",
     "test:native": "node tests/native_smoke.cjs"
   },
@@ -30,11 +30,11 @@
     },
     "files": [
       "main.cjs",
+      "native_services.cjs",
       "preload.cjs",
       "url_policy.cjs",
       "cli_bridge.cjs",
       "ai_auth.cjs",
-      "dependency_setup.cjs",
       "studio_preload.cjs",
       "launcher.html",
       "launcher.js",
@@ -44,15 +44,6 @@
       "build/app.png"
     ],
     "extraResources": [
-      {
-        "from": "../backend",
-        "to": "service/backend",
-        "filter": [
-          "Dockerfile",
-          "pyproject.toml",
-          "src/**/*"
-        ]
-      },
       {
         "from": "../animation_engine",
         "to": "service/animation_engine",
@@ -95,15 +86,19 @@
         ]
       },
       {
-        "from": "../",
-        "to": "service",
+        "from": "../backend",
+        "to": "service/backend",
         "filter": [
-          "docker-compose.yml"
+          "pyproject.toml",
+          "src/**/*"
         ]
       },
       {
-        "from": "setup-dependencies.ps1",
-        "to": "setup-dependencies.ps1"
+        "from": "native_runtime",
+        "to": "runtime",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
@@ -124,8 +119,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "微光数学",
-      "artifactName": "WeiGuang-Math-Setup-${version}-${arch}.${ext}",
-      "include": "installer.nsh"
+      "artifactName": "WeiGuang-Math-Setup-${version}-${arch}.${ext}"
     }
   }
 }

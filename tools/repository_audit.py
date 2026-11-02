@@ -22,15 +22,11 @@ CRITICAL={
     ".github/workflows/windows-desktop.yml",
     ".github/workflows/frontend-screenshots.yml",
     ".github/workflows/final-new-question.yml",
-    "docker-compose.yml",
     "backend/src/weiguang_backend/main.py",
     "backend/src/weiguang_backend/model_hub.py",
     "frontend/app.js",
     "frontend/logo.svg",
     "desktop/main.cjs",
-    "desktop/installer.nsh",
-    "desktop/setup-dependencies.ps1",
-    "desktop/dependency_setup.cjs",
     "desktop/preload.cjs",
     "desktop/ai_auth.cjs",
     "desktop/studio_preload.cjs",
@@ -58,7 +54,8 @@ def main():
     missing=CRITICAL-files
     obsolete=sorted(name for name in files
                     if name.startswith(("android_app/", "deploy/", "linux/"))
-                    or name in (".github/workflows/android-apk.yml",
+                    or name in ("docker-compose.yml", "backend/Dockerfile",
+                                ".github/workflows/android-apk.yml",
                                 "backend/tests/capture_android_mobile.py",
                                 "backend/tests/test_android_delivery.py"))
     if obsolete:

@@ -132,6 +132,22 @@ def create_app(
     root.mkdir(parents=True,exist_ok=True)
     Base.metadata.create_all(engine)
     SessionLocal=sessionmaker(engine,expire_on_commit=False)
+    # Native Windows edition uses one in-process task executor rather than
+    # Redis/Celery. Task state remains persisted in PostgreSQL.
+    native_queue=(os.environ.get("WEIGUANG_NATIVE_QUEUE")=="1" and not eager)
+    native_executor=None
+    if native_queue:
+        from concurrent.futures import ThreadPoolExecutor
+        native_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix="weiguang")
+        with SessionLocal() as recovery:
+            interrupted=list(recovery.scalars(select(Job).where(
+                Job.status.in_(("queued","running"))
+            )))
+            for item in interrupted:
+                item.status="failed"
+                item.phase="上次运行中断"
+                item.error="NATIVE_JOB_INTERRUPTED_RETRY_AVAILABLE"
+            recovery.commit()
     dev=(os.environ.get("WEIGUANG_LOCAL_DEV")=="1" if local_dev is None else local_dev)
     app=FastAPI(title="微光数学视频 API",version="0.1.0")
 
@@ -467,6 +483,9 @@ def create_app(
     def dispatch(job_id):
         if eager:
             run_job(job_id)
+            return
+        if native_executor is not None:
+            native_executor.submit(run_job,job_id)
             return
         try:
             from .worker import celery_app
