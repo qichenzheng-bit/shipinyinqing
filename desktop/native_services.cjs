@@ -203,8 +203,17 @@ class NativeServices {
     const animation = path.join(this.serviceRoot, 'animation_engine', 'src');
     const teacher = path.join(this.serviceRoot, 'teacher_module', 'src');
     const director = path.join(this.serviceRoot, 'visual_director', 'src');
+    // MiKTeX parses an absolute TeX input path as TeX tokens. Windows 8.3
+    // aliases such as C:\\Users\\RUNNER~1 are NOT safe: '~' becomes a TeX
+    // active character, causing "I can't find file C:/Users/RUNNER".
+    // Python tempfile and Manim must not inherit a short-path TEMP/TMP.
+    const nativeTemp = path.join(this.localStateRoot, 'temp');
+    fs.mkdirSync(nativeTemp, { recursive: true });
     return {
       ...process.env,
+      TEMP: nativeTemp,
+      TMP: nativeTemp,
+      TMPDIR: nativeTemp,
       PATH: [...paths, process.env.PATH || ''].join(path.delimiter),
       PYTHONPATH: [backend, animation, teacher, director].join(path.delimiter),
       PYTHONNOUSERSITE: '1',
