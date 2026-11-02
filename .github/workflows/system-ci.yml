@@ -8,73 +8,8 @@ on:
 permissions:
   contents: read
 jobs:
-  source-and-script:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-      - name: Install teacher, director, engine (no media dependencies)
-        run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]'
-      - name: Validate animation, teacher and director without rendering
-        run: |
-          (cd animation_engine && python -m pytest -q -m 'not render')
-          (cd teacher_module && python -m pytest -q)
-          (cd visual_director && python -m pytest -q)
-          (cd backend && python -m pytest -q)
-      - name: Validate frontend JavaScript syntax
-        run: node --check frontend/app.js
-      - name: Validate Docker Compose with placeholder secrets (no containers)
-        env:
-          POSTGRES_PASSWORD: ci_only_url_safe_password
-          WEIGUANG_API_TOKEN: ci_only_do_not_deploy
-        run: docker compose config --quiet
-      - name: Validate single human-facing README and four runtime prompts
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          prompt_root = Path("teacher_module/src/math_teacher/prompts")
-          must_keep = {
-              prompt_root/"global.md", prompt_root/"a_understanding.md",
-              prompt_root/"b_planning.md", prompt_root/"c_narration.md",
-          }
-          found = set(Path(".").rglob("*.md"))
-          found = {Path(str(p).lstrip("./")) for p in found
-                   if ".git" not in p.parts and ".pytest_cache" not in p.parts
-                   and "__pycache__" not in p.parts and ".egg-info" not in str(p)}
-          assert found == {Path("README.md")} | must_keep, found
-          assert all(p.stat().st_size > 100 for p in must_keep)
-          print("DOCUMENTATION_CLEANUP_OK",len(found))
-          PY
-      - name: Build source-approved V2.7 lesson without video
-        run: |
-          python animation_engine/tests/fixtures/build_novel_substitution_integral.py --output v27-script
-          math-animation export-spoken-script --spoken v27-script/spoken_classroom.json --output v27-script/lesson_script.md
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          from animation_engine.video_settings import DEFAULT_VIDEO_FPS, transition_frame_count
-          data = json.loads(Path("v27-script/lesson_script.json").read_text(encoding="utf-8"))
-          assert data["acceptance"]["contract_version"] == "2.7"
-          assert data["events"][0]["phase"] == "observe"
-          assert data["events"][-1]["phase"] == "summary"
-          assert DEFAULT_VIDEO_FPS == 60 and transition_frame_count(60) == 36
-          assert "我们来读一下这道题" not in Path("v27-script/lesson_script.md").read_text(encoding="utf-8")
-          print("SINGLE_CI_SCRIPT_ACCEPTED", len(data["events"]), "events; fps", DEFAULT_VIDEO_FPS)
-          PY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: system-script-only-no-video
-          path: |
-            v27-script/lesson_script.md
-            v27-script/lesson_script.json
-          if-no-files-found: ignore
-
   windows-source-and-script:
-    name: Windows native no-classroom-render validation
+    name: Windows-only source and classroom validation
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -86,6 +21,15 @@ jobs:
         run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]'
       - name: Validate Windows frontend JavaScript syntax
         run: node --check frontend/app.js
+      - name: Verify Windows-only source inventory and docs
+        run: python tools/repository_audit.py
+      - name: Verify Windows Docker Desktop Compose configuration
+        env:
+          POSTGRES_PASSWORD: ci_only_url_safe_password
+          WEIGUANG_API_TOKEN: ci_only_do_not_deploy
+        run: docker compose config --quiet
+      - name: Validate approved V2.7 lesson and Windows source integrity
+        run: python tools/windows_release_validate.py
       - name: Run Windows Python source and regression checks
         shell: pwsh
         run: |
