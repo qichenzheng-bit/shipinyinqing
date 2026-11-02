@@ -7,6 +7,7 @@ const { pathToFileURL } = require('node:url');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { normalizeEndpoint, allowedNavigation } = require('./url_policy.cjs');
+const { createBridge } = require('./cli_bridge.cjs');
 
 const run = promisify(execFile);
 const APP_ID = 'cn.weiguang.math';
@@ -15,6 +16,7 @@ let launcher = null;
 let studio = null;
 let starting = false;
 let appClosing = false;
+let cliBridge = null;
 
 app.setAppUserModelId(APP_ID);
 const hasLock = app.requestSingleInstanceLock();
@@ -68,6 +70,14 @@ function keyMaterial() {
       for (const name of ['POSTGRES_PASSWORD', 'WEIGUANG_API_TOKEN', 'WEIGUANG_MODEL_MASTER_KEY']) {
         if (!result[name] || typeof result[name] !== 'string') throw Error('missing');
       }
+      if (!result.WEIGUANG_CLI_BRIDGE_TOKEN) {
+        // Preserve existing DB and encryption secrets across upgrades.
+        result.WEIGUANG_CLI_BRIDGE_TOKEN = crypto.randomBytes(48).toString('hex');
+        const upgradePath = target + '.upgrade';
+        fs.writeFileSync(upgradePath, safeStorage.encryptString(JSON.stringify(result)),
+          { mode: 0o600, flag: 'wx' });
+        fs.renameSync(upgradePath, target);
+      }
       return result;
     } catch {
       throw new Error('原有 Windows 凭据无法解密。为保护已有数据库，不会自动重置密码。');
@@ -76,6 +86,7 @@ function keyMaterial() {
   const data = {
     POSTGRES_PASSWORD: crypto.randomBytes(32).toString('hex'),
     WEIGUANG_API_TOKEN: crypto.randomBytes(48).toString('hex'),
+    WEIGUANG_CLI_BRIDGE_TOKEN: crypto.randomBytes(48).toString('hex'),
     // Fernet requires padded URL-safe base64 representing 32 random bytes.
     WEIGUANG_MODEL_MASTER_KEY: crypto.randomBytes(32).toString('base64')
       .replace(/\+/g, '-').replace(/\//g, '_'),
@@ -179,6 +190,17 @@ async function showStudio(origin) {
   }
 }
 
+function startLocalCliBridge(secrets) {
+  if (cliBridge) cliBridge.stop();
+  cliBridge = createBridge({origin:LOCAL_URL,authToken:secrets.WEIGUANG_API_TOKEN,
+    bridgeToken:secrets.WEIGUANG_CLI_BRIDGE_TOKEN});
+  cliBridge.start();
+}
+function stopLocalCliBridge() {
+  if (cliBridge) cliBridge.stop();
+  cliBridge = null;
+}
+
 async function launchLocal() {
   if (starting) throw new Error('本地服务正在启动');
   starting = true;
@@ -220,6 +242,7 @@ async function launchLocal() {
     progress('正在验证服务…');
     await waitForHealth(LOCAL_URL, 60);
     await autoLogin(secrets.WEIGUANG_API_TOKEN);
+    startLocalCliBridge(secrets);
     writePrefs({ mode: 'local', url: LOCAL_URL });
     await showStudio(LOCAL_URL);
     progress('本地服务已连接');
@@ -232,11 +255,13 @@ async function connectLocal() {
   const secrets = keyMaterial();
   await waitForHealth(LOCAL_URL);
   await autoLogin(secrets.WEIGUANG_API_TOKEN);
+  startLocalCliBridge(secrets);
   writePrefs({ mode: 'local', url: LOCAL_URL });
   await showStudio(LOCAL_URL);
   return { ok: true };
 }
 async function connectRemote(raw) {
+  stopLocalCliBridge();
   const origin = normalizeEndpoint(raw);
   await waitForHealth(origin);
   writePrefs({ mode: 'remote', url: origin });
@@ -289,6 +314,6 @@ if (hasLock) {
     ipcMain.handle('wg:connect-remote', onlyLauncher(connectRemote));
     createLauncher();
   });
-  app.on('before-quit', () => { appClosing = true; });
+  app.on('before-quit', () => { appClosing = true; stopLocalCliBridge(); });
   app.on('window-all-closed', () => app.quit());
 }
