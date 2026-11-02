@@ -33,8 +33,8 @@ def check_documentation() -> None:
     assert all((ROOT / p).stat().st_size > 100 for p in PROMPTS)
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "Windows 单平台" in readme
-    assert "Docker Desktop" in readme
-    assert "WSL2" in readme
+    assert "Docker Desktop" in readme  # explicitly state no longer required
+    assert "WSL2" in readme  # explicitly state no longer required
     assert "归纳总结" in readme
     assert not (ROOT / "android_app").exists()
     assert not (ROOT / "deploy").exists()
