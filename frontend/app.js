@@ -9,7 +9,12 @@
     modal:null, notice:'', trash:[], projectTrash:[], settings:null,
     ai:{catalog:[],providers:[],bindings:{},status:null,providerId:'',preset:'openai',
         versions:[],discovery:'',modelId:'',targetTask:'all',testStatus:'',
-        mode:'api',effort:'default',timeout:150,global:null,cliStatus:null},
+        mode:'api',effort:'default',timeout:150,global:null,cliStatus:null,
+        cliModels:{
+          codex_cli:['gpt-6.1-sol','gpt-6.1-terra','gpt-6-astra','gpt-6-luna','gpt-6-sol','gpt-5.6'].map(id=>({id,label:id})),
+          gemini_cli:['gemini-3.1-pro-preview','gemini-3-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.5-flash-lite'].map(id=>({id,label:id})),
+          codebuddy_cli:['gpt-5','sonnet','opus'].map(id=>({id,label:id})),
+        },authStatus:{}},
   };
   const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, s => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
@@ -233,6 +238,10 @@
     const family=current||preset;
     const mode=ai.mode;
     const isApi=mode==='api';
+    const available=(isApi?ai.versions:(ai.cliModels[mode]||[])).slice();
+    if(ai.modelId && !available.some(m=>m.id===ai.modelId))
+      available.unshift({id:ai.modelId,label:ai.modelId+'（已选）'});
+    const modelOptions=available.filter(m=>m && /^[A-Za-z0-9][A-Za-z0-9._:\/+-]{0,199}$/.test(m.id||''));
     const cliState=ai.cliStatus?.cli?.[mode];
     const efforts=isApi?['default','none','minimal','low','medium','high','xhigh','max']:
       mode==='gemini_cli'?['default','low','medium','high']:
@@ -240,19 +249,24 @@
       ['default','minimal','low','medium','high','xhigh','max'];
     const effortLabels={default:'模型默认',none:'无',minimal:'最小',low:'低',medium:'中',high:'高',xhigh:'极高',max:'最高'};
     const note=isApi?'原有 API 连接继续支持；推理参数仅在模型支持时生效。':
-      mode==='codebuddy_cli'?'通过 CodeBuddy CLI 调用，不代表 WorkBuddy 桌面所有模型可被外部指定。':
+      mode==='codebuddy_cli'?'通过已安装的 CodeBuddy CLI 调用，具体模型由账号权限决定。':
       'Windows 上已登录的 CLI 账号执行；不需要额外填写模型 API Key。';
     return head('统一 AI 模型',button('返回设置','back-ai-settings'))+
       '<div class="api-layout"><section class="panel">'+
       '<h2>模型调用入口</h2>'+
       '<div class="field"><label for="ai-mode">选择服务</label><select class="select" id="ai-mode">'+
       [['api','已保存 / 自定义 API'],['codex_cli','Codex CLI'],['gemini_cli','Gemini CLI'],
-       ['codebuddy_cli','CodeBuddy CLI（WorkBuddy 生态）']].map(([id,label])=>
+       ['codebuddy_cli','CodeBuddy CLI']].map(([id,label])=>
        '<option value="'+id+'" '+(mode===id?'selected':'')+'>'+label+'</option>').join('')+'</select></div>'+
       '<div class="muted small">'+escapeHTML(note)+'</div>'+
-      (!isApi?'<div class="setting-row"><span>本地 CLI 状态</span><span class="muted">'+
+      (!isApi?'<div class="setting-row"><span>本地 CLI</span><span class="muted">'+
         escapeHTML(!ai.cliStatus?.bridge_connected?'请启动 Windows 本地引擎':
-         (cliState?.installed?'已检测到 · '+cliState.version:'尚未检测到 CLI'))+'</span></div>':'')+
+         (cliState?.installed?'已安装 · '+cliState.version:'尚未安装 CLI'))+'</span></div>'+
+        '<div class="actions">'+button('登录账号','ai-login','primary')+
+        button('检查登录状态','ai-auth-check')+'</div>'+
+        '<div class="muted small">'+escapeHTML(ai.authStatus[mode]||
+         '点击登录将打开官方 CLI 授权向导和系统浏览器；授权成功后请测试当前模型。')+
+        '</div>':'')+
       (isApi?'<div class="field"><label for="ai-provider-choice">已保存 API 连接</label>'+
         '<select class="select" id="ai-provider-choice"><option value="">＋ 新建连接</option>'+
         apiProviders.map(p=>'<option value="'+escapeHTML(p.id)+'" '+
@@ -277,14 +291,14 @@
         '<div class="actions">'+button('保存 API 连接','ai-save-provider')+
         (current?button('删除连接','ai-delete-provider','danger'):'')+'</div>':'')+
       '</section><section class="panel"><h2>全局模型配置</h2>'+
-      '<div class="field"><label for="ai-manual-model">模型 ID / 精确版本</label>'+
-      '<input class="input" id="ai-manual-model" spellcheck="false" maxlength="200" value="'+
-      escapeHTML(ai.modelId)+'" placeholder="如 gpt-6.1-sol（以账号实际支持为准）"></div>'+
-      (isApi&&current?'<div class="actions">'+button('查询 API 模型列表','ai-discover')+'</div>'+
-        '<div class="field"><label for="ai-versions">模型列表</label><select class="select" id="ai-versions">'+
-        '<option value="">输入精确模型 ID</option>'+ai.versions.map(m=>
-         '<option value="'+escapeHTML(m.id)+'">'+escapeHTML(m.label)+'</option>').join('')+
-        '</select></div>':'')+
+      '<div class="field"><label for="ai-model-choice">选择模型版本</label>'+
+      '<select class="select" id="ai-model-choice"><option value="">请选择模型</option>'+
+      modelOptions.map(m=>'<option value="'+escapeHTML(m.id)+'" '+
+        (ai.modelId===m.id?'selected':'')+'>'+escapeHTML(m.label||m.id)+'</option>').join('')+
+      '</select></div>'+
+      '<div class="actions">'+button('刷新模型列表','ai-refresh-models')+
+        button('添加其他型号','ai-add-model')+'</div>'+
+      '<div class="muted small">下拉列表为当前已发现或建议的型号，是否可用以账号权限和真实测试为准。</div>'+
       (ai.discovery?'<div class="muted small">'+escapeHTML(ai.discovery)+'</div>':'')+
       '<div class="field"><label for="ai-effort">推理强度</label><select class="select" id="ai-effort">'+
       efforts.map(x=>'<option value="'+x+'" '+(x===ai.effort?'selected':'')+'>'+effortLabels[x]+'</option>').join('')+
@@ -302,7 +316,7 @@
       '<div class="muted small" style="margin-top:20px">已配置：'+
        escapeHTML(ai.global?.configured?(ai.global.provider_name+' / '+ai.global.model_id+' · '+
        ai.global.reasoning_effort):'尚未指定')+'</div></section></div>'+
-      '<div class="muted small api-footnote">仅用于之后提交的任务，旧任务保持原型号。WorkBuddy 桌面版未验证单次外部模型控制，不作为已连接入口。</div>';
+      '<div class="muted small api-footnote">仅用于之后提交的任务，旧任务保持原型号。登录凭据由各平台官方 CLI 管理。</div>';
   };
   const trash = () => head('回收站',button('返回视频库','go-library'))+
     '<div class="table-wrap"><table><thead><tr><th>序号</th><th>视频名称</th><th>操作</th></tr></thead><tbody>'+
@@ -468,9 +482,8 @@
         $('#ai-protocol').value=item.protocol;
       }
     }
-    if(event.target.id==='ai-versions' && event.target.value){
+    if(event.target.id==='ai-model-choice'){
       state.ai.modelId=event.target.value;
-      $('#ai-manual-model').value=event.target.value;
     }
     if(event.target.id==='ai-mode'){
       state.ai.mode=event.target.value;
@@ -550,19 +563,54 @@
         state.ai.modelId='';
         flash('已删除连接');
       });
-    } else if(id==='ai-discover'){
-      if(!state.ai.providerId)return flash('请先选择服务商',true);
+    } else if(id==='ai-login'){
+      if(state.ai.mode==='api')return flash('API 模式请配置服务商密钥',true);
+      if(!window.weiGuangAI?.login)return flash('请通过 Windows 本地微光数学 App 使用账号登录',true);
       exec(async()=>{
-        const result=await api('/ai/providers/'+state.ai.providerId+'/models',
-          options('POST',{}));
-        state.ai.versions=result.models||[];
-        state.ai.discovery=result.notice||(result.source==='live'?
-          '读取到 '+state.ai.versions.length+' 个可用模型。':'可手动填写模型版本。');
+        const result=await window.weiGuangAI.login(state.ai.mode);
+        if(!result?.launched)throw Error('官方登录流程未能启动');
+        state.ai.authStatus[state.ai.mode]=result.message;
+        flash('已启动官方登录向导，请在浏览器完成授权');
+      });
+    } else if(id==='ai-auth-check'){
+      if(!window.weiGuangAI?.status)return flash('请在 Windows 本地 App 检查登录状态',true);
+      exec(async()=>{
+        const result=await window.weiGuangAI.status(state.ai.mode);
+        state.ai.authStatus[state.ai.mode]=!result.installed?'CLI 未安装，请先安装官方 CLI':
+          result.authentication==='authenticated'?'已检测到 Codex 登录状态；建议继续测试当前模型':
+          'CLI 已安装，登录状态仍需通过“测试当前模型”确认';
+      });
+    } else if(id==='ai-refresh-models'){
+      exec(async()=>{
+        if(state.ai.mode==='api'){
+          if(!state.ai.providerId)throw Error('请先保存 API 连接');
+          const result=await api('/ai/providers/'+state.ai.providerId+'/models',options('POST',{}));
+          state.ai.versions=result.models||[];
+          state.ai.discovery=result.notice||(result.source==='live'?
+            '读取到 '+state.ai.versions.length+' 个模型':'服务商未返回模型列表');
+        }else{
+          if(window.weiGuangAI?.models){
+            const result=await window.weiGuangAI.models(state.ai.mode);
+            state.ai.cliModels[state.ai.mode]=result.models||[];
+          }
+          state.ai.discovery='已刷新候选型号；请用真实调用验证权限';
+        }
         flash('模型列表已更新');
       });
+    } else if(id==='ai-add-model'){
+      const modelId=window.prompt('输入要添加到下拉框的模型 ID（以实际账号权限为准）','');
+      if(modelId===null)return;
+      const idText=modelId.trim();
+      if(!/^[A-Za-z0-9][A-Za-z0-9._:\/+-]{0,199}$/.test(idText))
+        return flash('模型 ID 格式不正确',true);
+      const arr=state.ai.mode==='api'?state.ai.versions:
+        (state.ai.cliModels[state.ai.mode]||[]);
+      if(!arr.some(m=>m.id===idText))arr.push({id:idText,label:idText});
+      if(state.ai.mode!=='api')state.ai.cliModels[state.ai.mode]=arr;
+      state.ai.modelId=idText;render();
     } else if(id==='ai-test'){
-      const modelId=$('#ai-manual-model')?.value?.trim()||$('#ai-versions')?.value;
-      if(!modelId)return flash('请填写精确模型 ID',true);
+      const modelId=$('#ai-model-choice')?.value;
+      if(!modelId)return flash('请先选择模型版本',true);
       const mode=state.ai.mode;
       if(mode==='api'&&!state.ai.providerId)return flash('请先保存 API 连接',true);
       const payload={mode,model_id:modelId,reasoning_effort:$('#ai-effort').value,
@@ -575,8 +623,8 @@
         flash(state.ai.testStatus);
       });
     } else if(id==='ai-assign'){
-      const modelId=$('#ai-manual-model')?.value?.trim()||$('#ai-versions')?.value;
-      if(!modelId)return flash('请输入模型的精确版本',true);
+      const modelId=$('#ai-model-choice')?.value;
+      if(!modelId)return flash('请先选择模型版本',true);
       const mode=state.ai.mode;
       if(mode==='api'&&!state.ai.providerId)return flash('请先保存 API 连接',true);
       const payload={mode,model_id:modelId,reasoning_effort:$('#ai-effort').value,
