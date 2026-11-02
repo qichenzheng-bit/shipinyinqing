@@ -66,8 +66,10 @@ async function login(kind,{check=installed,launch=spawn,platform=process.platfor
   if(!await check(kind))throw new Error('CLI_NOT_INSTALLED_INSTALL_OFFICIAL_CLI_FIRST');
   // Fixed allowlisted commands. No user text, model name, URL, or project input
   // ever enters the Windows command interpreter.
-  const child=launch('cmd.exe',['/d','/k',item.login],
-    {detached:true,windowsHide:false,stdio:'ignore',cwd:os.homedir()});
+  // START opens a *new interactive console*. Spawning the CLI with stdio
+  // ignored would break Gemini/CodeBuddy TUI input and browser sign-in.
+  const child=launch('cmd.exe',['/d','/c','start "" cmd.exe /d /k '+item.login],
+    {detached:true,windowsHide:true,stdio:'ignore',cwd:os.homedir()});
   if(!child || !child.pid)throw new Error('CLI_LOGIN_WINDOW_LAUNCH_FAILED');
   child.unref?.();
   return {launched:true,provider:kind,message:item.message,authentication:'pending'};
