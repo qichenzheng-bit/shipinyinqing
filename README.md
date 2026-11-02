@@ -1,21 +1,21 @@
-# 微光数学 · Windows 电脑 App 1.0.3
+# 微光数学 · Windows 电脑 App 1.0.4
 
-**Windows 单平台最终交付。** 微光数学是一款考研数学教学视频制作程序，覆盖数学教师草稿、数学审核、课堂编排、教学讲稿审核、逐步板书、Manim/LaTeX 渲染、神经网络语音配音、字幕、视频下载与多轮微调。当前发布版本只提供 **Windows 安装版和 Windows 免安装版**，不再维护移动应用或移动端打包流水线。
+**Windows 单平台最终交付。** 微光数学是一款考研数学教学视频制作程序，覆盖数学教师草稿、数学审核、课堂编排、教学讲稿审核、逐步板书、Manim/LaTeX 渲染、神经网络语音配音、字幕、视频下载与多轮微调。当前版本最终只发布 **Windows 安装版 EXE** 和 **完整源码维护 ZIP** 两份文件，不再发布免安装版、移动端或 Linux 安装包。
 
 最终运行界面是独立的 Windows Electron 桌面应用（不是提供一个浏览器网址作为 App）。底层工作台与本地 FastAPI/容器服务协作；**界面并未重写为纯 WinUI 原生组件，视频生产需要外部运行环境，安装包不是纯离线一体化可执行文件**。
 
 ## 1. 下载安装
 
-到 [Windows App 构建工作流](.github/workflows/windows-desktop.yml) 打开最新成功的 `main` 分支构建，下载名为 `WeiGuang-Math-Windows-Only-1.0.3-App` 的构建附件，解压后得到：
+打开 [Windows App 构建工作流](.github/workflows/windows-desktop.yml)，下载最新成功的 `main` 分支附件 `WeiGuang-Math-Windows-v1.0.4-Installer-and-Source`。附件里**只有两份最终文件**：
 
-| 文件 | 功能 |
+| 文件 | 用途 |
 |---|---|
-| `WeiGuang-Math-Setup-1.0.3-x64.exe` | **推荐**：Windows 10/11 x64 安装版，支持选目录、开始菜单与桌面快捷方式 |
-| `WeiGuang-Math-Portable-1.0.3-x64.exe` | 免安装版，可直接运行 |
-| `SHA256SUMS.txt` | Windows 文件校验值 |
-| `app-manifest.json` | 版本、源码提交 SHA、打包资源和签名状态 |
+| `WeiGuang-Math-Setup-1.0.4-x64.exe` | **使用版**：Windows 10/11 x64 安装程序，安装后从桌面启动，支持选择安装目录 |
+| `WeiGuang-Math-Source-1.0.4.zip` | **维护版**：完整的前后端、桌面客户端、数学/视频引擎、配置示例、持续集成脚本、必要回归测试源码和测试构造器；方便后续更新修改 |
 
-两个 EXE 都是桌面应用，不需要打开 VS Code，也无需手工运行 Web 浏览器。安装版与便携版的功能相同。Windows 程序图标采用项目已经确定的“展开书页 + 暖金星芒”，视频右上角使用相应透明水印。
+这两份文件来源于同一个 GitHub 提交。源码 ZIP 的根目录内包含 `release-manifest.json`，注明 Git 提交、版本、安装包 SHA-256 和源码文件逐项 SHA-256，方便核对与维护。交付包内不会再单独提供便携版 EXE、测试成片、字幕、截图、数据库副本或演示数据。
+
+**使用版并非独立离线渲染器**：安装程序本身不捆绑 Docker Desktop、WSL2、完整 Manim/TeX 运行环境或付费模型密钥；首次使用本地视频引擎仍需要 Docker Desktop 完成环境初始化。**维护版不是可直接安装的软件**，编辑源码后要重新构建 Windows 安装包。系统界面为 Electron 桌面应用。
 
 安装包尚未配置 Windows 代码签名证书，**公开发行前需要购买/配置可信签名证书并通过安全审查**。不能把未经签名的内部构建称为已取得可信发行者认证的软件。
 
@@ -90,9 +90,9 @@
 
 ### 最终仓库清理规则
 
-主分支只保留 Windows 正式运行源码、配置示例、必要测试，以及支持持续验收的 CI 脚本。不提供 Linux 安装程序、Linux 桌面客户端及独立 Linux Nginx 部署模板。早期直接提交的前端页面截图已从源码版本中移除；新的界面截图由 `frontend-screenshots.yml` 在 GitHub Actions 中重新生成并作为构建附件保存，不再进入 Git 历史的新提交。
+主分支只保留 Windows 正式运行源码、配置示例、必要测试，以及支持持续验收的 CI 脚本。不提供 Linux 安装程序、Linux 桌面客户端及独立 Linux Nginx 部署模板。早期直接提交的前端页面截图已从源码版本中移除；界面截图由 `frontend-screenshots.yml` 在 GitHub Actions 临时生成用于验收，不再长期上传为发布附件，也不会进入 Git 源码。
 
-两份旧版板书策略 JSON 示例也已移除，因为其中的布局尺寸不再代表当前统一课堂引擎。**真实的数学测试素材并非无关文件**：仍被单元测试、Windows 回归检查或真实有声视频验收引用的测试题必须保留在测试目录，不会打入用户安装 EXE。
+两份旧版板书策略 JSON 示例也已移除，因为其中的布局尺寸不再代表当前统一课堂引擎。**必要的数学回归测试素材属于维护代码**：仍被单元测试、Windows 回归检查或真实有声视频验收引用的题目构造脚本和极少量规范化 JSON 夹具保留在源码 ZIP 中，但绝不打入安装 EXE。已经生成的测试视频、音频、字幕、截图和数据库不属于源码包，也不会加入两份最终交付物。
 
 临时打包文件、Windows 可执行文件、验收截图、一次性输出及声音/视频等媒体产物已加入 `.gitignore`，`tools/repository_audit.py` 会拒绝它们被错误提交。 `tools/clean_generated.py` 仅处理明确列出的可重建缓存、构建目录与 CI 截图（先预览，显式使用 `--apply` 才删除）。该工具**不会操作**用户视频库、模型凭据、数据库、课程包、微调记录或历史 Git 提交。
 
@@ -109,10 +109,10 @@ python tools/clean_generated.py --apply
 ## 5. 验收说明
 
 - `system-ci.yml`：仅在 Windows Runner 执行源码、教师/导演/后端/动画引擎非渲染测试、Docker Desktop Compose 配置和真实课程讲稿生成核验。
-- `frontend-screenshots.yml`：仅在 Windows Runner 执行真实 Chromium UI 自动化截图以及水印单帧验证。
-- `windows-desktop.yml`：Windows 11 原生 Electron 窗口、NSIS 和便携 EXE 构建及文件资源、SHA-256 校验。
-- `final-new-question.yml`：新数学题的真实 Manim、Edge TTS、字幕、60 FPS、视频水印及总结板书成片验收。此特殊媒体验收仍使用 Linux CI 环境模拟 Windows Docker Desktop 内的 Linux 容器工具链；**它不构建、安装或交付 Linux 版 App**。
+- `frontend-screenshots.yml`：仅在 Windows Runner 执行真实 Chromium UI 自动化截图以及水印单帧验证，生成物由 CI 临时保存，流程结束即丢弃。
+- `windows-desktop.yml`：Windows 11 原生 Electron 窗口、唯一 NSIS 安装包构建、完整源码 ZIP 构建、严格的两文件清单和 SHA-256 校验。
+- `final-new-question.yml`：新数学题的真实 Manim、Edge TTS、字幕、60 FPS、视频水印及总结板书成片验收；成片只用于临时 CI 核验，不再作为交付物上传。此特殊媒体验收仍使用 Linux CI 环境模拟 Windows Docker Desktop 内的 Linux 容器工具链；**它不构建、安装或交付 Linux 版 App**。
 
 自动化通过不等于已在你的 Windows 电脑完成 Docker Desktop 初始化、实际大模型账单/接口验证或本地渲染；首次安装后请亲自完成一次完整题目的录制与下载。正常更新客户端不应主动清理原视频与数据库卷。
 
-发布时间：2026-11-02；最终单平台版本：**微光数学 Windows App v1.0.3**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。
+发布时间：2026-11-02；两文件最终交付版本：**微光数学 Windows App v1.0.4**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。
