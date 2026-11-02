@@ -28,6 +28,10 @@ from .classroom_cues import (
 )
 from .longboard_header import make_question_overlay
 from .board_motion import overlaps
+from .recap_board import (
+    RECAP_BOARD_MODULE, select_recap_sources,
+    reveal_recap_during_summary,
+)
 
 
 BOARD_START_Y = 148
@@ -473,33 +477,12 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             and any(previous["phase"]=="conclusion"
                     for _,_,previous in sequence[:index])
         )
-        recap_references=[]
-        if recap_only:
-            prior_knowledge=[]
-            prior_pitfalls=[]
-            for earlier_index,earlier in enumerate(events):
-                older_cue=sequence[earlier_index][2]
-                if older_cue["phase"] not in ("knowledge","pitfall"):
-                    continue
-                older_note=next(
-                    (b for b in earlier["added_blocks"]
-                     if b["kind"]=="teacher_note" and not b.get("carry")),None
-                )
-                older_math=[
-                    b["block_id"] for b in earlier["added_blocks"]
-                    if b["kind"]=="math" and not b.get("carry")
-                    and b["block_id"] in written
-                ]
-                if older_cue["phase"]=="knowledge" and older_math:
-                    prior_knowledge.append((older_cue,older_note,older_math))
-                elif older_cue["phase"]=="pitfall" and older_note:
-                    prior_pitfalls.append((older_cue,older_note,[]))
-            # At most the latest 2 core facts and 2 genuine pitfalls;
-            # adapt if a lesson has no such events. No answer is carried.
-            recap_references=(
-                [("knowledge",*item) for item in prior_knowledge[-2:]]
-                + [("pitfall",*item) for item in prior_pitfalls[-2:]]
-            )
+        recap_references=(
+            select_recap_sources(
+                events, [prior_cue for _,_,prior_cue in sequence[:index]],
+                written,
+            ) if recap_only else []
+        )
         note_needed=(cue["phase"] in BOARD_GUIDANCE_PHASES
                      and cue["phase"] != "conclusion"
                      and not opening_readout)
@@ -865,6 +848,7 @@ def make_chalkboard_plan(storyboard,execution,cues,policy, *,
             "speech_only_actions":speech_only_actions,
             "visible_block_ids":[a["block_id"] for a in active],
             "pause_seconds":cue["pause_seconds"],
+            "recap_board_module":RECAP_BOARD_MODULE if recap_only else None,
             "recap_review_source_ids":[
                 b.get("source_object_id",b.get("source_block_id"))
                 for b in added if b.get("recap_review")
@@ -1358,10 +1342,40 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                     "diagram","diagram:"+row["event_id"],
                                     reveal_diagram
                                 )
+                        # Summary source replays are prebuilt from exact prior
+                        # board objects, then ANIMATED DURING the old voice note.
+                        # The previous implementation inserted them after the
+                        # whole summary TTS span, so they missed the final frame.
+                        recap_objects={}
+                        recap_visuals=[]
+                        for replay in row["added_blocks"]:
+                            if not replay.get("recap_review"):
+                                continue
+                            if not replay.get("carry"):
+                                raise LongboardError("RECAP_SOURCE_MUST_BE_CARRIED")
+                            if replay["kind"]=="teacher_note":
+                                from manim import ImageMobject
+                                replay_obj=ImageMobject(str(
+                                    temp/(replay["block_id"].replace(":","_")+".png")
+                                ))
+                                replay_obj.scale_to_fit_width(fw).move_to([0,0,0])
+                            elif replay["kind"]=="math":
+                                replay_obj=build_math(replay)
+                            else:
+                                raise LongboardError("RECAP_UNSUPPORTED_SOURCE_KIND")
+                            recap_objects[replay["block_id"]]=replay_obj
+                            recap_visuals.append((replay["kind"],replay_obj))
                         for block in row["added_blocks"]:
                             ident=block["block_id"]
                             if ident in active:
                                 raise LongboardError("CHALKBOARD_DUPLICATE_LIVE_OBJECT")
+                            if block.get("recap_review"):
+                                # These real Manim objects have already been
+                                # shown inside the summary voice time window.
+                                if ident not in recap_objects:
+                                    raise LongboardError("RECAP_SOURCE_OBJECT_MISSING")
+                                active[ident]=recap_objects[ident]
+                                continue
                             if block.get("carry"):
                                 if block["kind"]=="teacher_note":
                                     from manim import ImageMobject
@@ -1383,8 +1397,19 @@ def render_persistent_chalkboard(storyboard,execution,cues,policy, *,
                                     before=self.time
                                     self.play(FadeIn(obj),run_time=.32 if duration is
                                               None else min(.32,duration*.5))
+                                    if block["phase"]=="summary" and recap_visuals:
+                                        remaining_voice=(duration-(self.time-before)
+                                                         if duration is not None else None)
+                                        reveal_recap_during_summary(
+                                            self, recap_visuals,
+                                            duration=remaining_voice, fps=fps,
+                                        )
                                     if duration is not None:
                                         remaining=duration-(self.time-before)
+                                        if remaining < -2/fps:
+                                            raise LongboardError(
+                                                "RECAP_VISUAL_EXCEEDS_SUMMARY_VOICE"
+                                            )
                                         if remaining>1e-5:
                                             self.wait(remaining)
                                 perform_sync("note",ident,write_note)
