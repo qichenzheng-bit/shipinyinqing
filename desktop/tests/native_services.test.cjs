@@ -19,6 +19,7 @@ function latexAt(root) {
   const latex = path.join(root, 'miktex', 'bin', 'x64', 'latex.exe');
   fs.mkdirSync(path.dirname(latex), {recursive:true});
   fs.writeFileSync(latex,'fixture');
+  fs.writeFileSync(path.join(path.dirname(latex), 'initexmf.exe'), 'fixture');
   return latex;
 }
 function mockRunner(calls, { failInstall=false, failCompile=false } = {}) {
@@ -29,6 +30,8 @@ function mockRunner(calls, { failInstall=false, failCompile=false } = {}) {
       const installArg=args.find(x=>x.startsWith('--user-install='));
       assert.ok(installArg);
       latexAt(installArg.slice('--user-install='.length));
+    } else if (path.basename(executable).toLowerCase()==='initexmf.exe') {
+      assert.deepEqual(args, ['--set-config-value=[MPM]AutoInstall=yes']);
     } else if (path.basename(executable).toLowerCase()==='latex.exe') {
       assert.ok(args.includes('probe.tex'));
       assert.ok(args.includes('-halt-on-error'));
@@ -70,6 +73,7 @@ test('legacy nested config is preserved; first install is isolated and second is
     assert.equal(first,again);
     assert.ok(first.includes('tex-runtime-v2'));
     assert.equal(calls.filter(x=>path.basename(x.executable).startsWith('basic-miktex-')).length,1);
+    assert.equal(calls.filter(x=>path.basename(x.executable).toLowerCase()==='initexmf.exe').length,1);
     assert.equal(fs.readFileSync(path.join(config,'existing.ini'),'utf8'),'do-not-delete');
   } finally { fs.rmSync(f.root,{recursive:true,force:true}); }
 });
