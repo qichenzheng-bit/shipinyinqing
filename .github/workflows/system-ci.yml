@@ -11,6 +11,9 @@ jobs:
   windows-source-and-script:
     name: Windows-only source and classroom validation
     runs-on: windows-latest
+    env:
+      # Runner-only preinstalled PostgreSQL 17. Never a real user DB.
+      WEIGUANG_TEST_POSTGRES_ADMIN_URL: postgresql+psycopg://postgres:root@127.0.0.1:5432/postgres
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
@@ -21,6 +24,15 @@ jobs:
         run: python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]'
       - name: Validate Windows frontend JavaScript syntax
         run: node --check frontend/app.js
+      - name: Start isolated PostgreSQL 17 on Windows CI
+        shell: pwsh
+        run: |
+          Set-Service -Name postgresql-x64-17 -StartupType Manual
+          Start-Service -Name postgresql-x64-17
+          $env:PGPASSWORD = 'root'
+          $psql = Join-Path $env:PGBIN 'psql.exe'
+          & $psql -h 127.0.0.1 -U postgres -d postgres -tAc 'SELECT 1'
+          if ($LASTEXITCODE -ne 0) { throw 'POSTGRESQL_17_NOT_AVAILABLE_IN_WINDOWS_CI' }
       - name: Verify Windows-only source inventory and docs
         run: python tools/repository_audit.py
       - name: Verify Windows Docker Desktop Compose configuration
