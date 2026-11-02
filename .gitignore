@@ -45,3 +45,12 @@ media/
 *.msi
 *.apk
 *.aab
+
+# No Linux or macOS end-user installable artifacts in Windows-only source.
+linux/
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.dmg
+*.pkg
