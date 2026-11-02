@@ -56,7 +56,7 @@ async function run(exe, args, options = {}) {
   });
 }
 class NativeServices {
-  constructor({ serviceRoot, runtimeRoot, userDir, secrets, progress = () => {} }) {
+  constructor({ serviceRoot, runtimeRoot, userDir, secrets, progress = () => {}, skipTexBootstrap = false }) {
     this.serviceRoot = serviceRoot;
     this.runtimeRoot = runtimeRoot;
     this.userDir = userDir;
@@ -65,6 +65,7 @@ class NativeServices {
     this.pythonProcess = null;
     this.startedPostgres = false;
     this.stopRequested = false;
+    this.skipTexBootstrap = skipTexBootstrap;
   }
   engine() { return path.join(this.runtimeRoot, 'engine'); }
   async ensureTex() {
@@ -179,7 +180,7 @@ class NativeServices {
     executable(engine, 'ffmpeg.exe');
     executable(engine, 'initdb.exe');
     executable(engine, 'pg_ctl.exe');
-    const texBin = await this.ensureTex();
+    const texBin = this.skipTexBootstrap ? path.join(engine, 'Library', 'bin') : await this.ensureTex();
     const env = this.processEnv(texBin);
     this.progress('检查 Windows 数学与视频依赖…');
     await run(python, ['-c', 'import manim, fastapi, psycopg, edge_tts; print("NATIVE_RUNTIME_READY")'],
