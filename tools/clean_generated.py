@@ -1,7 +1,7 @@
 """Safe cleanup: dry-run by default; ONLY preapproved generated locations.
 
 Never removes the video library, database, micro-edit revisions, model secrets,
-MathTeacher prompts, source files, accepted browser screenshots or fixtures.
+MathTeacher prompts, source files, true user video data or test fixtures.\nGenerated CI screenshots can be regenerated and are safe to clear.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parents[1]
 GENERATED=(
     "desktop/node_modules",
     "desktop/dist",
-    "desktop/build",
+    "desktop/build",\n    "desktop/screenshots",\n    "frontend/screenshots",\n    "final-output",
     "v27-script",
     "animation_engine/.pytest_cache",
     "teacher_module/.pytest_cache",
