@@ -1,4 +1,7 @@
-# Windows Docker Desktop / WSL2 local engine; PostgreSQL 17 is mandatory.\nservices:\n  db:\n    image: postgres:17-alpine
+# Windows Docker Desktop / WSL2 local engine; PostgreSQL 17 is mandatory.
+services:
+  db:
+    image: postgres:17-alpine
     environment:
       POSTGRES_DB: weiguang
       POSTGRES_USER: weiguang
