@@ -54,7 +54,9 @@ const manager = new NativeServices({
         nativeEnv.TEMP.includes('~')) {
       throw new Error('MANIM_LATEX_UNSAFE_NATIVE_TEMP_PATH');
     }
-    const media = fs.mkdtempSync(path.join(nativeEnv.TEMP, 'weiguang-manim-mathtex-'));
+    // Deliberately include a TeX-active tilde and a space: an absolute input
+    // filename would make MiKTeX stop at RUNNER, as observed in Windows CI.
+    const media = fs.mkdtempSync(path.join(nativeEnv.TEMP, 'RUNNER~1 space-mathtex-'));
     try {
       const script = [
         'from manim import MathTex, tempconfig',

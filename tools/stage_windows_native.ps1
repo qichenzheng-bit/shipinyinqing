@@ -13,8 +13,10 @@ $python = Join-Path $engine 'python.exe'
 if (!(Test-Path $python)) { throw 'NATIVE_PYTHON_MISSING' }
 Push-Location $root
 try {
-  & $python -m pip install --no-cache-dir --disable-pip-version-check './teacher_module' './visual_director' './animation_engine[render,speech]' './backend'
+  & $python -m pip install --no-cache-dir --disable-pip-version-check './teacher_module' './visual_director' './animation_engine[render,speech]' './backend' 'manim==0.22.1'
   if ($LASTEXITCODE -ne 0) { throw 'PYTHON_DEPENDENCY_INSTALL_FAILED' }
+  & $python tools/patch_manim_windows_tex.py
+  if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_MANIM_TEX_PATH_PATCH_FAILED' }
   & $python -m pip check
   if ($LASTEXITCODE -ne 0) { throw 'PYTHON_DEPENDENCY_CONFLICT' }
   & $python -c 'import fastapi, psycopg, manim, edge_tts, sympy; print("WINDOWS_NATIVE_PYTHON_OK")'

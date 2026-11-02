@@ -50,6 +50,8 @@ jobs:
       - name: Fail fast on MiKTeX root, repair and reuse tests before downloads
         shell: pwsh
         run: |
+          python tools/patch_manim_windows_tex.py --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_MANIM_TEX_PATCH_SELF_TEST_FAILED' }
           node --check desktop/native_services.cjs
           if ($LASTEXITCODE -ne 0) { throw 'MIKTEX_BOOTSTRAP_SYNTAX_FAILED' }
           node --test desktop/tests/native_services.test.cjs
