@@ -19,26 +19,26 @@ from pathlib import Path
 PINNED_MANIM = "0.22.1"
 MARKER = "WEIGUANG_WINDOWS_MIKTEX_RELATIVE_INPUT"
 ORIGINAL = (
-    "                command = make_tex_compilation_command(\n"
-    "                    compiler,\n"
-    "                    output_format,\n"
-    "                    tex_file,\n"
-    "                    tex_dir,\n"
-    "                )\n"
-    "                cp = subprocess.run(command, stdout=subprocess.DEVNULL)\n"
+    "            command = make_tex_compilation_command(\n"
+    "                compiler,\n"
+    "                output_format,\n"
+    "                tex_file,\n"
+    "                tex_dir,\n"
+    "            )\n"
+    "            cp = subprocess.run(command, stdout=subprocess.DEVNULL)\n"
 )
 REPLACEMENT = (
-    f"                # {MARKER}: avoid absolute TeX input paths on Windows.\n"
-    "                # Compile inside the output folder, using a plain basename.\n"
-    "                command = make_tex_compilation_command(\n"
-    "                    compiler,\n"
-    "                    output_format,\n"
-    "                    Path(tex_file.name),\n"
-    '                    Path("."),\n'
-    "                )\n"
-    "                cp = subprocess.run(\n"
-    "                    command, stdout=subprocess.DEVNULL, cwd=tex_dir\n"
-    "                )\n"
+    f"            # {MARKER}: avoid absolute TeX input paths on Windows.\n"
+    "            # Compile inside the output folder, using a plain basename.\n"
+    "            command = make_tex_compilation_command(\n"
+    "                compiler,\n"
+    "                output_format,\n"
+    "                Path(tex_file.name),\n"
+    '                Path("."),\n'
+    "            )\n"
+    "            cp = subprocess.run(\n"
+    "                command, stdout=subprocess.DEVNULL, cwd=tex_dir\n"
+    "            )\n"
 )
 
 
