@@ -86,8 +86,8 @@ KNOWLEDGE_CATALOG = {
 }
 
 NARRATION = {
-    ("e_intro", "note"): "同学们好，我们来看一道三角函数极限题。",
-    ("e_intro", "math"): "题目是：",
+    ("e_intro", "note"): "同学们大家好，我们先来看一下这道极限题。",
+    ("e_intro", "math"): "求极限：",
     ("e_strategy", "note"):
         "观察分子，正弦 x 减去 x 乘余弦 x。它们的一次项相同，而分母是 x 的三次方。我们需要找出抵消后留下的三次项。",
     ("e_strategy", "math"): "先看最简单的一次近似：",
