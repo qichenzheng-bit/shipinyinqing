@@ -51,12 +51,13 @@ def tracked_files():
 def main():
     files=tracked_files()
     missing=CRITICAL-files
-    obsolete=sorted(name for name in files if name.startswith("android_app/")
+    obsolete=sorted(name for name in files
+                    if name.startswith(("android_app/", "deploy/"))
                     or name in (".github/workflows/android-apk.yml",
                                 "backend/tests/capture_android_mobile.py",
                                 "backend/tests/test_android_delivery.py"))
     if obsolete:
-        raise AssertionError("ANDROID_FILES_REMAIN_AFTER_WINDOWS_ONLY_RELEASE: "+str(obsolete))
+        raise AssertionError("NON_WINDOWS_RELEASE_FILES_REMAIN: "+str(obsolete))
     if missing:raise AssertionError("MISSING_PRODUCTION_RESOURCES: "+str(sorted(missing)))
     markdowns={name for name in files if name.endswith(".md")}
     if markdowns!=PROMPTS|{"README.md"}:
@@ -87,6 +88,17 @@ def main():
         if any("tests" in item for item in entry["filter"]):
             raise AssertionError("TESTS_SHIPPED_IN_INSTALLER: "+module)
     assert all((ROOT/path).is_file() for path in PROMPTS)
+    for ci_path in (
+        ".github/workflows/system-ci.yml",
+        ".github/workflows/frontend-screenshots.yml",
+        ".github/workflows/windows-desktop.yml",
+    ):
+        workflow=(ROOT/ci_path).read_text(encoding="utf-8")
+        if "runs-on: ubuntu" in workflow:
+            raise AssertionError("NON_WINDOWS_CI_JOB: "+ci_path)
+    media=(ROOT/".github/workflows/final-new-question.yml").read_text(encoding="utf-8")
+    if "real Xiaoxiao" not in media or "Manim" not in media:
+        raise AssertionError("MEDIA_ACCEPTANCE_WAS_REMOVED")
     print("REPOSITORY_RELEASE_AUDIT_OK",
           len(files),"tracked files",
           len(markdowns),"runtime markdown resources")
