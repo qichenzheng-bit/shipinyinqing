@@ -135,7 +135,7 @@ def test_true_caption_band_codec_preserves_silence_and_segment_count(tmp_path):
     assert observed.getpixel((110,35))[3]>=200
     with pytest.raises(LongboardError,match="SPOKEN_CAPTION_FRAME_OVERLAP"):
         _encode_caption_band(
-            [*payload,{**payload,"start_frame":29,"end_frame":40}],
+            [*payload,{**payload[0],"start_frame":29,"end_frame":40}],
             {("math",r"BC=10"):png},
             tmp_path/"overlap.mkv",fps=30,frames=45
         )
