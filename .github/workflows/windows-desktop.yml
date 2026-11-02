@@ -12,7 +12,6 @@ on:
       - 'docker-compose.yml'
       - '.github/workflows/windows-desktop.yml'
       - 'tools/build_source_release.py'
-      - 'tools/build_source_release.py'
   push:
     branches: [main]
     paths:
@@ -24,6 +23,7 @@ on:
       - 'visual_director/**'
       - 'docker-compose.yml'
       - '.github/workflows/windows-desktop.yml'
+      - 'tools/build_source_release.py'
   workflow_dispatch:
 permissions:
   contents: read
