@@ -1,0 +1,133 @@
+name: Final full voiced lesson acceptance (no LLM calls)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'animation_engine/tests/fixtures/build_final_fresh_trig_limit.py'
+      - 'animation_engine/tests/test_final_fresh_trig_limit.py'
+      - '.github/workflows/final-new-question.yml'
+      - 'animation_engine/src/animation_engine/brand_watermark.py'
+      - 'animation_engine/tests/test_brand_watermark.py'
+      - 'backend/tests/acceptance_full_watermark.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-voiced-video:
+    name: Fresh trig limit + real Xiaoxiao voice + Manim 60fps MP4
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install source verification packages (no LLM provider)
+        run: |
+          python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]'
+      - name: Verify fresh maths and all V2.7 script coverage
+        run: python -m pytest -q animation_engine/tests/test_final_fresh_trig_limit.py
+      - name: Compile deterministic new-question package and source-exact teacher script
+        run: |
+          python animation_engine/tests/fixtures/build_final_fresh_trig_limit.py --output final-output/trig
+          math-animation export-spoken-script --spoken final-output/trig/spoken_classroom.json --output final-output/trig/lesson_script.md
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("final-output/trig")
+          source=json.loads((root/"lesson_script.json").read_text(encoding="utf-8"))
+          assert source["acceptance"]["contract_version"] == "2.7"
+          assert len(source["events"]) == 12
+          assert not list(root.rglob("*.mp4"))
+          print("FULL_LESSON_SOURCE_ACCEPTED_NO_LLM",len(source["events"]))
+          PY
+      - name: Explicitly attest author review of the fully authored, independently tested fixture
+        run: |
+          math-animation approve-spoken-script \
+            --spoken final-output/trig/spoken_classroom.json \
+            --reviewer final-qa-fixture-author \
+            --confirm-reviewed
+      - name: Upload full deterministic source and approval
+        uses: actions/upload-artifact@v4
+        with:
+          name: Final-New-Trig-Limit-V27-Source-Package
+          path: final-output/trig/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Install Manim, LaTeX, FFmpeg and real TTS dependency
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg dvisvgm \
+            libpango1.0-dev libcairo2-dev pkg-config \
+            fonts-noto-cjk texlive-latex-extra texlive-fonts-recommended texlive-science
+          python -m pip install -e './animation_engine[render,speech]'
+      - name: Validate a real 120-frame audio-bearing MP4 survives watermark overlay
+        run: python backend/tests/acceptance_full_watermark.py
+      - name: Render complete real Chinese narration, genuine MathTex boards, subtitles and watermark
+        run: |
+          mkdir -p final-output/render
+          math-animation render-spoken \
+            --spoken final-output/trig/spoken_classroom.json \
+            --output final-output/render/new-trig-limit-Xiaoxiao-60fps.mp4 \
+            --manifest final-output/render/render-manifest.json \
+            --srt final-output/render/new-trig-limit-Xiaoxiao-60fps.srt \
+            --fps 60 \
+            --cache-dir final-output/render-cache
+      - name: Independently verify actual MP4 audio and video streams plus complete source
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+          folder=Path("final-output/render")
+          movie=folder/"new-trig-limit-Xiaoxiao-60fps.mp4"
+          report=json.loads((folder/"render-manifest.json").read_text(encoding="utf-8"))
+          assert movie.stat().st_size>10000
+          assert report["mode"]=="spoken_classroom_audio_aligned"
+          assert report["fps"]==60
+          assert report["voice"]=="zh-CN-XiaoxiaoNeural"
+          assert report["speech_rate"]=="+5%"
+          assert report["voice_status"]=="real_edge_neural_pcm_verified"
+          assert report["subtitle_status"]=="actual_tts_phrase_aligned"
+          assert report["fabricated_voice_or_subtitle_count"]==0
+          assert report["brand_watermark"]["position"]=="top_right"
+          assert report["source_narration_action_count"]==report["voiced_action_count"]
+          probed=subprocess.run([
+              "ffprobe","-v","error","-count_frames",
+              "-show_entries",
+              "stream=codec_type,codec_name,width,height,r_frame_rate,nb_read_frames,sample_rate,channels",
+              "-of","json",str(movie),
+          ],capture_output=True,text=True,check=True)
+          streams=json.loads(probed.stdout)["streams"]
+          video=next(s for s in streams if s.get("codec_type")=="video")
+          audio=next(s for s in streams if s.get("codec_type")=="audio")
+          assert (video["width"],video["height"])==(1280,720)
+          assert video["r_frame_rate"]=="60/1"
+          assert int(video["nb_read_frames"])>60
+          assert int(audio["sample_rate"])>=16000
+          assert int(audio["channels"])>=1
+          assert abs(int(video["nb_read_frames"])-report["actual_video_frames"])<=2
+          srt=(folder/"new-trig-limit-Xiaoxiao-60fps.srt").read_text(encoding="utf-8-sig")
+          assert "-->" in srt and len(srt)>200
+          print("FULL_REAL_VOICED_MOVIE_ACCEPTED",movie.stat().st_size,
+                "bytes",video["nb_read_frames"],"frames",audio["sample_rate"],"Hz")
+          PY
+          ffmpeg -hide_banner -loglevel error -y \
+            -sseof -0.05 -i final-output/render/new-trig-limit-Xiaoxiao-60fps.mp4 \
+            -frames:v 1 final-output/render/final-board.png
+          test -s final-output/render/final-board.png
+      - name: Upload real MP4, SRT, video manifest and still frame
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Final-New-Trig-Limit-Full-Voiced-60FPS-Video
+          path: |
+            final-output/render/new-trig-limit-Xiaoxiao-60fps.mp4
+            final-output/render/new-trig-limit-Xiaoxiao-60fps.srt
+            final-output/render/render-manifest.json
+            final-output/render/final-board.png
+          if-no-files-found: ignore
+          retention-days: 30
