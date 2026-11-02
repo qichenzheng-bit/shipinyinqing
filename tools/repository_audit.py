@@ -20,7 +20,7 @@ PROMPTS={
 CRITICAL={
     ".github/workflows/system-ci.yml",
     ".github/workflows/windows-desktop.yml",
-    ".github/workflows/frontend-screenshots.yml",
+    ".github/workflows/frontend-screenshots.yml",\n    ".github/workflows/final-new-question.yml",
     "docker-compose.yml",
     "backend/src/weiguang_backend/main.py",
     "backend/src/weiguang_backend/model_hub.py",
@@ -62,10 +62,10 @@ def main():
         raise AssertionError("REDUNDANT_OR_MISSING_MARKDOWN: "+str(sorted(markdowns)))
     forbidden=[
         name for name in files
-        if (name==".env" or name.endswith((".log",".mp4",".wav",".pem",".key",".ico"))
+        if (name==".env" or name.endswith((".log",".mp4",".mov",".wav",".mp3",".srt",".zip",\n                               ".exe",".msi",".apk",".aab",".pem",".key",".ico"))
             or "node_modules/" in name or "/__pycache__/" in name
-            or name.startswith((".weiguang_data/","desktop/dist/","desktop/build/"))
-            or name.startswith("config/edit_ai.json"))
+            or name.startswith((".weiguang_data/","desktop/dist/","desktop/build/",\n                                 "frontend/screenshots/","desktop/screenshots/",\n                                 "final-output/","v27-script/"))
+            or name.startswith("config/edit_ai.json")\n            or name in ("animation_engine/examples/simple_classroom_policy.template.json",\n                        "animation_engine/examples/longboard_policy.template.json"))
     ]
     if forbidden:
         raise AssertionError("GENERATED_OR_PRIVATE_FILES_TRACKED: "+str(forbidden))
