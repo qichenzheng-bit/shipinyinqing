@@ -296,7 +296,7 @@
       modelOptions.map(m=>'<option value="'+escapeHTML(m.id)+'" '+
         (ai.modelId===m.id?'selected':'')+'>'+escapeHTML(m.label||m.id)+'</option>').join('')+
       '</select></div>'+
-      '<div class="actions">'+button('刷新模型列表','ai-refresh-models')+
+      '<div class="actions">'+(!isApi||current?button('刷新模型列表','ai-refresh-models'):'')+
         button('添加其他型号','ai-add-model')+'</div>'+
       '<div class="muted small">下拉列表为当前已发现或建议的型号，是否可用以账号权限和真实测试为准。</div>'+
       (ai.discovery?'<div class="muted small">'+escapeHTML(ai.discovery)+'</div>':'')+
