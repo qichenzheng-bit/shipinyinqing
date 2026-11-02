@@ -1,4 +1,4 @@
-# 微光数学 · Windows 电脑 App 1.0.6
+# 微光数学 · Windows 电脑 App 1.0.7
 
 **Windows 单平台最终交付。** 微光数学是一款考研数学教学视频制作程序，覆盖数学教师草稿、数学审核、课堂编排、教学讲稿审核、逐步板书、Manim/LaTeX 渲染、神经网络语音配音、字幕、视频下载与多轮微调。当前版本最终只发布 **Windows 安装版 EXE** 和 **完整源码维护 ZIP** 两份文件，不再发布免安装版、移动端或 Linux 安装包。
 
@@ -6,12 +6,12 @@
 
 ## 1. 下载安装
 
-打开 [Windows App 构建工作流](.github/workflows/windows-desktop.yml)，下载最新成功的 `main` 分支附件 `WeiGuang-Math-Windows-v1.0.6-Installer-and-Source`。附件里**只有两份最终文件**：
+打开 [Windows App 构建工作流](.github/workflows/windows-desktop.yml)，下载最新成功的 `main` 分支附件 `WeiGuang-Math-Windows-v1.0.7-Installer-and-Source`。附件里**只有两份最终文件**：
 
 | 文件 | 用途 |
 |---|---|
-| `WeiGuang-Math-Setup-1.0.6-x64.exe` | **使用版**：Windows 10/11 x64 安装程序，安装后从桌面启动，支持选择安装目录 |
-| `WeiGuang-Math-Source-1.0.6.zip` | **维护版**：完整的前后端、桌面客户端、数学/视频引擎、配置示例、持续集成脚本、必要回归测试源码和测试构造器；方便后续更新修改 |
+| `WeiGuang-Math-Setup-1.0.7-x64.exe` | **使用版**：Windows 10/11 x64 安装程序，安装后从桌面启动，支持选择安装目录 |
+| `WeiGuang-Math-Source-1.0.7.zip` | **维护版**：完整的前后端、桌面客户端、数学/视频引擎、配置示例、持续集成脚本、必要回归测试源码和测试构造器；方便后续更新修改 |
 
 这两份文件来源于同一个 GitHub 提交。源码 ZIP 的根目录内包含 `release-manifest.json`，注明 Git 提交、版本、安装包 SHA-256 和源码文件逐项 SHA-256，方便核对与维护。交付包内不会再单独提供便携版 EXE、测试成片、字幕、截图、数据库副本或演示数据。
 
@@ -25,7 +25,7 @@
 
 1. 首次启动将自动构建 Docker 容器，准备 PostgreSQL 数据库、Redis、FastAPI、Celery Worker，以及 Manim/LaTeX/FFmpeg 等视频渲染依赖；这一步需要较大的下载和编译开销。
 2. App 生成并通过 Windows 凭据系统加密保存本地数据库密码、登录密钥和模型密钥保护材料，自动完成本地服务身份验证与登录。
-3. 进入工作台「设置 → 管理模型 API」，填写你有权限使用的服务商 API Key 和模型 ID，选择应用于数学教师、课堂编排和微调的模型版本。
+3. 进入工作台「设置 → 配置 AI 模型」，可选择 Codex、Gemini 或 CodeBuddy 官方 CLI 进行账号授权并从下拉菜单选择模型；也可使用已有 API Key 连接。
 4. 创建题目与参考解析，按顺序审核数学内容、课堂编排和教师讲稿，提交 60 FPS 有声视频生产任务；完成后可播放/下载 MP4 并执行多轮微调。
 
 **Windows 是唯一受支持的用户操作系统**。本地模型与视频渲染仍需要 Docker Desktop + WSL2 里的 Linux 容器，这是 Windows 版本的内部依赖，不是另行维护 Linux 系统或 Linux 客户端。
@@ -50,7 +50,7 @@
 
 如果你已有部署的微光数学服务器，也可以在**同一个 Windows App** 中选择「连接服务器」，填写受信任的 `https://...` 地址。这是可选方案；本地模式不要求另购服务器。客户端禁止普通公网 HTTP 及不受信任的跳转。
 
-### 全局 AI 模型与 Windows CLI（v1.0.6）
+### 全局 AI 模型与 Windows CLI（v1.0.7）
 
 在「设置 → 配置 AI 模型」中**只选择一次模型**，统一应用到数学教师 A/B/C、解题与数学审核、知识点、教师口播、课堂编排、归纳总结和多轮自然语言微调。每项已提交任务会锁定当时的型号、推理强度和超时，切换型号只影响新任务。
 
@@ -118,6 +118,16 @@ python tools/clean_generated.py
 python tools/clean_generated.py --apply
 ```
 
+### 最终安全检查（v1.0.7）
+
+- **官方登录隔离**：仅保留 Codex、Gemini、CodeBuddy CLI，本地 Windows 工作台发起官方浏览器授权；不接收第三方账号密码、不复制 CLI 登录 Token，也不允许远程 HTTPS 页面调用 Windows 登录功能。
+- **最小环境变量**：CLI 只继承执行所需的 Windows 用户目录、PATH、locale 与网络代理环境；不再把主程序环境里的 API Key、数据库密码、云密钥或 `NODE_OPTIONS` 直接传给模型子进程。自定义的 Gemini 模型配置仅以一次性路径传入。
+- **浏览器保护**：增加 CSP 限制脚本、图片与请求来源，阻止网页嵌入、禁止嗅探、移除 Referrer，并禁止 API 数据被浏览器缓存；Cookie 仍需同站验证，修改类请求仍需通过同源检查。
+- **交付内容白名单**：源码 ZIP 和仓库审计拒绝任意嵌套目录中的真实 `.env`、凭据、Token、私钥、个人数据库及生成媒体；保留非敏感 `.env.example` 模板及真正的数学回归测试。
+- **不删除真实数据**：安全清理仅针对可重建的 CI/构建缓存。PostgreSQL `pgdata`、教学视频 `lessondata`、模型登录信息和真实微调记录不受自动删除影响。
+
+发布验证涵盖 Windows 真实启动、前后端 UI、PostgreSQL、CLI 进程隔离、浏览器安全响应头、源码清单与双文件 SHA-256。**自动化验收不等于第三方真实账号登录或你本机完整视频生成已验证。** Windows 安装包仍未配置代码签名证书，公开发行前应签名并做可信供应链审查。
+
 ## 5. 验收说明
 
 - `system-ci.yml`：仅在 Windows Runner 执行源码、教师/导演/后端/动画引擎非渲染测试、Docker Desktop Compose 配置和真实课程讲稿生成核验。
@@ -127,4 +137,4 @@ python tools/clean_generated.py --apply
 
 自动化通过不等于已在你的 Windows 电脑完成 Docker Desktop 初始化、实际大模型账单/接口验证或本地渲染；首次安装后请亲自完成一次完整题目的录制与下载。正常更新客户端不应主动清理原视频与数据库卷。
 
-发布时间：2026-11-02；两文件最终交付版本：**微光数学 Windows App v1.0.6**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。
+发布时间：2026-11-02；两文件最终交付版本：**微光数学 Windows App v1.0.7**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。
