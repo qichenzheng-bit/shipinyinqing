@@ -7,6 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const os = require('node:os');
 const { spawn, execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const exec = promisify(execFile);
@@ -49,6 +50,47 @@ function latexCommand(texRoot) {
   };
   return visit(texRoot, 0);
 }
+
+/** Keep all MiKTeX roots disjoint. v2 also avoids the broken v1
+ * user-install=tex-runtime / user-config=tex-runtime\\config nesting.
+ * v3/v4 are reserved for non-destructive recovery after interrupted installs.
+ */
+function texLayout(userDir, version = 2) {
+  const base = path.join(userDir, 'tex-runtime-v' + version);
+  return {
+    base,
+    install: path.join(base, 'install'),
+    config: path.join(base, 'config'),
+    data: path.join(base, 'data'),
+  };
+}
+function texInstallerArgs(roots) {
+  const dirs = [roots.install, roots.config, roots.data].map(p => path.resolve(p));
+  for (let i = 0; i < dirs.length; i++) {
+    for (let j = i + 1; j < dirs.length; j++) {
+      const rel = path.relative(dirs[i], dirs[j]);
+      const inverse = path.relative(dirs[j], dirs[i]);
+      if (!rel || !inverse ||
+          (!rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel)) ||
+          (!inverse.startsWith('..' + path.sep) && inverse !== '..' && !path.isAbsolute(inverse))) {
+        throw new Error('MIKTEX_ROOT_DIRECTORY_OVERLAP');
+      }
+    }
+  }
+  return [
+    '--private', '--unattended', '--package-set=basic',
+    '--user-install=' + roots.install,
+    '--user-config=' + roots.config,
+    '--user-data=' + roots.data,
+  ];
+}
+function hasContent(directory) {
+  if (!fs.existsSync(directory)) return false;
+  // Fail closed on unreadable directories rather than overwriting user data.
+  try { return fs.readdirSync(directory).length > 0; }
+  catch { return true; }
+}
+
 async function run(exe, args, options = {}) {
   return exec(exe, args, {
     timeout: options.timeout || 120000, windowsHide: true,
@@ -56,7 +98,7 @@ async function run(exe, args, options = {}) {
   });
 }
 class NativeServices {
-  constructor({ serviceRoot, runtimeRoot, userDir, secrets, progress = () => {}, skipTexBootstrap = false }) {
+  constructor({ serviceRoot, runtimeRoot, userDir, secrets, progress = () => {}, skipTexBootstrap = false, texRunner = run }) {
     this.serviceRoot = serviceRoot;
     this.runtimeRoot = runtimeRoot;
     this.userDir = userDir;
@@ -66,26 +108,62 @@ class NativeServices {
     this.startedPostgres = false;
     this.stopRequested = false;
     this.skipTexBootstrap = skipTexBootstrap;
+    this.texRunner = texRunner;
   }
   engine() { return path.join(this.runtimeRoot, 'engine'); }
-  async ensureTex() {
-    const dest = path.join(this.userDir, 'tex-runtime');
-    fs.mkdirSync(dest, { recursive: true });
-    let latex = latexCommand(dest);
-    if (!latex) {
-      const installer = path.join(this.runtimeRoot, 'basic-miktex-25.12-x64.exe');
-      if (!fs.existsSync(installer)) throw new Error('安装包缺少 MiKTeX 公式运行时。');
-      this.progress('首次启动：自动配置 LaTeX 公式组件…');
-      await run(installer, [
-        '--private', '--unattended', '--package-set=basic',
-        '--user-install=' + dest,
-        '--user-config=' + path.join(dest, 'config'),
-        '--user-data=' + path.join(dest, 'data'),
-      ], { cwd: dest, timeout: 20 * 60 * 1000 });
-      latex = latexCommand(dest);
-      if (!latex) throw new Error('MiKTeX 自动安装未完成，无法验证 latex.exe。');
+  /** An actual one-page LaTeX compile, not just an exe existence check.
+   * Isolated temporary files are the only files removed by this method.
+   */
+  async checkTex(root) {
+    const latex = latexCommand(root);
+    if (!latex) return null;
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'weiguang-tex-smoke-'));
+    try {
+      fs.writeFileSync(path.join(temp, 'probe.tex'),
+        '\\documentclass{article}\n\\begin{document}\n$x^2+1$\n\\end{document}\n');
+      await this.texRunner(latex, [
+        '-interaction=nonstopmode', '-halt-on-error', '-no-shell-escape', 'probe.tex',
+      ], { cwd: temp, timeout: 90000 });
+      return fs.existsSync(path.join(temp, 'probe.dvi')) ? path.dirname(latex) : null;
+    } catch {
+      return null;
+    } finally {
+      fs.rmSync(temp, { recursive: true, force: true });
     }
-    return path.dirname(latex);
+  }
+  async ensureTex() {
+    const layouts = [2, 3, 4].map(v => texLayout(this.userDir, v));
+    // A complete installation is reused; no repeated download or installation.
+    for (const layout of layouts) {
+      const ready = await this.checkTex(layout.install);
+      if (ready) return ready;
+    }
+    // Preserve/reuse a fully working v1 installation, but never reuse a
+    // half-initialized parent root (the original source of the setup error).
+    const legacy = await this.checkTex(path.join(this.userDir, 'tex-runtime'));
+    if (legacy) return legacy;
+
+    const installer = path.join(this.runtimeRoot, 'basic-miktex-25.12-x64.exe');
+    if (!fs.existsSync(installer)) throw new Error('安装包缺少 MiKTeX 公式运行时，未进行重复下载。');
+
+    // Never overwrite an incomplete prior attempt or touch its configuration.
+    const available = layouts.find(layout =>
+      ![layout.install, layout.config, layout.data].some(hasContent));
+    if (!available) {
+      throw new Error('MiKTeX 多次初始化中断；旧目录均已保留，已停止重复安装，请检查诊断日志。');
+    }
+    const args = texInstallerArgs(available); // Validated before the costly setup.
+    fs.mkdirSync(available.base, { recursive: true });
+    this.progress('首次配置 MiKTeX 公式组件（独立安装、配置与数据目录）…');
+    try {
+      await this.texRunner(installer, args,
+        { cwd: available.base, timeout: 20 * 60 * 1000 });
+    } catch (error) {
+      throw new Error('MiKTeX 初始化未成功，已保留现场以便安全重试：' + String(error.message).slice(0, 180));
+    }
+    const ready = await this.checkTex(available.install);
+    if (!ready) throw new Error('MiKTeX 未通过真实 LaTeX 公式编译验收；已保留安装现场，避免误报成功。');
+    return ready;
   }
   processEnv(texBin) {
     const engine = this.engine();
@@ -213,4 +291,4 @@ class NativeServices {
     }
   }
 }
-module.exports = { NativeServices, executable, latexCommand };
+module.exports = { NativeServices, executable, latexCommand, texLayout, texInstallerArgs };

@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "test": "node --test tests/launcher.test.cjs tests/cli_bridge.test.cjs tests/ai_auth.test.cjs",
+    "test": "node --test tests/launcher.test.cjs tests/cli_bridge.test.cjs tests/ai_auth.test.cjs tests/native_services.test.cjs",
     "build:windows": "electron-builder --win nsis --x64",
     "test:native": "node tests/native_smoke.cjs"
   },
