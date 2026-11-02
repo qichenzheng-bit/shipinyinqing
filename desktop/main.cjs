@@ -8,6 +8,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { normalizeEndpoint, allowedNavigation } = require('./url_policy.cjs');
 const { createBridge } = require('./cli_bridge.cjs');
+const { login: startVendorLogin, status: vendorAuthStatus, models: vendorModels } = require('./ai_auth.cjs');
 
 const run = promisify(execFile);
 const APP_ID = 'cn.weiguang.math';
@@ -170,6 +171,7 @@ async function showStudio(origin) {
     webPreferences: {
       nodeIntegration: false, contextIsolation: true,
       sandbox: true, webSecurity: true,
+      preload: origin===LOCAL_URL ? path.join(__dirname, 'studio_preload.cjs') : undefined,
       webviewTag: false, allowRunningInsecureContent: false,
     },
   });
@@ -269,6 +271,16 @@ async function connectRemote(raw) {
   return { ok: true };
 }
 
+function onlyLocalStudio(handler) {
+  return async (event, kind) => {
+    if (!studio || studio.isDestroyed() || event.sender !== studio.webContents ||
+        !event.senderFrame || event.senderFrame !== studio.webContents.mainFrame ||
+        new URL(event.senderFrame.url).origin !== LOCAL_URL) {
+      throw new Error('CLI_ACCOUNT_LOGIN_LOCAL_STUDIO_ONLY');
+    }
+    return handler(kind);
+  };
+}
 function onlyLauncher(handler) {
   return async (event, ...args) => {
     const expected = pathToFileURL(path.join(__dirname, 'launcher.html')).href;
@@ -312,6 +324,9 @@ if (hasLock) {
     ipcMain.handle('wg:start-local', onlyLauncher(launchLocal));
     ipcMain.handle('wg:connect-local', onlyLauncher(connectLocal));
     ipcMain.handle('wg:connect-remote', onlyLauncher(connectRemote));
+    ipcMain.handle('wg:ai-login', onlyLocalStudio(startVendorLogin));
+    ipcMain.handle('wg:ai-status', onlyLocalStudio(vendorAuthStatus));
+    ipcMain.handle('wg:ai-models', onlyLocalStudio(kind=>({models:vendorModels(kind),source:'local_suggestions'})));
     createLauncher();
   });
   app.on('before-quit', () => { appClosing = true; stopLocalCliBridge(); });
