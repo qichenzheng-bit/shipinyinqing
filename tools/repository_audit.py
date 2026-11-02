@@ -52,7 +52,7 @@ def main():
     files=tracked_files()
     missing=CRITICAL-files
     obsolete=sorted(name for name in files
-                    if name.startswith(("android_app/", "deploy/"))
+                    if name.startswith(("android_app/", "deploy/", "linux/"))
                     or name in (".github/workflows/android-apk.yml",
                                 "backend/tests/capture_android_mobile.py",
                                 "backend/tests/test_android_delivery.py"))
@@ -65,7 +65,7 @@ def main():
     forbidden=[
         name for name in files
         if (name==".env" or name.endswith((".log",".mp4",".mov",".wav",".mp3",".srt",".zip",
-                               ".exe",".msi",".apk",".aab",".pem",".key",".ico"))
+                               ".exe",".msi",".apk",".aab",".deb",".rpm",\n                               ".AppImage",".snap",".pem",".key",".ico"))
             or "node_modules/" in name or "/__pycache__/" in name
             or name.startswith((".weiguang_data/","desktop/dist/","desktop/build/",
                                  "frontend/screenshots/","desktop/screenshots/",
@@ -94,7 +94,7 @@ def main():
         ".github/workflows/windows-desktop.yml",
     ):
         workflow=(ROOT/ci_path).read_text(encoding="utf-8")
-        if "runs-on: ubuntu" in workflow:
+        if "runs-on: ubuntu" in workflow or "runs-on: macos" in workflow:
             raise AssertionError("NON_WINDOWS_CI_JOB: "+ci_path)
     media=(ROOT/".github/workflows/final-new-question.yml").read_text(encoding="utf-8")
     if "real Xiaoxiao" not in media or "Manim" not in media:
