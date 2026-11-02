@@ -40,7 +40,7 @@ def test_only_required_runtime_modules_shipped_without_source_tests_or_keys():
         bundle = next(e for e in sources if e["to"] == "service/" + module)
         assert all("tests" not in pattern for pattern in bundle["filter"])
     assert not any(".env" in pattern or ".key" in pattern
-                   for e in sources for pattern in e["filter"])
+                   for e in sources for pattern in e.get("filter",[]))
     assert (ROOT / "animation_engine/src/animation_engine/recap_board.py").is_file()
     assert (ROOT / "desktop/cli_bridge.cjs").is_file()
     assert (ROOT / "backend/src/weiguang_backend/cli_bridge.py").is_file()
