@@ -127,6 +127,7 @@ test('PostgreSQL cluster stays outside Chinese userData, without losing a previo
       localStateRoot,secrets:{POSTGRES_PASSWORD:'fixture'},
     });
     assert.equal(instance.postgresDirectory(),path.join(localStateRoot,'postgresql17'));
+    assert.equal(instance.backendCwd(), localStateRoot);
     assert.ok(!instance.postgresDirectory().includes('微光数学'));
     const legacy=path.join(f.userDir,'postgresql17');
     fs.mkdirSync(legacy,{recursive:true});
