@@ -49,10 +49,5 @@ jobs:
           }
       - name: Encode and extract branded video frame
         run: python backend/tests/acceptance_one_frame.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: weiguang-browser-and-ffmpeg-watermark-frames
-          path: |
-            frontend/screenshots/*.png
-            desktop/screenshots/*.png
-          if-no-files-found: error
+      # Screenshots and watermarked frame are temporary CI evidence only.
+      # No media/screenshots are published among the two release files.
