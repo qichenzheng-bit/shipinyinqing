@@ -61,6 +61,8 @@ jobs:
           grep -F "package: name='cn.weiguang.math'" android_app/app/build/outputs/apk/debug/badging.txt
           grep -F "sdkVersion:'29'" android_app/app/build/outputs/apk/debug/badging.txt
           grep -F "targetSdkVersion:'35'" android_app/app/build/outputs/apk/debug/badging.txt
+          grep -F "versionCode='2'" android_app/app/build/outputs/apk/debug/badging.txt
+          grep -F "versionName='1.0.1'" android_app/app/build/outputs/apk/debug/badging.txt
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" > android_app/app/build/outputs/apk/debug/permissions.txt
           grep -F "android.permission.INTERNET" android_app/app/build/outputs/apk/debug/permissions.txt
           if grep -q -E 'android.permission.(READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|CAMERA|RECORD_AUDIO|ACCESS_FINE_LOCATION)' android_app/app/build/outputs/apk/debug/permissions.txt; then
@@ -95,13 +97,38 @@ jobs:
             adb pull /sdcard/weiguang-android-launch.png android_app/screenshots/00-android-native-launcher.png
             test -s android_app/screenshots/00-android-native-launcher.png
             echo "ANDROID_EMULATOR_NATIVE_LAUNCH_ACCEPTED"
+      - name: Assemble final Android 1.0.1 acceptance-app handoff
+        if: success()
+        shell: bash
+        run: |
+          mkdir -p android_app/release
+          cp android_app/app/build/outputs/apk/debug/app-debug.apk \
+            android_app/release/WeiGuang-Math-Android-1.0.1-Acceptance.apk
+          (cd android_app/release && sha256sum *.apk > SHA256SUMS.txt)
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          release=Path("android_app/release")
+          item={
+            "product":"微光数学","platform":"Android","version":"1.0.1",
+            "application_id":"cn.weiguang.math","minimum_android":10,
+            "source_sha":os.environ["GITHUB_SHA"],
+            "artifact":"WeiGuang-Math-Android-1.0.1-Acceptance.apk",
+            "signing":"Android SDK test/debug signing; NOT a production release",
+            "production_account_signing_configured":False,
+            "backend_required":"Existing HTTPS WeiGuang Math server",
+            "source_embedded_secrets":False,
+          }
+          (release/"app-manifest.json").write_text(
+            json.dumps(item,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          print("ANDROID_APP_HANDOFF_OK",item["artifact"])
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: WeiGuang-Math-Android-installable-APK
+          name: WeiGuang-Math-Android-1.0.1-App
           path: |
-            android_app/app/build/outputs/apk/debug/app-debug.apk
-            android_app/app/build/outputs/apk/debug/SHA256SUMS.txt
+            android_app/release/*
             android_app/screenshots/*.png
             android_app/screenshots/*.log
           if-no-files-found: error

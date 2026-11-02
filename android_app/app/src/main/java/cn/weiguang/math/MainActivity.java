@@ -387,7 +387,7 @@ public final class MainActivity extends Activity {
                                         WebResourceError error) {
                 if (request.isForMainFrame()) {
                     ui.post(() -> Toast.makeText(MainActivity.this,
-                            "网页暂时无法访问，请检查服务器", Toast.LENGTH_LONG).show());
+                            "工作台暂时无法访问，请检查服务器", Toast.LENGTH_LONG).show());
                 }
             }
         });

@@ -68,6 +68,8 @@ jobs:
       - name: Verify installer files and exact packaged production modules
         shell: pwsh
         run: |
+          $package = Get-Content desktop/package.json -Raw | ConvertFrom-Json
+          if ($package.version -ne '1.0.1') { throw 'DESKTOP_PACKAGE_VERSION_MISMATCH' }
           $installers = @(Get-ChildItem desktop/dist/*.exe)
           $setup = @($installers | Where-Object { $_.Name -match 'Setup-' })
           $portable = @($installers | Where-Object { $_.Name -match 'Portable-' })
@@ -101,13 +103,28 @@ jobs:
             "$hash  $($_.Name)"
           }
           $checks | Out-File -FilePath desktop/dist/SHA256SUMS.txt -Encoding utf8
+          $manifest = @{
+            product = '微光数学'
+            platform = 'Windows'
+            version = $package.version
+            architecture = 'x64'
+            source_sha = $env:GITHUB_SHA
+            installer = "WeiGuang-Math-Setup-$($package.version)-x64.exe"
+            portable = "WeiGuang-Math-Portable-$($package.version)-x64.exe"
+            signing = 'unsigned; code-signing certificate required for trusted public distribution'
+            backend_required = 'Local Docker Desktop + WSL2, or existing HTTPS server'
+            includes_video_render_engine_source = $true
+            includes_installed_Docker_or_model_API_keys = $false
+          }
+          $manifest | ConvertTo-Json -Depth 6 | Set-Content desktop/dist/app-manifest.json -Encoding utf8
           Write-Output "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK"
       - uses: actions/upload-artifact@v4
         with:
-          name: WeiGuang-Math-Windows-Setup-and-Portable
+          name: WeiGuang-Math-Windows-1.0.1-App
           path: |
             desktop/dist/*.exe
             desktop/dist/SHA256SUMS.txt
+            desktop/dist/app-manifest.json
             desktop/screenshots/*.png
           if-no-files-found: error
           retention-days: 30
