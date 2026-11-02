@@ -23,5 +23,9 @@ celery_app.conf.update(
 
 @celery_app.task(name="weiguang.run_job",bind=True)
 def execute(self,job_id: str):
-    from .main import app
-    app.state.run_job(job_id)
+    from .main import create_app
+    app=create_app()
+    try:
+        app.state.run_job(job_id)
+    finally:
+        app.state.db_engine.dispose()
