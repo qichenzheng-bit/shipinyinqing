@@ -115,6 +115,9 @@ class NativeServices {
       'WeiGuangMath', 'native-services');
   }
   engine() { return path.join(this.runtimeRoot, 'engine'); }
+  // Keep child processes out of localized Electron userData; MiKTeX and
+  // PostgreSQL native tools can fail to emit logs under non-ASCII cwd.
+  backendCwd() { return this.localStateRoot; }
   /** An actual one-page LaTeX compile, not just an exe existence check.
    * Isolated temporary files are the only files removed by this method.
    */
@@ -300,7 +303,7 @@ class NativeServices {
     this.pythonProcess = spawn(python, [
       '-m', 'uvicorn', 'weiguang_backend.main:create_app', '--factory',
       '--host', HOST, '--port', API_PORT,
-    ], { cwd: this.userDir, env, windowsHide: true, stdio: 'ignore' });
+    ], { cwd: this.backendCwd(), env, windowsHide: true, stdio: 'ignore' });
     this.pythonProcess.on('error', () => {
       if (!this.stopRequested) this.progress('Windows 后端进程启动失败');
     });
