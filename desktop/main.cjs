@@ -4,13 +4,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { execFile } = require('node:child_process');
-const { promisify } = require('node:util');
+const { NativeServices } = require('./native_services.cjs');
 const { normalizeEndpoint, allowedNavigation } = require('./url_policy.cjs');
 const { createBridge } = require('./cli_bridge.cjs');
 const { login: startVendorLogin, status: vendorAuthStatus, models: vendorModels } = require('./ai_auth.cjs');
 
-const run = promisify(execFile);
 const APP_ID = 'cn.weiguang.math';
 const LOCAL_URL = 'http://127.0.0.1:8000';
 let launcher = null;
@@ -18,6 +16,7 @@ let studio = null;
 let starting = false;
 let appClosing = false;
 let cliBridge = null;
+let nativeServices = null;
 
 app.setAppUserModelId(APP_ID);
 const hasLock = app.requestSingleInstanceLock();
@@ -109,10 +108,10 @@ async function waitForHealth(origin, attempts = 2) {
         redirect: 'error', signal: AbortSignal.timeout(2500),
       });
       if (r.ok) return;
-    } catch { /* retry after Docker starts */ }
+    } catch { /* retry while native server starts */ }
     if (i + 1 < attempts) await new Promise(resolve => setTimeout(resolve, 1500));
   }
-  throw new Error('后端尚未就绪，请检查 Docker Desktop 是否已启动。');
+  throw new Error('Windows 本地服务未就绪，请使用“启动并进入工作台”完成原生引擎启动。');
 }
 async function verifyLocalBackend(token) {
   const nonce = crypto.randomBytes(32).toString('hex');
@@ -208,46 +207,23 @@ async function launchLocal() {
   starting = true;
   try {
     const root = serviceRoot();
-    for (const rel of ['docker-compose.yml', 'backend/Dockerfile', 'frontend/index.html']) {
-      if (!fs.existsSync(path.join(root, rel))) {
-        throw new Error('安装包缺少后端资源：' + rel);
-      }
-    }
+    const runtime = app.isPackaged
+      ? path.join(process.resourcesPath, 'runtime')
+      : path.resolve(__dirname, 'native_runtime');
     const secrets = keyMaterial();
-    progress('检查 Docker Desktop…');
-    try {
-      await run('docker', ['compose', 'version'], {
-        timeout: 15000, windowsHide: true,
-      });
-    } catch {
-      throw new Error('未检测到 Docker Desktop。请安装并启动 Docker Desktop（启用 WSL2）。');
-    }
-    progress('构建并启动本地视频服务（首次安装需下载依赖）…');
-    try {
-      await run('docker', [
-        'compose', '-p', 'weiguangmath',
-        '-f', path.join(root, 'docker-compose.yml'),
-        '--project-directory', root, 'up', '-d', '--build',
-      ], {
-        cwd: root, windowsHide: true, timeout: 30 * 60 * 1000,
-        maxBuffer: 1024 * 1024,
-        env: {
-          ...process.env, ...secrets,
-          WEIGUANG_LOCAL_DEV: '1',
-          WEIGUANG_TEACHER_ENABLED: '0',
-          WEIGUANG_EDIT_AI_ENABLED: '0',
-        },
-      });
-    } catch {
-      throw new Error('Docker 构建或启动失败。请在 Docker Desktop 中查看容器日志，检查网络与磁盘空间。');
-    }
-    progress('正在验证服务…');
-    await waitForHealth(LOCAL_URL, 60);
+    if (!nativeServices) nativeServices = new NativeServices({
+      serviceRoot: root, runtimeRoot: runtime,
+      userDir: path.join(app.getPath('userData'), 'native-services'),
+      secrets, progress,
+    });
+    await nativeServices.start();
+    progress('检查本地服务身份与健康状态…');
+    await waitForHealth(LOCAL_URL, 80);
     await autoLogin(secrets.WEIGUANG_API_TOKEN);
     startLocalCliBridge(secrets);
     writePrefs({ mode: 'local', url: LOCAL_URL });
     await showStudio(LOCAL_URL);
-    progress('本地服务已连接');
+    progress('Windows 原生视频引擎已连接');
     return { ok: true };
   } finally {
     starting = false;
@@ -329,6 +305,10 @@ if (hasLock) {
     ipcMain.handle('wg:ai-models', onlyLocalStudio(kind=>({models:vendorModels(kind),source:'local_suggestions'})));
     createLauncher();
   });
-  app.on('before-quit', () => { appClosing = true; stopLocalCliBridge(); });
+  app.on('before-quit', () => {
+    appClosing = true;
+    stopLocalCliBridge();
+    if (nativeServices) nativeServices.stop().catch(() => {});
+  });
   app.on('window-all-closed', () => app.quit());
 }
