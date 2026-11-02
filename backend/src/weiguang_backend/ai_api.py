@@ -102,7 +102,7 @@ def build_ai_router(SessionLocal,auth):
             if provider is None:
                 provider=AiProvider(
                     name={"codex_cli":"Codex CLI","gemini_cli":"Gemini CLI",
-                          "codebuddy_cli":"CodeBuddy CLI (WorkBuddy 模型按账号支持)"}[payload.mode],
+                          "codebuddy_cli":"CodeBuddy CLI"}[payload.mode],
                     preset=payload.mode,protocol=payload.mode,
                     base_url="local-cli://"+payload.mode,
                     encrypted_key="",json_mode=True,
@@ -183,8 +183,7 @@ def build_ai_router(SessionLocal,auth):
                                  "version":versions.get(kind,""),
                                  "reasoning_efforts":list(EFFORT[kind])}
                            for kind in CLI_KINDS},
-                    "workbuddy_desktop_external_model_override_verified":False,
-                    "note":"WorkBuddy 桌面版单次模型覆盖接口尚未验证；CodeBuddy CLI 单独支持。"}
+                    "note":"仅支持 Codex、Gemini 与 CodeBuddy CLI，登录由各自官方程序完成。"}
 
     @router.get("/catalog")
     def catalog():
