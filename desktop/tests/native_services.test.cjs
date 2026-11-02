@@ -128,6 +128,14 @@ test('PostgreSQL cluster stays outside Chinese userData, without losing a previo
     });
     assert.equal(instance.postgresDirectory(),path.join(localStateRoot,'postgresql17'));
     assert.equal(instance.backendCwd(), localStateRoot);
+    const env = instance.processEnv(path.join(f.root,'tex-bin'));
+    const nativeTemp = path.join(localStateRoot,'temp');
+    assert.equal(env.TEMP,nativeTemp);
+    assert.equal(env.TMP,nativeTemp);
+    assert.equal(env.TMPDIR,nativeTemp);
+    assert.ok(fs.statSync(nativeTemp).isDirectory());
+    assert.ok(!nativeTemp.includes('微光数学'));
+    assert.notEqual(env.TEMP, os.tmpdir());
     assert.ok(!instance.postgresDirectory().includes('微光数学'));
     const legacy=path.join(f.userDir,'postgresql17');
     fs.mkdirSync(legacy,{recursive:true});
