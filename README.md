@@ -4,6 +4,24 @@
 
 本仓库同时提供白底、黑字的 Web 工作台、FastAPI 后端、**Windows 桌面 App** 和 **Android 手机 App**。Windows 图标沿用现有“翻开的书 + 暖金色星芒”，桌面安装包可创建开始菜单和桌面快捷方式；右上角教学视频水印仍使用适合白色板书的透明标志。
 
+## App 1.0.1 最终安装交付（Windows / Android）
+
+本次交付的是**可直接安装的程序文件，不以浏览器网址或网页工程作为最终安装包**：
+
+| 平台 | 安装文件 | 运行条件 |
+|---|---|---|
+| Windows 10/11 x64 | `WeiGuang-Math-Setup-1.0.1-x64.exe` | 本地模式需要 Docker Desktop + WSL2；也可在 App 内连接现成 HTTPS 服务端 |
+| Windows 10/11 x64 | `WeiGuang-Math-Portable-1.0.1-x64.exe` | 免安装，但本地引擎仍需要 Docker Desktop |
+| Android 10+ | `WeiGuang-Math-Android-1.0.1-Acceptance.apk` | 必须能访问运行中的微光数学 HTTPS 服务器 |
+
+**技术边界：** 现有 Windows 客户端使用 Electron 桌面窗口，Android 客户端使用受限 WebView 呈现共用工作台；这是独立 EXE/APK 安装应用，**但工作台 UI 不是完全由 WinUI/Kotlin 原生组件重写**。Android 本身不运行 Manim、TTS 或大模型。若“原生 App”特指完全无 WebView/Electron 的界面，需要另外实施全面原生 UI 开发，不能把现有软件描述成已经实现。
+
+Windows 安装版与便携版不含 Docker Desktop、模型提供商密钥及预装的全部 TeX 依赖。首次启动本地引擎时，需完成 Docker 镜像和依赖安装；不运行 VS Code 也可从桌面使用。Android 安装包不内置公网服务或访问密钥；首次从原生连接页填写自己的 HTTPS 地址并登录后台。为保护现有数据，升级前请备份数据库、视频与全部微调记录，尤其不要删除 Windows 凭据文件。
+
+**发行状态：** Windows EXE 尚未使用可信代码签名证书；Android APK 为测试签名的内部验收版，**不是可长期升级或应用市场发行的正式签名包**。发正式渠道发行前需要配置固定的 Android 签名密钥与 Windows 代码签名证书。CI 证明构建产物可安装、可启动和资源完整，不代表已经在用户实际设备/服务器上完成生产验收。
+
+交付时以 **同一个 Git 提交 SHA** 下的 Windows 与 Android 成功流水线为准，两个构建附件均附 SHA-256 校验及 `app-manifest.json`，用于核对版本、来源和签名类型。
+
 ## 1. 选择运行方式
 
 | 方式 | 使用场景 | 必要条件 |
@@ -18,10 +36,10 @@
 
 ### Windows 桌面安装包
 
-Windows 安装与便携包由 [WeiGuang Math Windows Desktop installer](.github/workflows/windows-desktop.yml) 在 GitHub Actions 的原生 Windows Runner 构建。打开该 workflow 最新成功运行，下载附件 `WeiGuang-Math-Windows-Setup-and-Portable`，其中包含：
+Windows 安装与便携包由 [WeiGuang Math Windows Desktop installer](.github/workflows/windows-desktop.yml) 在 GitHub Actions 的原生 Windows Runner 构建。打开该 workflow 最新成功运行，下载附件 `WeiGuang-Math-Windows-1.0.1-App`，其中包含：
 
-- `WeiGuang-Math-Setup-1.0.0-x64.exe`：Windows 安装包（NSIS，支持选择目录、创建快捷方式）
-- `WeiGuang-Math-Portable-1.0.0-x64.exe`：Windows 便携版
+- `WeiGuang-Math-Setup-1.0.1-x64.exe`：Windows 安装包（NSIS，支持选择目录、创建快捷方式）
+- `WeiGuang-Math-Portable-1.0.1-x64.exe`：Windows 便携版
 
 安装后启动「微光数学」，选择 **本地视频引擎** 或 **连接服务器**。安装包图标由 `desktop/tools/generate_app_icon.py` 生成 ICO/PNG，完全复用项目的书页与金色星芒元素，无需下载安装外部字体。
 
@@ -43,7 +61,7 @@ Windows 安装包目前未配置代码签名证书；Windows SmartScreen 可能�
 
 Android 端与 Windows/Web **共享同一数学教师、课堂编排、审核、微调和数据 API**，不是另起一套视频渲染器。应用图标采用与已有 Logo 一致的深石墨色底、暖金星芒和展开书页；手机页面使用相同黑白视觉和适合触控的响应式布局。
 
-最新测试 APK 在 [WeiGuang Math Android APK 工作流](.github/workflows/android-apk.yml) 的成功运行中，下载附件 `WeiGuang-Math-Android-installable-APK`，将 `app-debug.apk` 发送到 Android 手机并安装即可。**这是适合私下验收的测试签名 APK**，非 Play 商店正式签名包。它不会内置服务器或模型密钥，升级、公开发行需要配置持久的正式 Android 签名密钥与发布流水线。
+最新测试 APK 在 [WeiGuang Math Android APK 工作流](.github/workflows/android-apk.yml) 的成功运行中，下载附件 `WeiGuang-Math-Android-1.0.1-App`，将 `WeiGuang-Math-Android-1.0.1-Acceptance.apk` 发送到 Android 手机并安装即可。**这是适合私下验收的测试签名 APK**，非 Play 商店正式签名包。它不会内置服务器或模型密钥，升级、公开发行需要配置持久的正式 Android 签名密钥与发布流水线。
 
 首次启动在原生页面填入 **HTTPS 服务器地址**，例如 `https://math.example.com`，验证 `/health` 后进入同源工作台。之后自动记住地址。手机不能直接启动 Windows 的 Docker Desktop，也不会在设备上运行 Manim/LaTeX、TTS 或 Celery：视频任务在你已部署的华为云或其他后端服务器执行。
 
