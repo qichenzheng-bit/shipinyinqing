@@ -27,7 +27,7 @@ foreach ($name in @('initdb.exe', 'pg_ctl.exe', 'psql.exe', 'createdb.exe', 'ffm
   if (!$found) { throw "NATIVE_BINARY_MISSING: $name" }
 }
 # MiKTeX remains in the installer and is silently initialized in user data.
-$texPath = Join-Path $payload 'miktex-portable.exe'
+$texPath = Join-Path $payload 'basic-miktex-25.12-x64.exe'
 $texUrl = 'https://mirror.ctan.org/systems/win32/miktex/setup/windows-x64/basic-miktex-25.12-x64.exe'
 Invoke-WebRequest -Uri $texUrl -OutFile $texPath -MaximumRedirection 8
 $expected = '14b42dd9f4b4a7813a8bfd69c8f99316c2888cc4ee26f631f397e163d85d6c62'
