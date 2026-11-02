@@ -21,14 +21,14 @@ def main():
         page.on("pageerror",lambda error:problems.append(str(error)))
         page.add_init_script("""window.weiGuangLauncher={
             status: async ()=>({ok:true,mode:'local',url:'http://127.0.0.1:8000'}),
-            startLocal: async ()=>({ok:false,error:'仅截图，不启动 Docker'}),
-            connectLocal: async ()=>({ok:false,error:'仅截图，不启动 Docker'}),
+            startLocal: async ()=>({ok:false,error:'仅截图，不启动本地服务'}),
+            connectLocal: async ()=>({ok:false,error:'仅截图，不启动本地服务'}),
             connectRemote: async ()=>({ok:false,error:'仅截图，不连接服务器'}),
             onProgress: ()=>{}
         };""")
         page.goto(source.as_uri(),wait_until="networkidle")
         page.get_by_role("heading",name="微光数学").wait_for()
-        page.get_by_role("button",name="自动配置环境并进入工作台").wait_for()
+        page.get_by_role("button",name="启动并进入工作台").wait_for()
         page.screenshot(path=str(output/"01-windows-app-local-launcher.png"),full_page=True)
         page.get_by_role("tab",name="连接服务器").click()
         page.get_by_label("服务器 HTTPS 地址").fill("https://math.example.com")
