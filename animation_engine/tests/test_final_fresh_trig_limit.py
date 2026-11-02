@@ -12,6 +12,7 @@ from pathlib import Path
 from sympy import Rational, cos, limit, series, sin, symbols
 
 from animation_engine.spoken_classroom import checked_spoken
+from animation_engine.spoken_audio import split_natural_phrases
 from animation_engine.unified_classroom_flow import checked_flow
 from animation_engine.v27_teacher_contract import export_spoken_script
 from animation_engine.video_settings import DEFAULT_VIDEO_FPS
@@ -37,6 +38,13 @@ def test_fresh_offline_package_and_script_are_source_exact(tmp_path):
     assert spoken["speech_rate"] == "+5%"
     flow = checked_flow(output / "unified_flow.json")
     checked = checked_spoken(output / "spoken_classroom.json", adaptive=False)
+    # Real TTS pipeline refuses clauses that cannot be split naturally.
+    for event in spoken["events"]:
+        for span in event["spans"]:
+            for part in span["parts"]:
+                if part["kind"] == "text":
+                    phrases = split_natural_phrases(part["value"])
+                    assert "".join(phrases) == part["value"]
     assert len(flow.stages) == 1
     assert checked.flow.lesson_id == "final_fresh_sine_cosine_limit"
 
