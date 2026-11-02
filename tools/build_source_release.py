@@ -28,6 +28,26 @@ BINARY_SUFFIXES = {
     ".pem", ".key", ".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp",
     ".zip", ".7z", ".tar", ".gz", ".log", ".pyc", ".pyo",
 }
+# Block nested credentials as well as root-level private files. Plain
+# .env.example/.env.sample files may remain useful as non-secret templates.
+PRIVATE_BASENAMES = {
+    ".npmrc", ".pypirc", "credentials.json", "service-account.json",
+    "local-secrets.bin", "id_rsa", "id_ed25519", "token.json",
+}
+ENV_TEMPLATES = {".env.example", ".env.sample", ".env.template"}
+
+
+def is_private_path(name: str) -> bool:
+    path = Path(name)
+    lower = path.name.lower()
+    return (
+        name in PRIVATE_NAMES
+        or lower in PRIVATE_BASENAMES
+        or (lower.startswith(".env") and lower not in ENV_TEMPLATES)
+        or lower.endswith((".p12", ".pfx", ".kdbx", ".secret", ".secrets"))
+    )
+
+
 RUNTIME_FILES = {
     "README.md", "docker-compose.yml", "backend/Dockerfile",
     "desktop/package.json", "desktop/main.cjs", "desktop/preload.cjs",
@@ -46,6 +66,7 @@ MAINTENANCE_FILES = {
     ".github/workflows/windows-desktop.yml",
     "backend/tests/test_postgresql_only.py",
     "backend/tests/test_global_cli_model.py", "desktop/tests/cli_bridge.test.cjs",
+    "backend/tests/test_browser_security_headers.py",
     "desktop/tests/ai_auth.test.cjs",
     "animation_engine/tests/test_global_recap_board.py",
 }
@@ -64,7 +85,7 @@ def is_source_file(name: str) -> bool:
     return (
         bool(name)
         and not name.startswith(EXCLUDED_PREFIXES)
-        and name not in PRIVATE_NAMES
+        and not is_private_path(name)
         and not any(part in {"node_modules", "__pycache__", ".pytest_cache", ".git"}
                     for part in path.parts)
         and not name.endswith((".egg-info/PKG-INFO",))
