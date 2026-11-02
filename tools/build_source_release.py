@@ -31,7 +31,8 @@ BINARY_SUFFIXES = {
 RUNTIME_FILES = {
     "README.md", "docker-compose.yml", "backend/Dockerfile",
     "desktop/package.json", "desktop/main.cjs", "desktop/preload.cjs",
-    "desktop/cli_bridge.cjs", "backend/src/weiguang_backend/cli_bridge.py",
+    "desktop/cli_bridge.cjs", "desktop/ai_auth.cjs",
+    "desktop/studio_preload.cjs", "backend/src/weiguang_backend/cli_bridge.py",
     "backend/src/weiguang_backend/main.py",
     "backend/src/weiguang_backend/database.py",
     "animation_engine/src/animation_engine/recap_board.py",
@@ -45,6 +46,7 @@ MAINTENANCE_FILES = {
     ".github/workflows/windows-desktop.yml",
     "backend/tests/test_postgresql_only.py",
     "backend/tests/test_global_cli_model.py", "desktop/tests/cli_bridge.test.cjs",
+    "desktop/tests/ai_auth.test.cjs",
     "animation_engine/tests/test_global_recap_board.py",
 }
 
@@ -159,7 +161,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--version", default="1.0.5")
+    parser.add_argument("--version", default="1.0.6")
     parser.add_argument("--source-sha", required=True)
     args = parser.parse_args()
     build_release(
