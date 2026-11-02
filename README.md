@@ -1,189 +1,96 @@
-# 微光数学 · 考研数学教学视频系统
+# 微光数学 · Windows 电脑 App 1.0.2
 
-微光数学是一套用于**考研数学教学视频**的工具：数学教师生成可审查的教学草稿，课堂编排模块将题解映射为板书/口播动作，动画引擎以 Manim、LaTeX、TTS 和 FFmpeg 制作视频。完整视频流程不跳过数学来源核验和教师人工审查。
+**Windows 单平台最终交付。** 微光数学是一款考研数学教学视频制作程序，覆盖数学教师草稿、数学审核、课堂编排、教学讲稿审核、逐步板书、Manim/LaTeX 渲染、神经网络语音配音、字幕、视频下载与多轮微调。当前发布版本只提供 **Windows 安装版和 Windows 免安装版**，不再维护移动应用或移动端打包流水线。
 
-本仓库同时提供白底、黑字的 Web 工作台、FastAPI 后端、**Windows 桌面 App** 和 **Android 手机 App**。Windows 图标沿用现有“翻开的书 + 暖金色星芒”，桌面安装包可创建开始菜单和桌面快捷方式；右上角教学视频水印仍使用适合白色板书的透明标志。
+最终运行界面是独立的 Windows Electron 桌面应用（不是提供一个浏览器网址作为 App）。底层工作台与本地 FastAPI/容器服务协作；**界面并未重写为纯 WinUI 原生组件，视频生产需要外部运行环境，安装包不是纯离线一体化可执行文件**。
 
-## App 1.0.1 最终安装交付（Windows / Android）
+## 1. 下载安装
 
-本次交付的是**可直接安装的程序文件，不以浏览器网址或网页工程作为最终安装包**：
+到 [Windows App 构建工作流](.github/workflows/windows-desktop.yml) 打开最新成功的 `main` 分支构建，下载名为 `WeiGuang-Math-Windows-Only-1.0.2-App` 的构建附件，解压后得到：
 
-| 平台 | 安装文件 | 运行条件 |
-|---|---|---|
-| Windows 10/11 x64 | `WeiGuang-Math-Setup-1.0.1-x64.exe` | 本地模式需要 Docker Desktop + WSL2；也可在 App 内连接现成 HTTPS 服务端 |
-| Windows 10/11 x64 | `WeiGuang-Math-Portable-1.0.1-x64.exe` | 免安装，但本地引擎仍需要 Docker Desktop |
-| Android 10+ | `WeiGuang-Math-Android-1.0.1-Acceptance.apk` | 必须能访问运行中的微光数学 HTTPS 服务器 |
-
-**技术边界：** 现有 Windows 客户端使用 Electron 桌面窗口，Android 客户端使用受限 WebView 呈现共用工作台；这是独立 EXE/APK 安装应用，**但工作台 UI 不是完全由 WinUI/Kotlin 原生组件重写**。Android 本身不运行 Manim、TTS 或大模型。若“原生 App”特指完全无 WebView/Electron 的界面，需要另外实施全面原生 UI 开发，不能把现有软件描述成已经实现。
-
-Windows 安装版与便携版不含 Docker Desktop、模型提供商密钥及预装的全部 TeX 依赖。首次启动本地引擎时，需完成 Docker 镜像和依赖安装；不运行 VS Code 也可从桌面使用。Android 安装包不内置公网服务或访问密钥；首次从原生连接页填写自己的 HTTPS 地址并登录后台。为保护现有数据，升级前请备份数据库、视频与全部微调记录，尤其不要删除 Windows 凭据文件。
-
-**发行状态：** Windows EXE 尚未使用可信代码签名证书；Android APK 为测试签名的内部验收版，**不是可长期升级或应用市场发行的正式签名包**。发正式渠道发行前需要配置固定的 Android 签名密钥与 Windows 代码签名证书。CI 证明构建产物可安装、可启动和资源完整，不代表已经在用户实际设备/服务器上完成生产验收。
-
-交付时以 **同一个 Git 提交 SHA** 下的 Windows 与 Android 成功流水线为准，两个构建附件均附 SHA-256 校验及 `app-manifest.json`，用于核对版本、来源和签名类型。
-
-## 1. 选择运行方式
-
-| 方式 | 使用场景 | 必要条件 |
-|---|---|---|
-| **Windows Setup.exe** | 下载安装后从桌面直接打开工作台 | Windows 10/11 x64；本地生产需要 Docker Desktop + WSL2 |
-| **Windows Portable.exe** | 免安装的便携桌面客户端 | 与安装版相同的后端条件；不自带 Docker |
-| **Android APK** | 手机端创建、审核、播放、下载、微调 | Android 10+；需可访问的微光数学 HTTPS 服务器 |
-| **Web 工作台** | 浏览器访问本机或已部署服务器 | 服务端 FastAPI、数据库、Redis、Celery/视频引擎 |
-| **Python CLI** | 开发与验收视频引擎、细粒度调试 | Python 3.11+、相应媒体工具和模型资源 |
-
-**桌面 App 不需要打开 VS Code**。本地模式由 App 启动 Docker 视频服务，调用本仓库原有后端和引擎；服务器模式通过**HTTPS**连接已部署的同一套系统。**桌面安装包不是把 Manim、TeX、Docker 和所有大模型合成一个纯离线 EXE**，首次本地启动需构建/下载依赖，真实 TTS 和在线模型需要网络。
-
-### Windows 桌面安装包
-
-Windows 安装与便携包由 [WeiGuang Math Windows Desktop installer](.github/workflows/windows-desktop.yml) 在 GitHub Actions 的原生 Windows Runner 构建。打开该 workflow 最新成功运行，下载附件 `WeiGuang-Math-Windows-1.0.1-App`，其中包含：
-
-- `WeiGuang-Math-Setup-1.0.1-x64.exe`：Windows 安装包（NSIS，支持选择目录、创建快捷方式）
-- `WeiGuang-Math-Portable-1.0.1-x64.exe`：Windows 便携版
-
-安装后启动「微光数学」，选择 **本地视频引擎** 或 **连接服务器**。安装包图标由 `desktop/tools/generate_app_icon.py` 生成 ICO/PNG，完全复用项目的书页与金色星芒元素，无需下载安装外部字体。
-
-Windows 本地模式首次运行：
-
-1. 安装并启动 [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/)；启用 WSL2，确保 Linux 容器模式可用。
-2. 在 App 中点击「启动并进入工作台」。首次启动会拉取 Docker 镜像、编译媒体依赖，磁盘和网络开销较大。
-3. App 会生成随机本地登录密钥和数据库密码，在当前 Windows 用户配置目录中以系统凭据加密保存；验证本地服务身份后再自动登录。
-4. 在「设置 → 管理模型 API」保存服务商/API Key，选择当前账号可用的模型版本。创建题目，依次完成数学审核、课堂编排审核、讲稿审核，然后制作视频。
-5. 关闭 App 窗口不会强制杀死正在运行的 Docker 容器；视频数据由持久化 Docker 数据卷保存。
-
-**不要删除 Windows 应用用户目录下的本地凭据**，否则可能无法连接旧 PostgreSQL 数据卷及解密模型 API Key。卸载前应备份数据库、全部视频和微调记录。App 本地服务默认绑定宿主机回环地址 `127.0.0.1:8000`，不是公网端口。
-
-已有华为云或其他服务器的用户可选择「连接服务器」，填写 `https://你的域名`，在原网页登录。为了保护密钥，不允许通过公共 HTTP 地址连接，**不应把未配置 TLS 的内部服务直接暴露公网**。
-
-Windows 安装包目前未配置代码签名证书；Windows SmartScreen 可能显示未知发布者提示。若准备公开发行，请配置真实签名证书、版本升级策略及安全审计，不能绕过安全检查。
-
-### Android 手机 App（安卓 10+）
-
-Android 端与 Windows/Web **共享同一数学教师、课堂编排、审核、微调和数据 API**，不是另起一套视频渲染器。应用图标采用与已有 Logo 一致的深石墨色底、暖金星芒和展开书页；手机页面使用相同黑白视觉和适合触控的响应式布局。
-
-最新测试 APK 在 [WeiGuang Math Android APK 工作流](.github/workflows/android-apk.yml) 的成功运行中，下载附件 `WeiGuang-Math-Android-1.0.1-App`，将 `WeiGuang-Math-Android-1.0.1-Acceptance.apk` 发送到 Android 手机并安装即可。**这是适合私下验收的测试签名 APK**，非 Play 商店正式签名包。它不会内置服务器或模型密钥，升级、公开发行需要配置持久的正式 Android 签名密钥与发布流水线。
-
-首次启动在原生页面填入 **HTTPS 服务器地址**，例如 `https://math.example.com`，验证 `/health` 后进入同源工作台。之后自动记住地址。手机不能直接启动 Windows 的 Docker Desktop，也不会在设备上运行 Manim/LaTeX、TTS 或 Celery：视频任务在你已部署的华为云或其他后端服务器执行。
-
-Android 端支持题目增删改查、课程人工审核、服务商及模型版本配置、任务进度查看、在线播放 MP4、上传 ZIP 课程包、自然语言微调、项目管理和批量删除。MP4 和“全部微调历史 JSON”通过后端登录态下载到手机的 `下载/微光数学` 文件夹。
-
-安全与隐私：只连接用户明确选择的 HTTPS 服务端，验证有效 TLS 证书；拒绝公网 HTTP、站外导航或混合内容。视频与 JSON 下载只允许当前微光数学域名下受审的下载接口；系统文件选择器仅在上传时使用。App 不内置模型 API Key、数据库密码、Docker，也不请求相机、定位、录音或外部存储权限，模型密钥仍在后端加密存储。
-
-GitHub CI 会运行 Java URL 安全测试、原生 APK 构建、Android 模拟器启动以及手机视口浏览器页面测试；这些测试**不代表**已用你的实际服务器和真实题目完成过音画验收。
-
-开发者用 Android Studio 打开 `android_app/`，或在安装 Android SDK 35、JDK 17、Gradle 8.10.2 的环境运行：
-
-```bash
-gradle -p android_app testDebugUnitTest lintDebug assembleDebug
-# APK 位于 android_app/app/build/outputs/apk/debug/app-debug.apk
-```
-
-### 开发者运行桌面项目
-
-```powershell
-# 项目根目录；Windows + Node.js 24 + Python 3.11+
-python -m pip install Pillow
-python desktop/tools/generate_app_icon.py --output desktop/build
-cd desktop
-npm install
-npm test
-npm start
-# 实际构建 Windows 安装包：
-npm run build:windows
-```
-
-只要客户端显示桌面窗口，不代表后台的视频生产已启动。**本地容器成功启动及真实 Manim/TTS 生成需要设备现场验证**。
-
-## 2. 数学教学及视频流程
-
-```text
-输入题目、参考解析
-  → 数学教师 A/B/C 生成教学草稿
-  → 人工核对数学
-  → 课堂编排候选（知识点、思维引导、逐步板书、口播）
-  → 人工审核课堂编排
-  → V2.7 严格来源校验与完整讲稿
-  → 人工批准讲稿
-  → Celery 任务执行 Manim / TTS / FFmpeg
-  → 60 FPS MP4、字幕、视频右上角 Logo
-  → 自然语言微调 → 核对修改候选 → 生成新版 → 满意后导出记录
-```
-
-讲解质量遵循实际考研数学课堂约定：题目原文保留；教师讲到哪里，板书在哪里逐步显现；数学变量保留规范 LaTeX 显示，TTS 读音映射独立处理；字幕只记录真正讲出的内容；较长证明和多积分运算按需分幕，不制造无意义拆解；结论与归纳总结相互独立；总结只回顾之前使用过的核心知识点、公式与易错点。
-
-未经过数学审核的模型输出**不会仅凭 JSON 合法就直接当作正确题解**。全部微调要求、候选计划、人工审核与反馈均归档；视频采用独立版本路径，重新生成或失败不覆盖旧成功视频。一个全局导出接口生成全部会话历史 JSON，供后续优化模型使用。
-
-## 3. API 与模型配置
-
-在网页「设置 → 管理模型 API」选择服务商：OpenAI（Chat Completions / Responses）、Anthropic Claude、Google Gemini、DeepSeek、Qwen、GLM、Kimi、豆包、MiniMax、OpenRouter、硅基流动、xAI、Mistral、Groq、Together、Fireworks、Perplexity、本地 Ollama/LM Studio，以及自定义兼容接口。
-
-优先尝试服务商实时模型列表；不支持枚举时输入完整模型 ID 或版本。可以将一个精确版本同时应用于**数学教师、课堂编排、视频微调**，也可以为每个模块独立选择。创建任务时固定模型/服务商版本，防止排队后静默切换。模型真实兼容性由小规模 JSON API 调用验证，可能产生厂商计费；不是所有图像、音频或专有协议模型都适用。
-
-模型 API Key 在服务端加密存储。云端部署时要设置稳定的 `WEIGUANG_MODEL_MASTER_KEY`，可用：
-
-```powershell
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
-
-将生成值存入私有 `.env`，**不要提交到 Git**。Windows 桌面本地模式会自动生成并使用 Windows 凭据保护，不需要你手工填入主密钥。
-
-本地模型（Ollama/LM Studio）通过 Windows Docker Desktop 的 `host.docker.internal` 访问宿主机时，需要确认服务允许该地址访问。启用 `WEIGUANG_ALLOW_PRIVATE_MODEL_ENDPOINTS=1` 前请了解私网连接风险；公网服务器默认禁用。
-
-## 4. 服务器与 Web 工作台
-
-仅部署网页时：
-
-```powershell
-Copy-Item .env.example .env
-# 使用文本编辑器填写随机 POSTGRES_PASSWORD、WEIGUANG_API_TOKEN 等必要私有配置
-docker compose config --quiet
-docker compose up -d --build
-docker compose ps
-```
-
-本机访问 `http://127.0.0.1:8000/`。公网部署使用 Nginx + HTTPS，示例为 `deploy/nginx/weiguang.conf.example`。当前 Docker 服务包含 PostgreSQL、Redis、API、Celery Worker；视频实际渲染需要相应 FFmpeg/LaTeX/Manim/TTS 运行环境以及网络访问。
-
-Web 提供：题目与项目增删改查、批量删除与回收站恢复、数学草稿审核、课堂编排审核、讲稿批准、视频预览与下载、多轮微调、后台任务状态及全局 JSON 导出。前端布局保持白底、黑字、浅灰线条，避免无关介绍文字。
-
-## 5. 仓库结构与清理边界
-
-| 目录 | 作用 |
+| 文件 | 功能 |
 |---|---|
-| `teacher_module/` | 教师理解、规划、讲稿及数学来源核验 |
-| `visual_director/` | 数学板书布局和导演信息 |
-| `animation_engine/` | Manim、LaTeX、语音、时间轴、字幕、60 FPS 与多轮微调 |
-| `backend/` | FastAPI、任务队列、数据模型、模型 API 接入及视频服务 |
-| `frontend/` | 轻量黑白 Web UI、当前 Logo 与已验收浏览器截图 |
-| `desktop/` | 安全 Electron 桌面壳、启动页、Windows ICO 构建与安装封装 |
-| `tools/` | 仓库完整性审计和仅清理生成物的安全工具 |
-| `config/`、`deploy/` | 无密钥示例、服务器部署模板 |
-| `.github/workflows/` | Windows/Linux 核心测试、浏览器截图、Windows 安装包构建 |
+| `WeiGuang-Math-Setup-1.0.2-x64.exe` | **推荐**：Windows 10/11 x64 安装版，支持选目录、开始菜单与桌面快捷方式 |
+| `WeiGuang-Math-Portable-1.0.2-x64.exe` | 免安装版，可直接运行 |
+| `SHA256SUMS.txt` | Windows 文件校验值 |
+| `app-manifest.json` | 版本、源码提交 SHA、打包资源和签名状态 |
 
-**仅根目录本 README 是供人阅读的项目 Markdown 文档。** 以下四份 `.md` 为程序运行时读取的教师提示词，绝不可删除：
+两个 EXE 都是桌面应用，不需要打开 VS Code，也无需手工运行 Web 浏览器。安装版与便携版的功能相同。Windows 程序图标采用项目已经确定的“展开书页 + 暖金星芒”，视频右上角使用相应透明水印。
+
+安装包尚未配置 Windows 代码签名证书，**公开发行前需要购买/配置可信签名证书并通过安全审查**。不能把未经签名的内部构建称为已取得可信发行者认证的软件。
+
+### 运行模式 A：本地完整视频引擎（推荐）
+
+在 Windows 电脑上安装并启动 **Docker Desktop**，启用 WSL2、Linux 容器模式，并确保磁盘空间与网络正常。打开「微光数学」App，点击「本地视频引擎 → 启动并进入工作台」。
+
+1. 首次启动将自动构建 Docker 容器，准备 PostgreSQL 数据库、Redis、FastAPI、Celery Worker，以及 Manim/LaTeX/FFmpeg 等视频渲染依赖；这一步需要较大的下载和编译开销。
+2. App 生成并通过 Windows 凭据系统加密保存本地数据库密码、登录密钥和模型密钥保护材料，自动完成本地服务身份验证与登录。
+3. 进入工作台「设置 → 管理模型 API」，填写你有权限使用的服务商 API Key 和模型 ID，选择应用于数学教师、课堂编排和微调的模型版本。
+4. 创建题目与参考解析，按顺序审核数学内容、课堂编排和教师讲稿，提交 60 FPS 有声视频生产任务；完成后可播放/下载 MP4 并执行多轮微调。
+
+**不需要租用云服务器，也不需要启动 VS Code。** 但本地视频制作不是完全脱离网络：调用在线大模型、Edge 神经语音以及首次依赖安装时需要连接相应服务。若外部模型接口不可达，需要事先准备可信的可用模型资源。
+
+在工作台里设置模型 API 后，并不自动证明你当前具体型号、版本、额度和网络条件全部兼容；需通过真实服务请求验证。不要把敏感模型密钥提交到仓库。
+
+本地服务仅监听 `127.0.0.1:8000`，不直接对外网公开。退出 Windows App 不会自动删除 PostgreSQL 数据、视频或正在执行的容器任务。
+
+### 运行模式 B：连接已有 HTTPS 后端
+
+如果你已有部署的微光数学服务器，也可以在**同一个 Windows App** 中选择「连接服务器」，填写受信任的 `https://...` 地址。这是可选方案；本地模式不要求另购服务器。客户端禁止普通公网 HTTP 及不受信任的跳转。
+
+## 2. 已保留的视频教学规则
+
+- 真实课堂风格：白色背景、黑色数学运算、问题题干固定在上方；老师讲到哪里，板书按步骤写到哪里，避免提前出现整组解式或不必要的无意义拆解。
+- 数学公式使用 LaTeX/MathTex；知识点、思维引导、易错提示有独立视觉样式；图像和长推导依实际内容安排，板书填满后按教学事件完整擦除换页。
+- 语音保留晓晓 `zh-CN-XiaoxiaoNeural` 与原有 `zh-CN-YunxiNeural` 音色，按真实讲稿进行配音，字幕只跟随实际讲出的内容，不对单独板书内容虚构语音或字幕。
+- 视频默认 1280×720、60 FPS，支持下载、右上角透明 Logo 水印和全局微调历史 JSON 导出。
+- **归纳总结为公共固定模块**：在原有简洁口播期间，从已经讲过并完成来源审核的内容中重新板书核心知识点公式与易错点，不在最后一幕再朗读完整解题过程，不凭空造新公式。
+- 迭代微调与课堂编排继续受源数学检查和审核约束；失败或重新渲染不会静默覆盖既有成功版本。
+
+其中完整新题视频已在专门真实有声验收流程中测试过；本次 Windows 专版收尾不改变已通过人工核验的教学内容模块。
+
+## 3. 模型服务配置与安全
+
+在 App「设置 → 管理模型 API」配置服务商与对应版本，支持 OpenAI、Anthropic、Gemini、DeepSeek、Qwen、GLM、Kimi、豆包、MiniMax、OpenRouter、xAI、Mistral、Groq、Together、Fireworks、Perplexity，以及符合支持协议的第三方兼容服务和本地 Ollama/LM Studio。实时型号枚举受厂商是否提供模型列表影响；不支持枚举的服务可以输入精确模型 ID。**不承诺所有厂商的所有专有协议都无需适配**，实际能力取决于 API 规范和服务商访问权限。
+
+模型密钥保存在后端并加密管理。Windows 本地模式自动生成所需主密钥；如果使用已有服务器，需自行妥善持有 `WEIGUANG_MODEL_MASTER_KEY`。删除 Windows 当前用户下的加密凭据可能使旧数据库密码及已存模型密钥不可恢复，**卸载/更新前应备份数据库、已有视频、微调记录及凭据**。
+
+## 4. 项目结构与发布边界
+
+| 路径 | 作用 |
+|---|---|
+| `desktop/` | Windows Electron 应用、桌面 Logo、NSIS 安装版及便携 EXE 构建 |
+| `frontend/` | Windows 桌面程序复用的工作台界面与资源；**并非单独对用户交付网页程序** |
+| `backend/` | FastAPI、任务队列、课程/项目/视频存储、模型 API 与微调服务 |
+| `animation_engine/` | 真正的视频引擎、Manim/LaTeX、音画时间轴、字幕、总结板书和水印 |
+| `teacher_module/`、`visual_director/` | 教学内容来源、教师讲稿与板书/图形编排 |
+| `config/`、`deploy/`、`docker-compose.yml` | 本地与可选远程服务资源 |
+| `tools/`、`.github/workflows/` | 安全审计、仅生成物清理、Windows 构建和测试 |
+
+**仅保留根目录这一份供人阅读的 README.md。** 以下四份 Markdown 是教师运行时必需的真实提示词，必须保留：
 
 - `teacher_module/src/math_teacher/prompts/global.md`
 - `teacher_module/src/math_teacher/prompts/a_understanding.md`
 - `teacher_module/src/math_teacher/prompts/b_planning.md`
 - `teacher_module/src/math_teacher/prompts/c_narration.md`
 
-测试、fixtures 和验收脚本属于数学正确性与前后端回归门禁，不能当作无关文件随意删除；**桌面安装包只携带正式运行源码，不携带测试题和测试截图**。
+清理的边界：移除无用的移动端源码、APK 编译与移动专用测试；保留数学回归测试、生成视频所需模块、模型配置机制、项目数据路径、数据库持久化设计和微调历史。禁止删除真实 `.env`、用户凭据、数据库卷、视频、课程包、审核和反馈数据。仓库源码清理**不**意味着清空某台机器上已有的个人运行数据或 Git 历史。
 
-整理/审计：
+可用的安全审计及仅生成物清理指令：
 
 ```powershell
 python tools/repository_audit.py
-python tools/clean_generated.py               # 默认只列出可清理内容
-python tools/clean_generated.py --apply       # 仅删除明确列出的构建物/缓存
+python tools/clean_generated.py
+python tools/clean_generated.py --apply
 ```
 
-不会删除 `.env`、模型密钥、已生成视频、微调历史、数据库、用户上传课程包、数学教师提示词或 Git 提交历史。
+## 5. 验收说明
 
-## 6. 自动化验收与限制
+- `system-ci.yml`：源码/教师/导演/后端/动画引擎在 Windows 与 Linux 的非渲染测试及 Docker Compose 配置。
+- `frontend-screenshots.yml`：桌面应用所复用工作台的真实 Chromium UI 自动化截图，不是移动 App 构建。
+- `windows-desktop.yml`：Windows 11 原生 Electron 窗口、NSIS 和便携 EXE 构建及文件资源、SHA-256 校验。
+- `final-new-question.yml`：新数学题的真实 Manim、Edge TTS、字幕、60 FPS、视频水印及总结板书成片验收。
 
-- `system-ci.yml`：Windows/Linux 原生源码、数学教师/视觉导演、视频引擎非渲染测试、Docker Compose 配置。
-- `frontend-screenshots.yml`：真实 Chromium 页面交互及 FFmpeg 实际编码抽取水印单帧，截图发布为 workflow artifact，不再由 CI 自动提交覆盖分支。
-- `windows-desktop.yml`：原生 Windows 构建 **NSIS Setup + Portable EXE**，检查打包资源存在、不会携带测试材料和私密文件，并提供可下载的 GitHub Actions artifact。
+自动化通过不等于已在你的 Windows 电脑完成 Docker Desktop 初始化、实际大模型账单/接口验证或本地渲染；首次安装后请亲自完成一次完整题目的录制与下载。正常更新客户端不应主动清理原视频与数据库卷。
 
-Windows 安装程序能构建/启动界面，**不等于**已经实测了你的 Windows 本机 Docker 初始化、真实厂商 API Key、TTS 网络质量、Manim/LaTeX 的完整 60 FPS 教学视频。真实新题成片需要在实际设备和账号上做一次端到端现场验收。首次下载完整渲染依赖可能耗时、占用较多磁盘。CI 不以模拟的媒体桩视频冒充真实教学内容。
-
-发布日期：2026-11-02。以 GitHub `main` 代码和本次运行的实际 CI 结果为准。
+发布时间：2026-11-02；最终单平台版本：**微光数学 Windows App v1.0.2**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。

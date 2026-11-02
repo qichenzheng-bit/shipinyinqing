@@ -30,13 +30,6 @@ CRITICAL={
     "desktop/preload.cjs",
     "desktop/package.json",
     "desktop/tools/generate_app_icon.py",
-    "android_app/app/build.gradle",
-    "android_app/app/src/main/AndroidManifest.xml",
-    "android_app/app/src/main/java/cn/weiguang/math/MainActivity.java",
-    "android_app/app/src/main/java/cn/weiguang/math/FileSaver.java",
-    "android_app/app/src/main/java/cn/weiguang/math/UrlPolicy.java",
-    "android_app/app/src/main/res/drawable/ic_launcher_foreground.xml",
-    ".github/workflows/android-apk.yml",
     "animation_engine/src/animation_engine/spoken_movie.py",
     "animation_engine/src/animation_engine/brand_watermark.py",
     "visual_director/src/visual_director/director.py",
@@ -57,6 +50,12 @@ def tracked_files():
 def main():
     files=tracked_files()
     missing=CRITICAL-files
+    obsolete=sorted(name for name in files if name.startswith("android_app/")
+                    or name in (".github/workflows/android-apk.yml",
+                                "backend/tests/capture_android_mobile.py",
+                                "backend/tests/test_android_delivery.py"))
+    if obsolete:
+        raise AssertionError("ANDROID_FILES_REMAIN_AFTER_WINDOWS_ONLY_RELEASE: "+str(obsolete))
     if missing:raise AssertionError("MISSING_PRODUCTION_RESOURCES: "+str(sorted(missing)))
     markdowns={name for name in files if name.endswith(".md")}
     if markdowns!=PROMPTS|{"README.md"}:

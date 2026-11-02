@@ -26,15 +26,3 @@ npm-debug.log*
 # Never track real production credentials or database media.
 local-secrets.bin
 launcher.json
-
-# Android builds, local SDK configuration and release signing (never commit)
-android_app/.gradle/
-android_app/.idea/
-android_app/build/
-android_app/app/build/
-android_app/local.properties
-android_app/screenshots/
-*.apk
-*.aab
-*.jks
-*.keystore

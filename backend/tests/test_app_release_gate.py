@@ -1,54 +1,54 @@
-"""Ship both installation apps from exactly one aligned 1.0.1 codebase."""
+"""Windows-only app release checks: no Android code, no accidental user-data removal."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 
-def test_version_metadata_matches_windows_android_and_visible_launcher():
+def test_windows_setup_portable_versions_and_app_launcher():
     pkg = json.loads((ROOT / "desktop/package.json").read_text("utf-8"))
-    gradle = (ROOT / "android_app/app/build.gradle").read_text("utf-8")
     launcher = (ROOT / "desktop/launcher.html").read_text("utf-8")
     assert pkg["version"] == VERSION
-    assert pkg["build"]["productName"] == "微光数学"
-    assert "versionCode 2" in gradle
-    assert "versionName '1.0.1'" in gradle
-    assert "Windows Desktop 1.0.1" in launcher
+    assert pkg["productName"] == "微光数学"
+    assert pkg["build"]["appId"] == "cn.weiguang.math"
+    assert "Windows Desktop 1.0.2" in launcher
+    assert pkg["scripts"]["build:windows"].endswith("--x64")
+    assert pkg["build"]["nsis"]["createDesktopShortcut"]
+    assert "nsis" in str(pkg["build"]["win"]["target"])
+    assert "portable" in str(pkg["build"]["win"]["target"])
 
 
-def test_no_website_substitute_and_no_secrets_bundled():
+def test_only_required_runtime_modules_shipped_without_source_tests_or_keys():
     pkg = json.loads((ROOT / "desktop/package.json").read_text("utf-8"))
     sources = pkg["build"]["extraResources"]
     for module in ("teacher_module", "visual_director", "animation_engine",
                    "backend", "frontend"):
-        bundle = next(e for e in sources
-                      if e["to"] == "service/" + module)
-        assert all("tests" not in rule for rule in bundle["filter"])
-    assert not any(".env" in rule or ".key" in rule for item in sources
-                   for rule in item["filter"])
-    assert pkg["scripts"]["build:windows"].endswith("--x64")
-    app = (ROOT / "android_app/app/src/main/java/cn/weiguang/math/MainActivity.java"
-           ).read_text("utf-8")
-    assert "UrlPolicy.normalizeServer(raw)" in app
-    assert "HttpsURLConnection" in app
-    assert "setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW)" in app
-    readme = (ROOT / "README.md").read_text("utf-8")
-    assert "完全由 WinUI/Kotlin 原生组件重写" in readme
-    assert "测试签名" in readme
+        bundle = next(e for e in sources if e["to"] == "service/" + module)
+        assert all("tests" not in pattern for pattern in bundle["filter"])
+    assert not any(".env" in pattern or ".key" in pattern
+                   for e in sources for pattern in e["filter"])
+    assert (ROOT / "animation_engine/src/animation_engine/recap_board.py").is_file()
 
 
-def test_both_builds_have_handoff_hashes_and_source_provenance():
-    windows = (ROOT / ".github/workflows/windows-desktop.yml").read_text("utf-8")
-    android = (ROOT / ".github/workflows/android-apk.yml").read_text("utf-8")
-    for workflow in (windows, android):
-        assert "SHA256SUMS.txt" in workflow
-        assert "app-manifest.json" in workflow
-        assert "GITHUB_SHA" in workflow
-        assert "1.0.1" in workflow
-        assert "actions/upload-artifact@v4" in workflow
-    assert "setup" in windows.lower() and "portable" in windows.lower()
-    assert "testDebugUnitTest lintDebug assembleDebug" in android
-    assert "reactivecircus/android-emulator-runner@v2" in android
+def test_removed_mobile_app_no_longer_in_release_pipeline():
+    assert not (ROOT / "android_app").exists()
+    assert not (ROOT / ".github/workflows/android-apk.yml").exists()
+    assert not (ROOT / "backend/tests/capture_android_mobile.py").exists()
+    assert not (ROOT / "backend/tests/test_android_delivery.py").exists()
+    readme=(ROOT / "README.md").read_text(encoding="utf-8")
+    assert "Windows 单平台" in readme
+    assert "Windows 电脑 App" in readme
+
+
+def test_windows_build_handoff_has_checksums_provenance_and_native_smoke():
+    workflow=(ROOT / ".github/workflows/windows-desktop.yml").read_text("utf-8")
+    assert "SHA256SUMS.txt" in workflow
+    assert "app-manifest.json" in workflow
+    assert "GITHUB_SHA" in workflow
+    assert "1.0.2" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "npm run test:native" in workflow
+    assert "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK" in workflow

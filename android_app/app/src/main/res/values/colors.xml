@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="black">#202124</color>
-    <color name="white">#FFFFFF</color>
-    <color name="soft_gray">#767676</color>
-    <color name="border_gray">#EAEAEA</color>
-    <color name="icon_background">#25282E</color>
-    <color name="brand_gold">#CEAB63</color>
-</resources>
