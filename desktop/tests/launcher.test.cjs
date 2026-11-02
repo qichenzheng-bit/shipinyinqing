@@ -46,7 +46,9 @@ test('Desktop bundles original strict engine, voice and teacher code without tes
     assert.ok(entry.filter.includes('src/**/*')||project==='frontend','no source: '+project);
     assert.ok(entry.filter.every(x=>!x.includes('tests')),'test fixtures bundled: '+project);
   }
-  assert.ok(resources.some(x=>x.filter.includes('docker-compose.yml')));
+  assert.ok(resources.some(x=>x.to==='runtime'));
+  assert.ok(!resources.some(x=>x.filter.includes('docker-compose.yml')));
+  assert.ok(cfg.files.includes('native_services.cjs'));
   assert.ok(cfg.files.includes('build/app.png'));
   assert.ok(cfg.nsis.createDesktopShortcut);
 });
