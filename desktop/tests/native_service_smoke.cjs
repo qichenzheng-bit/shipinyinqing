@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { NativeServices } = require('../native_services.cjs');
 const root = path.resolve(__dirname, '..', '..');
-const working = path.join(process.env.RUNNER_TEMP || path.join(root, 'desktop'), 'weiguang-native-ci');
+const working = path.join(process.env.RUNNER_TEMP || path.join(root, 'desktop'), '微光数学','native-services');
 const secrets = Object.fromEntries([
   'POSTGRES_PASSWORD','WEIGUANG_API_TOKEN','WEIGUANG_CLI_BRIDGE_TOKEN',
   'WEIGUANG_MODEL_MASTER_KEY',

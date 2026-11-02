@@ -135,8 +135,13 @@ class NativeServices {
     const layouts = [2, 3, 4].map(v => texLayout(this.userDir, v));
     // A complete installation is reused; no repeated download or installation.
     for (const layout of layouts) {
+      // A present but broken installation must not trigger another long setup.
+      // Only a directory without latex.exe is eligible for isolated recovery.
+      const existing = latexCommand(layout.install);
+      if (!existing) continue;
       const ready = await this.checkTex(layout.install);
       if (ready) return ready;
+      throw new Error('已检测到 MiKTeX，但公式编译未通过；已停止重复安装，保留现场以便诊断。');
     }
     // Preserve/reuse a fully working v1 installation, but never reuse a
     // half-initialized parent root (the original source of the setup error).

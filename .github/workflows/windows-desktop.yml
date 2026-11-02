@@ -85,6 +85,25 @@ jobs:
       - name: Build the sole Windows setup installer
         working-directory: desktop
         run: npm run build:windows
+      - name: Install actual NSIS setup silently into disposable Windows test directory
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path 'desktop/dist/WeiGuang-Math-Setup-1.0.9-x64.exe').Path
+          $installDir = Join-Path $env:RUNNER_TEMP 'WeiGuangMathInstalledSmoke'
+          if (Test-Path $installDir) { throw 'INSTALLER_SMOKE_DESTINATION_ALREADY_EXISTS' }
+          $process = Start-Process -FilePath $setup -ArgumentList @('/S', "/D=$installDir") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "NSIS_INSTALL_FAILED: $($process.ExitCode)" }
+          foreach ($file in @(
+            'WeiGuangMath.exe','resources/app.asar',
+            'resources/runtime/engine/python.exe',
+            'resources/runtime/engine/Library/bin/pg_ctl.exe',
+            'resources/runtime/basic-miktex-25.12-x64.exe'
+          )) {
+            if (!(Test-Path (Join-Path $installDir $file))) {
+              throw "NSIS_INSTALLED_PAYLOAD_MISSING: $file"
+            }
+          }
+          Write-Output 'REAL_NSIS_INSTALL_AND_BUNDLED_DEPENDENCIES_PASSED'
       - name: Verify installer files and exact packaged production modules
         shell: pwsh
         run: |

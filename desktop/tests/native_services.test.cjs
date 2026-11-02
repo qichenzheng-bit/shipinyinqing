@@ -21,7 +21,7 @@ function latexAt(root) {
   fs.writeFileSync(latex,'fixture');
   return latex;
 }
-function mockRunner(calls, { failInstall=false } = {}) {
+function mockRunner(calls, { failInstall=false, failCompile=false } = {}) {
   return async (executable,args,options) => {
     calls.push({executable,args,options});
     if (path.basename(executable).startsWith('basic-miktex-')) {
@@ -32,6 +32,7 @@ function mockRunner(calls, { failInstall=false } = {}) {
     } else if (path.basename(executable).toLowerCase()==='latex.exe') {
       assert.ok(args.includes('probe.tex'));
       assert.ok(args.includes('-halt-on-error'));
+      if (failCompile) throw Error('simulated latex compilation failure');
       fs.writeFileSync(path.join(options.cwd,'probe.dvi'),'compiled');
     } else {
       throw Error('unexpected command ' + executable);
@@ -100,5 +101,14 @@ test('failed installer is reported, not treated as ready or retried in a loop',a
   try {
     await assert.rejects(manager(f,calls,{failInstall:true}).ensureTex(),/MiKTeX 初始化未成功/);
     assert.equal(calls.filter(x=>path.basename(x.executable).startsWith('basic-miktex-')).length,1);
+  } finally { fs.rmSync(f.root,{recursive:true,force:true}); }
+});
+
+test('failed compilation from an existing TeX binary never causes another long install',async()=>{
+  const f=fixture(),calls=[];
+  try {
+    latexAt(texLayout(f.userDir,2).install);
+    await assert.rejects(manager(f,calls,{failCompile:true}).ensureTex(),/停止重复安装/);
+    assert.equal(calls.filter(x=>path.basename(x.executable).startsWith('basic-miktex-')).length,0);
   } finally { fs.rmSync(f.root,{recursive:true,force:true}); }
 });
