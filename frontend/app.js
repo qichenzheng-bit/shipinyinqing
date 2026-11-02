@@ -615,13 +615,14 @@
         await refresh();flash('已移入回收站');
       });
     } else if(id==='export'){
-      exec(async()=>{
-        const blob=await api('/system/edit-history/export',{responseType:'blob'});
-        const url=URL.createObjectURL(blob);
-        const a=document.createElement('a');a.href=url;a.download='weiguang_all_edit_history.json';
-        a.click();URL.revokeObjectURL(url);
-        flash('已导出全部微调记录');
-      });
+      // The authenticated download endpoint uses Content-Disposition.
+      // Unlike a JS blob: URL, this works in Android WebView's secure native
+      // download handler and avoids keeping a large export in JS memory.
+      const a=document.createElement('a');
+      a.href='/api/v1/system/edit-history/export';
+      a.download='weiguang_all_edit_history.json';
+      document.body.appendChild(a);
+      a.click();a.remove();
     } else if(id==='upload-package'){
       const file=$('#package-upload')?.files?.[0];
       if(!file)return flash('请选择课程包 ZIP');
