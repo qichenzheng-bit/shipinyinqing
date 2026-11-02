@@ -53,7 +53,7 @@ const manager = new NativeServices({
         '    expression = MathTex(r"\\frac{x^2+1}{x+1}")',
         '    assert expression.submobjects, "MATHTEX_EMPTY_MOBJECT"',
         'print("WINDOWS_MANIM_MATHTEX_SVG_PASSED")',
-      ].join('\\n');
+      ].join('\n');
       const {stdout} = await execFileAsync(path.join(manager.engine(), 'python.exe'),
         ['-c', script, media], {
           env: manager.processEnv(firstTex),
