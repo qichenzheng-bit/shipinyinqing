@@ -3,6 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os');
 const {validateTask,commandFor,unwrapJson,reasoningGemini,executeTask,createBridge}
   =require('../cli_bridge.cjs');
+const {cliEnvironment,runProcess}=require('../cli_bridge.cjs');
 function task(provider='codex_cli',model_id='gpt-6.1-sol',reasoning_effort='high'){
   return {provider,model_id,reasoning_effort,id:'a'.repeat(32),
     lease_token:'b'.repeat(64),
@@ -77,4 +78,24 @@ test('backend polling requires local origin and two independent secrets',async()
   await worker.heartbeat();await worker.tick();worker.stop();
   assert.ok(calls.some(x=>x.endsWith('/result')));
   assert.throws(()=>createBridge({origin:'https://evil',authToken:'a',bridgeToken:'b'}),/LOCAL/);
+});
+
+test('CLI processes cannot inherit unrelated API keys, cloud credentials or NODE_OPTIONS',()=>{
+  const source={Path:'C:\\safe\\bin',APPDATA:'C:\\Users\\A\\AppData\\Roaming',
+    HTTPS_PROXY:'http://127.0.0.1:7890',
+    OPENAI_API_KEY:'private-openai',GOOGLE_API_KEY:'private-google',
+    WEIGUANG_API_TOKEN:'private-backend',AWS_SECRET_ACCESS_KEY:'private-aws',
+    NODE_OPTIONS:'--require hostile.js'};
+  const safe=cliEnvironment(source,{WEIGUANG_API_TOKEN:'cannot override',
+    GEMINI_CLI_SYSTEM_SETTINGS_PATH:'C:\\temp\\gemini-config.json'});
+  assert.equal(safe.Path,source.Path);
+  assert.equal(safe.APPDATA,source.APPDATA);
+  assert.equal(safe.HTTPS_PROXY,source.HTTPS_PROXY);
+  for(const key of ['OPENAI_API_KEY','GOOGLE_API_KEY','WEIGUANG_API_TOKEN',
+                   'AWS_SECRET_ACCESS_KEY','NODE_OPTIONS'])assert.ok(!(key in safe),key);
+  assert.equal(safe.NO_COLOR,'1');
+});
+test('CLI runner refuses arbitrary Windows executable before spawning',async()=>{
+  await assert.rejects(runProcess('powershell.exe',['-Command','echo test']),/NOT_ALLOWED/);
+  await assert.rejects(runProcess('workbuddy',['--version']),/NOT_ALLOWED/);
 });
