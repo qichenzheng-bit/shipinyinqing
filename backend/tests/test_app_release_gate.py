@@ -40,7 +40,7 @@ def test_removed_mobile_app_no_longer_in_release_pipeline():
     assert not (ROOT / "backend/tests/test_android_delivery.py").exists()
     readme=(ROOT / "README.md").read_text(encoding="utf-8")
     assert "Windows 单平台" in readme
-    assert "Windows Setup" in readme
+    assert "Windows 电脑 App" in readme
 
 
 def test_windows_build_handoff_has_checksums_provenance_and_native_smoke():
