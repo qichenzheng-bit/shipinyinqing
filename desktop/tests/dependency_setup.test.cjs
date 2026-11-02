@@ -25,7 +25,7 @@ test('installer scripts are real tracked source files and cannot be selected by 
   assert.match(ps,/@google\/gemini-cli/);
   assert.match(ps,/@tencent-ai\/codebuddy-code/);
   assert.match(ps,/--no-distribution/);
-  assert.doesNotMatch(ps,/Invoke-Expression|\\|\\s*iex\\b/i);
+  assert.doesNotMatch(ps,/Invoke-Expression|\|\s*iex\b/i);
 });
 test('only app-owned dependencies are included in PATH; no overwrite of other paths',()=>{
   const base=fs.mkdtempSync(path.join(os.tmpdir(),'wg-deps-path-'));
