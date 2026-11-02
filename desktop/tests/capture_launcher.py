@@ -28,7 +28,7 @@ def main():
         };""")
         page.goto(source.as_uri(),wait_until="networkidle")
         page.get_by_role("heading",name="微光数学").wait_for()
-        page.get_by_role("button",name="启动并进入工作台").wait_for()
+        page.get_by_role("button",name="自动配置环境并进入工作台").wait_for()
         page.screenshot(path=str(output/"01-windows-app-local-launcher.png"),full_page=True)
         page.get_by_role("tab",name="连接服务器").click()
         page.get_by_label("服务器 HTTPS 地址").fill("https://math.example.com")
