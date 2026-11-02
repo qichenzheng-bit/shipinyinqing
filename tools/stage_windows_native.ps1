@@ -6,7 +6,7 @@ $payload = Join-Path $root 'desktop/native_runtime'
 $engine = Join-Path $payload 'engine'
 New-Item -ItemType Directory -Force -Path $payload | Out-Null
 if (Test-Path $engine) { Remove-Item $engine -Recurse -Force }
-$packages = @('python=3.11', 'pip', 'postgresql=17.11', 'ffmpeg', 'pango', 'cairo', 'pycairo', 'manimpango', 'pkg-config', 'dvisvgm')
+$packages = @('python=3.11', 'pip', 'postgresql=17.11', 'ffmpeg', 'pango', 'cairo', 'pycairo', 'manimpango', 'pkg-config')
 & micromamba create --yes --strict-channel-priority --channel conda-forge --prefix $engine @packages
 if ($LASTEXITCODE -ne 0) { throw 'MICROMAMBA_NATIVE_ENVIRONMENT_FAILED' }
 $python = Join-Path $engine 'python.exe'
