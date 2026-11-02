@@ -33,6 +33,7 @@ def test_release_tree_contains_only_required_source_not_generated_evidence():
                                  "final-output/", "v27-script/", "android_app/"))
                    for p in files)
     assert not any(p.startswith("animation_engine/examples/") for p in files)
+    assert not any(p.startswith("deploy/") for p in files)
     assert "animation_engine/src/animation_engine/recap_board.py" in files
     assert "desktop/package.json" in files
     assert "backend/src/weiguang_backend/main.py" in files
@@ -51,6 +52,14 @@ def test_generated_file_guards_block_future_accidental_commits():
     assert "frontend/screenshots/" in audit
     assert "desktop/screenshots/" in audit
     assert "MISSING_PRODUCTION_RESOURCES" in audit
+
+    for path in ("system-ci.yml", "frontend-screenshots.yml", "windows-desktop.yml"):
+        workflow=(ROOT / ".github/workflows" / path).read_text(encoding="utf-8")
+        assert "runs-on: ubuntu" not in workflow, path
+        assert "windows-latest" in workflow, path
+    assert "runs-on: ubuntu-latest" in (
+        ROOT / ".github/workflows/final-new-question.yml"
+    ).read_text(encoding="utf-8")  # Docker-compatible MEDIA CI, not Linux app
 
 
 def test_cleanup_dry_run_and_apply_remove_only_reproducible_builds(tmp_path, capsys):
