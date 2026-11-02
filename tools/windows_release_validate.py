@@ -38,6 +38,8 @@ def check_documentation() -> None:
     assert "归纳总结" in readme
     assert not (ROOT / "android_app").exists()
     assert not (ROOT / "deploy").exists()
+    assert not (ROOT / "docker-compose.yml").exists()
+    assert not (ROOT / "backend" / "Dockerfile").exists()
 
 
 def check_lesson_without_media() -> None:
