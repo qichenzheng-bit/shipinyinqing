@@ -47,8 +47,13 @@ def test_removed_mobile_app_no_longer_in_release_pipeline():
 
 def test_windows_build_handoff_has_checksums_provenance_and_native_smoke():
     workflow=(ROOT / ".github/workflows/windows-desktop.yml").read_text("utf-8")
-    assert "SHA256SUMS.txt" in workflow
-    assert "app-manifest.json" in workflow
+    # The release has exactly TWO files; manifests and checksums live INSIDE
+    # the maintainable source ZIP, never as additional release sidecars.
+    assert "SHA256SUMS.txt" not in workflow
+    assert "app-manifest.json" not in workflow
+    assert "WeiGuang-Math-Setup-1.0.4-x64.exe" in workflow
+    assert "WeiGuang-Math-Source-1.0.4.zip" in workflow
+    assert "EXACTLY_TWO_WINDOWS_RELEASE_FILES_ACCEPTED" in workflow
     assert "GITHUB_SHA" in workflow
     assert "1.0.4" in workflow
     assert "actions/upload-artifact@v4" in workflow
