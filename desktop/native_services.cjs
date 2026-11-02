@@ -170,6 +170,21 @@ class NativeServices {
     } catch (error) {
       throw new Error('MiKTeX 初始化未成功，已保留现场以便安全重试：' + String(error.message).slice(0, 180));
     }
+    // The basic MiKTeX installer defaults to prompting or refusing when
+    // Manim's standalone/babel/amsmath packages are not yet present.
+    // Configure unattended, on-demand package installation BEFORE declaring
+    // this TeX environment usable. Never reinstall an existing broken TeX.
+    const latex = latexCommand(available.install);
+    const initexmf = latex ? path.join(path.dirname(latex), 'initexmf.exe') : null;
+    if (!initexmf || !fs.existsSync(initexmf)) {
+      throw new Error('MiKTeX 缺少宏包配置工具 initexmf，已停止初始化并保留现场。');
+    }
+    try {
+      await this.texRunner(initexmf, ['--set-config-value=[MPM]AutoInstall=yes'],
+        { cwd: available.base, timeout: 90000 });
+    } catch (error) {
+      throw new Error('MiKTeX 自动宏包安装配置失败，保留现场：' + String(error.message).slice(0, 160));
+    }
     const ready = await this.checkTex(available.install);
     if (!ready) throw new Error('MiKTeX 未通过真实 LaTeX 公式编译验收；已保留安装现场，避免误报成功。');
     return ready;
