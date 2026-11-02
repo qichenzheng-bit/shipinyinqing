@@ -1,6 +1,6 @@
 {
   "name": "weiguang-math-desktop",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "微光数学 Windows 桌面工作台（前端与本地 Docker 视频服务）",
   "productName": "微光数学",
@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test tests/launcher.test.cjs",
-    "build:windows": "electron-builder --win nsis portable --x64",
+    "build:windows": "electron-builder --win nsis --x64",
     "test:native": "node tests/native_smoke.cjs"
   },
   "devDependencies": {
@@ -106,12 +106,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ]
     },
@@ -123,9 +117,6 @@
       "createStartMenuShortcut": true,
       "shortcutName": "微光数学",
       "artifactName": "WeiGuang-Math-Setup-${version}-${arch}.${ext}"
-    },
-    "portable": {
-      "artifactName": "WeiGuang-Math-Portable-${version}-${arch}.${ext}"
     }
   }
 }
