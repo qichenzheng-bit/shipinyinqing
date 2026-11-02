@@ -1,6 +1,8 @@
 !include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 
+!ifndef BUILD_UNINSTALLER
+
 Var WeiGuangAutoDeps
 Var WeiGuangDepsCheckbox
 
@@ -47,3 +49,5 @@ FunctionEnd
     ${EndIf}
   ${EndIf}
 !macroend
+
+!endif ; BUILD_UNINSTALLER
