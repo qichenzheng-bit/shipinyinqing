@@ -57,7 +57,7 @@ const manager = new NativeServices({
       const {stdout} = await execFileAsync(path.join(manager.engine(), 'python.exe'),
         ['-c', script, media], {
           env: manager.processEnv(firstTex),
-          cwd: working,
+          cwd: manager.backendCwd(),
           timeout: 240000,
           windowsHide: true,
           maxBuffer: 4 * 1024 * 1024,
