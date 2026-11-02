@@ -72,12 +72,14 @@ class NativeServices {
     fs.mkdirSync(dest, { recursive: true });
     let latex = latexCommand(dest);
     if (!latex) {
-      const installer = path.join(this.runtimeRoot, 'miktex-portable.exe');
+      const installer = path.join(this.runtimeRoot, 'basic-miktex-25.12-x64.exe');
       if (!fs.existsSync(installer)) throw new Error('安装包缺少 MiKTeX 公式运行时。');
       this.progress('首次启动：自动配置 LaTeX 公式组件…');
       await run(installer, [
-        '--portable', '--unattended', '--package-set=basic',
+        '--private', '--unattended', '--package-set=basic',
         '--user-install=' + dest,
+        '--user-config=' + path.join(dest, 'config'),
+        '--user-data=' + path.join(dest, 'data'),
       ], { cwd: dest, timeout: 20 * 60 * 1000 });
       latex = latexCommand(dest);
       if (!latex) throw new Error('MiKTeX 自动安装未完成，无法验证 latex.exe。');
