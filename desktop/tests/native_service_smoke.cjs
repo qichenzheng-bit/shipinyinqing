@@ -86,7 +86,7 @@ const manager = new NativeServices({
           console.error('MANIM_LATEX_DIAG_STDOUT:', String(diag.stdout||'').slice(-4500));
           console.error('MANIM_LATEX_DIAG_STDERR:', String(diag.stderr||'').slice(-2000));
         }
-        const logFile = file.replace(/\\.tex$/i, '.log');
+        const logFile = file.replace(/\.tex$/i, '.log');
         if (fs.existsSync(logFile))
           console.error('MANIM_LATEX_LOG:', fs.readFileSync(logFile, 'utf8').slice(-4500));
       } else {
