@@ -1,6 +1,6 @@
 {
   "name": "weiguang-math-desktop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "微光数学 Windows 桌面工作台（前端与本地 Docker 视频服务）",
   "productName": "微光数学",
@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "test": "node --test tests/launcher.test.cjs tests/cli_bridge.test.cjs",
+    "test": "node --test tests/launcher.test.cjs tests/cli_bridge.test.cjs tests/ai_auth.test.cjs",
     "build:windows": "electron-builder --win nsis --x64",
     "test:native": "node tests/native_smoke.cjs"
   },
@@ -33,6 +33,8 @@
       "preload.cjs",
       "url_policy.cjs",
       "cli_bridge.cjs",
+      "ai_auth.cjs",
+      "studio_preload.cjs",
       "launcher.html",
       "launcher.js",
       "launcher.css",
