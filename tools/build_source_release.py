@@ -49,7 +49,7 @@ def is_private_path(name: str) -> bool:
 
 
 RUNTIME_FILES = {
-    "README.md", "docker-compose.yml", "backend/Dockerfile",
+    "README.md", "desktop/native_services.cjs", "tools/stage_windows_native.ps1",
     "desktop/package.json", "desktop/main.cjs", "desktop/preload.cjs",
     "desktop/cli_bridge.cjs", "desktop/ai_auth.cjs",
     "desktop/studio_preload.cjs", "backend/src/weiguang_backend/cli_bridge.py",
@@ -137,7 +137,7 @@ def build_release(*, setup: Path, output: Path, version: str, source_sha: str,
         "source_archive": output.name,
         "source_includes": "runtime, configuration examples, CI and regression-test code",
         "source_excludes": "generated tests/media/screenshots, personal data, tokens and databases",
-        "requires_for_local_engine": "Docker Desktop with WSL2 (not bundled)",
+        "requires_for_local_engine": "Windows x64 native runtime bundled; no Docker Desktop or WSL2",
         "installer_signed": False,
     }
     names = source_file_inventory(root)
@@ -182,7 +182,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--setup", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--version", default="1.0.7")
+    parser.add_argument("--version", default="1.0.8")
     parser.add_argument("--source-sha", required=True)
     args = parser.parse_args()
     build_release(
