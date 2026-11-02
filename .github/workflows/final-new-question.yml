@@ -10,6 +10,9 @@ on:
       - 'animation_engine/src/animation_engine/brand_watermark.py'
       - 'animation_engine/tests/test_brand_watermark.py'
       - 'backend/tests/acceptance_full_watermark.py'
+      - 'animation_engine/src/animation_engine/recap_board.py'
+      - 'animation_engine/src/animation_engine/persistent_chalkboard.py'
+      - 'animation_engine/tests/test_global_recap_board.py'
   workflow_dispatch:
 
 permissions:
@@ -29,7 +32,7 @@ jobs:
         run: |
           python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]'
       - name: Verify fresh maths and all V2.7 script coverage
-        run: python -m pytest -q animation_engine/tests/test_final_fresh_trig_limit.py
+        run: python -m pytest -q animation_engine/tests/test_final_fresh_trig_limit.py animation_engine/tests/test_global_recap_board.py
       - name: Compile deterministic new-question package and source-exact teacher script
         run: |
           python animation_engine/tests/fixtures/build_final_fresh_trig_limit.py --output final-output/trig
@@ -119,6 +122,28 @@ jobs:
             -sseof -0.05 -i final-output/render/new-trig-limit-Xiaoxiao-60fps.mp4 \
             -frames:v 1 final-output/render/final-board.png
           test -s final-output/render/final-board.png
+      - name: Verify final recap actually contains reviewed formulas and pitfalls
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          import json
+          from pathlib import Path
+          board=Image.open("final-output/render/final-board.png").convert("RGB")
+          assert board.size==(1280,720)
+          # Do not count the fixed header, subtitles or logo. An empty recap
+          # in the previous real movie contained only 579 dark pixels here.
+          region=board.crop((100,155,1180,625))
+          visible_ink=sum(1 for red,green,blue in region.getdata()
+                          if min(red,green,blue)<175)
+          assert visible_ink>1350, (
+              "RECAP_OLD_AUDIO_PLAYED_BEFORE_BOARD_WAS_WRITTEN: "
+              f"only {visible_ink} ink pixels"
+          )
+          report=json.loads(Path("final-output/render/render-manifest.json").read_text())
+          assert report["source_narration_action_count"]==report["voiced_action_count"]
+          assert report["fabricated_voice_or_subtitle_count"]==0
+          print("GLOBAL_RECAP_VISIBLE_IN_FINAL_FRAME",visible_ink,"ink pixels")
+          PY
       - name: Upload real MP4, SRT, video manifest and still frame
         uses: actions/upload-artifact@v4
         if: always()
