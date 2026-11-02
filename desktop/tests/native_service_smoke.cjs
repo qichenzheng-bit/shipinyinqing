@@ -44,7 +44,17 @@ const manager = new NativeServices({
     // A bare latex.exe probe is insufficient: Manim also needs LaTeX
     // templates, packages, dvisvgm and the SVG-to-mobject conversion path.
     // Validate one real MathTex object using the bundled runtime and TeX.
-    const media = fs.mkdtempSync(path.join(os.tmpdir(), 'weiguang-manim-mathtex-'));
+    // Windows 8.3 TEMP aliases such as RUNNER~1 break TeX when Manim
+    // passes an absolute filename. Force the same safe per-user temp root
+    // used by the actual native worker, then exercise MathTex end to end.
+    const nativeEnv = manager.processEnv(firstTex);
+    if (!fs.existsSync(nativeEnv.TEMP) ||
+        nativeEnv.TEMP !== nativeEnv.TMP ||
+        nativeEnv.TEMP !== nativeEnv.TMPDIR ||
+        nativeEnv.TEMP.includes('~')) {
+      throw new Error('MANIM_LATEX_UNSAFE_NATIVE_TEMP_PATH');
+    }
+    const media = fs.mkdtempSync(path.join(nativeEnv.TEMP, 'weiguang-manim-mathtex-'));
     try {
       const script = [
         'from manim import MathTex, tempconfig',
@@ -56,7 +66,7 @@ const manager = new NativeServices({
       ].join('\n');
       const {stdout} = await execFileAsync(path.join(manager.engine(), 'python.exe'),
         ['-c', script, media], {
-          env: manager.processEnv(firstTex),
+          env: nativeEnv,
           cwd: manager.backendCwd(),
           timeout: 240000,
           windowsHide: true,
@@ -78,7 +88,7 @@ const manager = new NativeServices({
           '-halt-on-error', '-output-directory=' + texDir, file];
         try {
           const diag = await execFileAsync(path.join(firstTex, 'latex.exe'), args, {
-            env: manager.processEnv(firstTex), cwd: manager.backendCwd(),
+            env: nativeEnv, cwd: manager.backendCwd(),
             timeout: 90000, windowsHide: true, maxBuffer: 4 * 1024 * 1024,
           });
           console.error('MANIM_LATEX_DIAG_STDOUT:', diag.stdout.slice(-4500));
