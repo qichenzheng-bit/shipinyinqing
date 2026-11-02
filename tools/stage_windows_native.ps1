@@ -28,12 +28,25 @@ foreach ($name in @('initdb.exe', 'pg_ctl.exe', 'psql.exe', 'createdb.exe', 'ffm
 }
 # MiKTeX remains in the installer and is silently initialized in user data.
 $texPath = Join-Path $payload 'basic-miktex-25.12-x64.exe'
-$texUrl = 'https://mirror.ctan.org/systems/win32/miktex/setup/windows-x64/basic-miktex-25.12-x64.exe'
-Invoke-WebRequest -Uri $texUrl -OutFile $texPath -MaximumRedirection 8
+# Prefer stable HTTPS CTAN mirrors. Random redirects can hit bot-protected
+# mirrors returning HTML; never package anything unless its hash matches.
 $expected = '14b42dd9f4b4a7813a8bfd69c8f99316c2888cc4ee26f631f397e163d85d6c62'
-$actual = (Get-FileHash $texPath -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($actual -ne $expected) {
-  Remove-Item $texPath -Force
-  throw "MIKTEX_BINARY_HASH_MISMATCH: $actual"
+$texUrls = @(
+  'https://mirrors.mit.edu/CTAN/systems/win32/miktex/setup/windows-x64/basic-miktex-25.12-x64.exe',
+  'https://ftp.fau.de/ctan/systems/win32/miktex/setup/windows-x64/basic-miktex-25.12-x64.exe'
+)
+$found = $false
+foreach ($texUrl in $texUrls) {
+  try {
+    Invoke-WebRequest -Uri $texUrl -OutFile $texPath -MaximumRedirection 5 -TimeoutSec 600
+    $actual = (Get-FileHash $texPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -eq $expected) { $found = $true; break }
+    Write-Warning "MIKTEX_MIRROR_HASH_MISMATCH (blocked or invalid): $texUrl"
+  } catch {
+    Write-Warning "MIKTEX_MIRROR_UNAVAILABLE: $texUrl"
+  } finally {
+    if (!$found -and (Test-Path $texPath)) { Remove-Item $texPath -Force }
+  }
 }
+if (!$found) { throw 'MIKTEX_VERIFIED_BINARY_DOWNLOAD_FAILED' }
 Write-Output 'FULL_WINDOWS_NATIVE_RUNTIME_STAGED'
