@@ -14,6 +14,31 @@ const EFFORTS=Object.freeze({
 });
 const MODEL_ID=/^[A-Za-z0-9][A-Za-z0-9._:/+\-]{0,199}$/;
 const MAX_STDOUT=2200000;
+const EXECUTABLES=new Set(Object.values(PROVIDERS));
+/* Keep account/profile and proxy access for official CLIs, but never inherit
+ * arbitrary Windows environment secrets (API keys, cloud credentials or
+ * NODE_OPTIONS). A CLI invoked via account login has no reason to see them.
+ */
+const SAFE_ENV=new Set([
+  'PATH','PATHEXT','SYSTEMROOT','WINDIR','COMSPEC','USERPROFILE','HOME',
+  'HOMEDRIVE','HOMEPATH','APPDATA','LOCALAPPDATA','TEMP','TMP',
+  'PROGRAMFILES','PROGRAMFILES(X86)','PROGRAMDATA','USERNAME','USERDOMAIN',
+  'OS','PROCESSOR_ARCHITECTURE','LANG','LC_ALL','TZ',
+  'HTTP_PROXY','HTTPS_PROXY','NO_PROXY',
+]);
+function cliEnvironment(source=process.env,extra={}){
+  const result={NO_COLOR:'1'};
+  for(const [key,value] of Object.entries(source)){
+    if(SAFE_ENV.has(key.toUpperCase()) && typeof value==='string')result[key]=value;
+  }
+  // The only permitted private per-request setting is the generated Gemini
+  // configuration under our disposable per-call directory.
+  if(typeof extra.GEMINI_CLI_SYSTEM_SETTINGS_PATH==='string' &&
+      path.isAbsolute(extra.GEMINI_CLI_SYSTEM_SETTINGS_PATH)){
+    result.GEMINI_CLI_SYSTEM_SETTINGS_PATH=extra.GEMINI_CLI_SYSTEM_SETTINGS_PATH;
+  }
+  return result;
+}
 
 function validateTask(task){
   if(!task || !Object.hasOwn(PROVIDERS,task.provider) ||
@@ -88,11 +113,12 @@ function commandFor(task,tmpdir){
 }
 
 function runProcess(command,args,{cwd,env,stdin='',timeoutMs=215000}={}){
+  if(!EXECUTABLES.has(command))return Promise.reject(new Error('CLI_EXECUTABLE_NOT_ALLOWED'));
   return new Promise((resolve,reject)=>{
     // npm-installed CLIs can be .cmd wrappers on Windows. User text is on
     // stdin only. Model IDs have a strict safe alphabet; all other args fixed.
     const child=spawn(command,args,{cwd,
-      env:{...process.env,NO_COLOR:'1',...env},
+      env:cliEnvironment(process.env,env),
       windowsHide:true,shell:process.platform==='win32',
       stdio:['pipe','pipe','pipe']});
     let stdout='',settled=false;
@@ -197,4 +223,4 @@ function createBridge({origin,authToken,bridgeToken,
 }
 
 module.exports={createBridge,executeTask,commandFor,unwrapJson,
-  validateTask,reasoningGemini,detectVersions,runProcess};
+  validateTask,reasoningGemini,detectVersions,runProcess,cliEnvironment};

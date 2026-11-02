@@ -7,7 +7,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 
 
 def builder():
@@ -36,9 +36,9 @@ def test_maintenance_zip_has_real_source_and_regression_tests_but_no_media():
 
 def test_zip_builder_binds_source_to_exact_installer_without_temp_data(tmp_path):
     tool = builder()
-    installer = tmp_path / "WeiGuang-Math-Setup-1.0.6-x64.exe"
+    installer = tmp_path / "WeiGuang-Math-Setup-1.0.7-x64.exe"
     installer.write_bytes(b"RELEASE_FIXTURE_NOT_A_REAL_INSTALLER" + b"X" * 25_000_000)
-    archive_path = tmp_path / "WeiGuang-Math-Source-1.0.6.zip"
+    archive_path = tmp_path / "WeiGuang-Math-Source-1.0.7.zip"
     report = tool.build_release(
         setup=installer, output=archive_path,
         version=VERSION, source_sha="a" * 40,
@@ -50,14 +50,29 @@ def test_zip_builder_binds_source_to_exact_installer_without_temp_data(tmp_path)
     with ZipFile(archive_path) as archive:
         assert archive.testzip() is None
         names = archive.namelist()
-        assert all(n.startswith("WeiGuang-Math-Source-1.0.6/") for n in names)
+        assert all(n.startswith("WeiGuang-Math-Source-1.0.7/") for n in names)
         assert not any(n.lower().endswith((".exe", ".mp4", ".png", ".db"))
                        for n in names)
         manifest = json.loads(archive.read(
-            "WeiGuang-Math-Source-1.0.6/release-manifest.json"
+            "WeiGuang-Math-Source-1.0.7/release-manifest.json"
         ))
         assert manifest["installer_sha256"] == report["installer_sha256"]
         assert len(manifest["source_file_sha256"]) == report["source_file_count"]
+
+
+def test_nested_credentials_excluded_but_templates_kept():
+    tool=builder()
+    for candidate in (
+        ".env", "backend/.env", "desktop/.env.production",
+        "frontend/.npmrc", "config/credentials.json", "keys/token.json",
+        "certs/private.pfx", "backend/service-account.json",
+        "security/local-secrets.bin",
+    ):
+        assert tool.is_private_path(candidate),candidate
+        assert not tool.is_source_file(candidate),candidate
+    assert tool.is_source_file("backend/.env.example")
+    assert tool.is_source_file("config/.env.sample")
+    assert not tool.is_source_file("frontend/screenshots/01.png")
 
 
 def test_portable_removed_from_build_and_release_workflow():
@@ -68,9 +83,9 @@ def test_portable_removed_from_build_and_release_workflow():
     assert package["build"]["win"]["target"][0]["target"] == "nsis"
     assert "portable" not in package["build"]
     workflow = (ROOT / ".github/workflows/windows-desktop.yml").read_text("utf-8")
-    assert "WeiGuang-Math-Setup-1.0.6-x64.exe" in workflow
-    assert "WeiGuang-Math-Source-1.0.6.zip" in workflow
+    assert "WeiGuang-Math-Setup-1.0.7-x64.exe" in workflow
+    assert "WeiGuang-Math-Source-1.0.7.zip" in workflow
     assert "EXACTLY_TWO_WINDOWS_RELEASE_FILES_ACCEPTED" in workflow
     assert "desktop/dist/*.exe" in workflow  # strict file-count assertion, not upload
-    assert "name: WeiGuang-Math-Windows-v1.0.6-Installer-and-Source" in workflow
-    assert "WeiGuang-Math-Portable-1.0.6" not in workflow
+    assert "name: WeiGuang-Math-Windows-v1.0.7-Installer-and-Source" in workflow
+    assert "WeiGuang-Math-Portable-1.0.7" not in workflow

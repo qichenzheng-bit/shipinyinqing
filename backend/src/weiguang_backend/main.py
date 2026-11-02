@@ -134,6 +134,27 @@ def create_app(
     SessionLocal=sessionmaker(engine,expire_on_commit=False)
     dev=(os.environ.get("WEIGUANG_LOCAL_DEV")=="1" if local_dev is None else local_dev)
     app=FastAPI(title="微光数学视频 API",version="0.1.0")
+
+    # The browser workbench is a local app surface, not an OAuth callback.
+    # Defend HTML, authenticated JSON, media and downloads consistently.
+    @app.middleware("http")
+    async def browser_security_headers(request: Request,call_next):
+        response=await call_next(request)
+        response.headers["X-Content-Type-Options"]="nosniff"
+        response.headers["X-Frame-Options"]="DENY"
+        response.headers["Referrer-Policy"]="no-referrer"
+        response.headers["Cross-Origin-Resource-Policy"]="same-origin"
+        response.headers["Permissions-Policy"]="camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"]=(
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; media-src 'self' blob:; "
+            "font-src 'self' data:; connect-src 'self'; "
+            "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; "
+            "form-action 'self'"
+        )
+        if request.url.path.startswith("/api/v1/"):
+            response.headers["Cache-Control"]="no-store"
+        return response
     app.state.root=root
     app.state.SessionLocal=SessionLocal
     app.state.db_engine=engine
