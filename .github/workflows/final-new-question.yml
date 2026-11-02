@@ -7,6 +7,9 @@ on:
       - 'animation_engine/tests/fixtures/build_final_fresh_trig_limit.py'
       - 'animation_engine/tests/test_final_fresh_trig_limit.py'
       - '.github/workflows/final-new-question.yml'
+      - 'animation_engine/src/animation_engine/brand_watermark.py'
+      - 'animation_engine/tests/test_brand_watermark.py'
+      - 'backend/tests/acceptance_full_watermark.py'
   workflow_dispatch:
 
 permissions:
@@ -61,6 +64,8 @@ jobs:
             libpango1.0-dev libcairo2-dev pkg-config \
             fonts-noto-cjk texlive-latex-extra texlive-fonts-recommended texlive-science
           python -m pip install -e './animation_engine[render,speech]'
+      - name: Validate a real 120-frame audio-bearing MP4 survives watermark overlay
+        run: python backend/tests/acceptance_full_watermark.py
       - name: Render complete real Chinese narration, genuine MathTex boards, subtitles and watermark
         run: |
           mkdir -p final-output/render
