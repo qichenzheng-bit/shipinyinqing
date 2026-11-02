@@ -1,4 +1,4 @@
-# WeiGuang Math Windows dependency bootstrap (run ONLY by the trusted installer/app).
+﻿# WeiGuang Math Windows dependency bootstrap (run ONLY by the trusted installer/app).
 # Official package-manager manifests and verified publisher signatures; no piped web scripts.
 [CmdletBinding()]
 param([ValidateSet('Install','Check','WSLOnly')][string]$Mode='Check')
