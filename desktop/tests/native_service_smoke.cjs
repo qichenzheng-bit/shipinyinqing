@@ -64,6 +64,35 @@ const manager = new NativeServices({
         });
       if (!stdout.includes('WINDOWS_MANIM_MATHTEX_SVG_PASSED'))
         throw new Error('NATIVE_MANIM_MATHTEX_NOT_VERIFIED');
+    } catch (error) {
+      // Manim suppresses LaTeX stdout in batch mode, often reporting only
+      // "latex failed but did not produce a log file". Re-run the identical
+      // generated TeX with visible output to identify the actual missing
+      // package, filesystem error or unsupported option. No user files.
+      const texDir = path.join(media, 'Tex');
+      const texFiles = fs.existsSync(texDir)
+        ? fs.readdirSync(texDir).filter(x => x.endsWith('.tex')) : [];
+      if (texFiles.length) {
+        const file = path.join(texDir, texFiles[0]);
+        const args = ['-interaction=nonstopmode', '-output-format=dvi',
+          '-halt-on-error', '-output-directory=' + texDir, file];
+        try {
+          const diag = await execFileAsync(path.join(firstTex, 'latex.exe'), args, {
+            env: manager.processEnv(firstTex), cwd: manager.backendCwd(),
+            timeout: 90000, windowsHide: true, maxBuffer: 4 * 1024 * 1024,
+          });
+          console.error('MANIM_LATEX_DIAG_STDOUT:', diag.stdout.slice(-4500));
+        } catch (diag) {
+          console.error('MANIM_LATEX_DIAG_STDOUT:', String(diag.stdout||'').slice(-4500));
+          console.error('MANIM_LATEX_DIAG_STDERR:', String(diag.stderr||'').slice(-2000));
+        }
+        const logFile = file.replace(/\\.tex$/i, '.log');
+        if (fs.existsSync(logFile))
+          console.error('MANIM_LATEX_LOG:', fs.readFileSync(logFile, 'utf8').slice(-4500));
+      } else {
+        console.error('MANIM_TEX_SOURCE_NOT_EMITTED');
+      }
+      throw error;
     } finally {
       fs.rmSync(media, {recursive:true,force:true});
     }
