@@ -4,6 +4,10 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
+const {execFile} = require('node:child_process');
+const {promisify} = require('node:util');
+const execFileAsync = promisify(execFile);
 const { NativeServices } = require('../native_services.cjs');
 const root = path.resolve(__dirname, '..', '..');
 const working = path.join(process.env.RUNNER_TEMP || path.join(root, 'desktop'), '微光数学','native-services');
@@ -35,6 +39,33 @@ const manager = new NativeServices({
         if(r.ok){healthy=true;break;}
       }catch{}
       await new Promise(resolve=>setTimeout(resolve,1500));
+    }
+
+    // A bare latex.exe probe is insufficient: Manim also needs LaTeX
+    // templates, packages, dvisvgm and the SVG-to-mobject conversion path.
+    // Validate one real MathTex object using the bundled runtime and TeX.
+    const media = fs.mkdtempSync(path.join(os.tmpdir(), 'weiguang-manim-mathtex-'));
+    try {
+      const script = [
+        'from manim import MathTex, tempconfig',
+        'import sys',
+        "with tempconfig({'media_dir': sys.argv[1]}):",
+        '    expression = MathTex(r"\\frac{x^2+1}{x+1}")',
+        '    assert expression.submobjects, "MATHTEX_EMPTY_MOBJECT"',
+        'print("WINDOWS_MANIM_MATHTEX_SVG_PASSED")',
+      ].join('\\n');
+      const {stdout} = await execFileAsync(path.join(manager.engine(), 'python.exe'),
+        ['-c', script, media], {
+          env: manager.processEnv(firstTex),
+          cwd: working,
+          timeout: 240000,
+          windowsHide: true,
+          maxBuffer: 4 * 1024 * 1024,
+        });
+      if (!stdout.includes('WINDOWS_MANIM_MATHTEX_SVG_PASSED'))
+        throw new Error('NATIVE_MANIM_MATHTEX_NOT_VERIFIED');
+    } finally {
+      fs.rmSync(media, {recursive:true,force:true});
     }
     if(!healthy)throw new Error('NATIVE_WINDOWS_BACKEND_DID_NOT_START');
     if(!fs.existsSync(path.join(manager.postgresDirectory(),'PG_VERSION')))
