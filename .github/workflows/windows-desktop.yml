@@ -51,7 +51,7 @@ jobs:
         shell: pwsh
         run: |
           ./tools/stage_windows_native.ps1
-      - name: Real native PostgreSQL, Python, and TeX startup smoke
+      - name: Real native PostgreSQL and Python startup smoke (bundled TeX installer checksum verified separately)
         shell: pwsh
         run: |
           node desktop/tests/native_service_smoke.cjs
