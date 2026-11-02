@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 import hashlib
 import hmac
 import urllib.parse
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from .bridge import (
@@ -37,6 +37,7 @@ from .models import (
     Base, AiTaskSelection, EditRecord, EditSessionArchive, Job, Lesson, Project, now,
 )
 from .model_hub import pin_job_selection, pinned_client, plan_agent
+from .database import postgres_engine
 
 
 def describe_lesson(lesson: Lesson):
@@ -125,21 +126,17 @@ def create_app(
     verify_media: Callable | None=None,
     edit_runner: Callable | None=None,
 ) -> FastAPI:
+    # Fail before writing a directory if the PostgreSQL URL is unavailable.
+    engine=postgres_engine(database_url or os.environ.get("DATABASE_URL"))
     root=Path(data_dir or os.environ.get("WEIGUANG_STORAGE","./.weiguang_data")).resolve()
     root.mkdir(parents=True,exist_ok=True)
-    url=database_url or os.environ.get("DATABASE_URL")
-    if not url:
-        url="sqlite:///"+(root/"weiguang.db").as_posix()
-    engine=create_engine(
-        url,pool_pre_ping=True,
-        connect_args={"check_same_thread":False} if url.startswith("sqlite:") else {},
-    )
     Base.metadata.create_all(engine)
     SessionLocal=sessionmaker(engine,expire_on_commit=False)
     dev=(os.environ.get("WEIGUANG_LOCAL_DEV")=="1" if local_dev is None else local_dev)
     app=FastAPI(title="微光数学视频 API",version="0.1.0")
     app.state.root=root
     app.state.SessionLocal=SessionLocal
+    app.state.db_engine=engine
 
     def session_secret():
         key=os.environ.get("WEIGUANG_API_TOKEN","")
@@ -1173,12 +1170,9 @@ def create_app(
     return app
 
 
-app=create_app()
-
-
 def run():
     import uvicorn
     uvicorn.run(
-        "weiguang_backend.main:app",host="127.0.0.1",
+        "weiguang_backend.main:create_app",factory=True,host="127.0.0.1",
         port=int(os.environ.get("WEIGUANG_PORT","8000")),
     )

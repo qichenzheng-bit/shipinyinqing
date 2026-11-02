@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 
 def test_windows_setup_portable_versions_and_app_launcher():
@@ -14,7 +14,7 @@ def test_windows_setup_portable_versions_and_app_launcher():
     assert pkg["version"] == VERSION
     assert pkg["productName"] == "微光数学"
     assert pkg["build"]["appId"] == "cn.weiguang.math"
-    assert "Windows Desktop 1.0.2" in launcher
+    assert "Windows Desktop 1.0.3" in launcher
     assert pkg["scripts"]["build:windows"].endswith("--x64")
     assert pkg["build"]["nsis"]["createDesktopShortcut"]
     assert "nsis" in str(pkg["build"]["win"]["target"])
@@ -48,7 +48,7 @@ def test_windows_build_handoff_has_checksums_provenance_and_native_smoke():
     assert "SHA256SUMS.txt" in workflow
     assert "app-manifest.json" in workflow
     assert "GITHUB_SHA" in workflow
-    assert "1.0.2" in workflow
+    assert "1.0.3" in workflow
     assert "actions/upload-artifact@v4" in workflow
     assert "npm run test:native" in workflow
     assert "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK" in workflow

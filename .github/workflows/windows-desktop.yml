@@ -69,7 +69,7 @@ jobs:
         shell: pwsh
         run: |
           $package = Get-Content desktop/package.json -Raw | ConvertFrom-Json
-          if ($package.version -ne '1.0.2') { throw 'DESKTOP_PACKAGE_VERSION_MISMATCH' }
+          if ($package.version -ne '1.0.3') { throw 'DESKTOP_PACKAGE_VERSION_MISMATCH' }
           $installers = @(Get-ChildItem desktop/dist/*.exe)
           $setup = @($installers | Where-Object { $_.Name -match 'Setup-' })
           $portable = @($installers | Where-Object { $_.Name -match 'Portable-' })
@@ -120,7 +120,7 @@ jobs:
           Write-Output "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK"
       - uses: actions/upload-artifact@v4
         with:
-          name: WeiGuang-Math-Windows-Only-1.0.2-App
+          name: WeiGuang-Math-Windows-Only-1.0.3-App
           path: |
             desktop/dist/*.exe
             desktop/dist/SHA256SUMS.txt

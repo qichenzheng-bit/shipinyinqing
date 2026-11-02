@@ -1,6 +1,6 @@
 {
   "name": "weiguang-math-desktop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "微光数学 Windows 桌面工作台（前端与本地 Docker 视频服务）",
   "productName": "微光数学",

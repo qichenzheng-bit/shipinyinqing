@@ -1,4 +1,4 @@
-# 微光数学 · Windows 电脑 App 1.0.2
+# 微光数学 · Windows 电脑 App 1.0.3
 
 **Windows 单平台最终交付。** 微光数学是一款考研数学教学视频制作程序，覆盖数学教师草稿、数学审核、课堂编排、教学讲稿审核、逐步板书、Manim/LaTeX 渲染、神经网络语音配音、字幕、视频下载与多轮微调。当前发布版本只提供 **Windows 安装版和 Windows 免安装版**，不再维护移动应用或移动端打包流水线。
 
@@ -6,12 +6,12 @@
 
 ## 1. 下载安装
 
-到 [Windows App 构建工作流](.github/workflows/windows-desktop.yml) 打开最新成功的 `main` 分支构建，下载名为 `WeiGuang-Math-Windows-Only-1.0.2-App` 的构建附件，解压后得到：
+到 [Windows App 构建工作流](.github/workflows/windows-desktop.yml) 打开最新成功的 `main` 分支构建，下载名为 `WeiGuang-Math-Windows-Only-1.0.3-App` 的构建附件，解压后得到：
 
 | 文件 | 功能 |
 |---|---|
-| `WeiGuang-Math-Setup-1.0.2-x64.exe` | **推荐**：Windows 10/11 x64 安装版，支持选目录、开始菜单与桌面快捷方式 |
-| `WeiGuang-Math-Portable-1.0.2-x64.exe` | 免安装版，可直接运行 |
+| `WeiGuang-Math-Setup-1.0.3-x64.exe` | **推荐**：Windows 10/11 x64 安装版，支持选目录、开始菜单与桌面快捷方式 |
+| `WeiGuang-Math-Portable-1.0.3-x64.exe` | 免安装版，可直接运行 |
 | `SHA256SUMS.txt` | Windows 文件校验值 |
 | `app-manifest.json` | 版本、源码提交 SHA、打包资源和签名状态 |
 
@@ -33,6 +33,16 @@
 **不需要租用云服务器，也不需要启动 VS Code。** 但本地视频制作不是完全脱离网络：调用在线大模型、Edge 神经语音以及首次依赖安装时需要连接相应服务。若外部模型接口不可达，需要事先准备可信的可用模型资源。
 
 在工作台里设置模型 API 后，并不自动证明你当前具体型号、版本、额度和网络条件全部兼容；需通过真实服务请求验证。不要把敏感模型密钥提交到仓库。
+
+### 唯一数据库：PostgreSQL 17
+
+**不再使用 SQLite。** Windows 本地引擎只允许 PostgreSQL 连接，数据库随 Docker Desktop 的 `postgres:17-alpine` 服务启动。API 与 Celery Worker 通过同一个 `postgresql+psycopg://...` 地址连接，数据保存在命名卷 `pgdata`；课程和视频文件保存在独立的 `lessondata` 卷中，二者都不会随关闭 Windows App 自动删除。
+
+直接单独启动 Python 后端时，必须显式设置 `DATABASE_URL`，而不能依赖工作目录自动生成数据库。缺少 PostgreSQL 连接字符串或配置其他数据库类型将立即报错，不会再隐式创建 `weiguang.db`。Docker Compose 会自动向 API 和 Worker 注入数据库连接字符串；安装 Windows App 的正常本地流程无需手动填写。
+
+**已有数据保护：** 此版本不会自动删除旧 `.db` 文件，也不会自动将 SQLite 数据复制到 PostgreSQL。如果你曾经使用早期开发模式并存有真正的数据，先离线备份旧文件，再做独立的数据迁移和逐表核对，确认记录/视频路径/模型密钥后才能弃用旧库。正式 Docker PostgreSQL 数据不需要再次转换。更新前建议同时备份 `pgdata`、`lessondata`、Windows 加密凭据和全部微调历史；禁止运行 `docker compose down -v` 或擅自清除数据卷。
+
+回归测试同样使用真实 PostgreSQL 17，并为每个测试创建独立的临时 schema，不使用本地 SQLite 作为替代。GitHub Windows Runner 只启动其内置 PostgreSQL 测试服务，不访问用户本机数据库。
 
 本地服务仅监听 `127.0.0.1:8000`，不直接对外网公开。退出 Windows App 不会自动删除 PostgreSQL 数据、视频或正在执行的容器任务。
 
@@ -105,4 +115,4 @@ python tools/clean_generated.py --apply
 
 自动化通过不等于已在你的 Windows 电脑完成 Docker Desktop 初始化、实际大模型账单/接口验证或本地渲染；首次安装后请亲自完成一次完整题目的录制与下载。正常更新客户端不应主动清理原视频与数据库卷。
 
-发布时间：2026-11-02；最终单平台版本：**微光数学 Windows App v1.0.2**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。
+发布时间：2026-11-02；最终单平台版本：**微光数学 Windows App v1.0.3**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。

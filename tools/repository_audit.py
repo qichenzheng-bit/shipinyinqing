@@ -66,7 +66,8 @@ def main():
         name for name in files
         if (name==".env" or name.endswith((".log",".mp4",".mov",".wav",".mp3",".srt",".zip",
                                ".exe",".msi",".apk",".aab",".deb",".rpm",
-                               ".AppImage",".snap",".pem",".key",".ico"))
+                               ".AppImage",".snap",".pem",".key",".ico",
+                               ".db",".sqlite",".sqlite3",".db-journal",".db-wal",".db-shm"))
             or "node_modules/" in name or "/__pycache__/" in name
             or name.startswith((".weiguang_data/","desktop/dist/","desktop/build/",
                                  "frontend/screenshots/","desktop/screenshots/",
