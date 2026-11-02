@@ -1163,6 +1163,8 @@ def create_app(
     app.include_router(api)
     from .ai_api import build_ai_router
     app.include_router(build_ai_router(SessionLocal,auth))
+    from .cli_bridge import build_bridge_router
+    app.include_router(build_bridge_router(SessionLocal))
     from fastapi.staticfiles import StaticFiles
     frontend = Path(__file__).resolve().parents[3] / "frontend"
     if frontend.is_dir() and (frontend / "index.html").exists():

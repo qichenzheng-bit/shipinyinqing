@@ -124,3 +124,45 @@ class AiJobSelection(Base):
     )
     model_id: Mapped[str] = mapped_column(String(200), nullable=False)
     provider_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class GlobalAiSetting(Base):
+    """The single model and reasoning setting for all teaching tasks."""
+    __tablename__ = "global_ai_settings"
+    id: Mapped[str] = mapped_column(String(16), primary_key=True, default="global")
+    provider_id: Mapped[str] = mapped_column(String(32), ForeignKey("ai_providers.id"), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    reasoning_effort: Mapped[str] = mapped_column(String(20), nullable=False, default="default")
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=150)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class AiJobRuntime(Base):
+    """Immutable effort/timeout copied when a teaching or edit job is queued."""
+    __tablename__ = "ai_job_runtime"
+    job_id: Mapped[str] = mapped_column(String(32), ForeignKey("jobs.id"), primary_key=True)
+    reasoning_effort: Mapped[str] = mapped_column(String(20), nullable=False, default="default")
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=150)
+
+
+class CliBridgeState(Base):
+    __tablename__ = "cli_bridge_state"
+    id: Mapped[str] = mapped_column(String(16), primary_key=True, default="windows")
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    versions_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+
+
+class CliInferenceRequest(Base):
+    """One-shot queued JSON request, deleted immediately after consumption."""
+    __tablename__ = "cli_inference_requests"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    provider: Mapped[str] = mapped_column(String(24), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    reasoning_effort: Mapped[str] = mapped_column(String(20), nullable=False, default="default")
+    payload: Mapped[str] = mapped_column(Text, nullable=False)
+    output: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    lease_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    state: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

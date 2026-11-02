@@ -8,11 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select
 
-from .models import AiProvider, AiTaskSelection, now
+from .models import AiProvider, AiTaskSelection, GlobalAiSetting, CliBridgeState, now
 from .model_hub import (
     CATALOG_MAP, PROTOCOLS, TASKS, HubClient, ModelHubError,
     encrypt_key, public_provider, public_selection, require_master_key,
-    validate_base_url,
+    validate_base_url, CLI_PROTOCOLS,
 )
 
 
@@ -50,6 +50,19 @@ class Assignments(BaseModel):
     bindings: list[ModelBinding]=Field(min_length=1,max_length=3)
 
 
+class GlobalModelInput(BaseModel):
+    model_config=ConfigDict(extra="forbid")
+    mode: Literal["api","codex_cli","gemini_cli","codebuddy_cli"]
+    provider_id: str | None=Field(default=None,min_length=32,max_length=32)
+    model_id: str=Field(min_length=1,max_length=200)
+    reasoning_effort: str=Field(default="default",max_length=20)
+    timeout_seconds: int=Field(default=150,ge=30,le=210)
+
+
+class GlobalModelTest(GlobalModelInput):
+    pass
+
+
 def _error(exc: ModelHubError, *, status=422):
     return HTTPException(status_code=status,detail=str(exc))
 
@@ -62,6 +75,116 @@ def build_ai_router(SessionLocal,auth):
         if provider is None or provider.deleted_at is not None:
             raise HTTPException(404,"MODEL_PROVIDER_NOT_FOUND")
         return provider
+
+    def global_provider(db,payload):
+        from .cli_bridge import validate_cli_selection
+        if payload.mode=="api":
+            if not payload.provider_id:
+                raise HTTPException(422,"GLOBAL_API_PROVIDER_REQUIRED")
+            provider=provider_get(db,payload.provider_id)
+            if provider.protocol in CLI_PROTOCOLS:
+                raise HTTPException(422,"GLOBAL_PROVIDER_MODE_MISMATCH")
+            if payload.reasoning_effort!="default" and provider.protocol not in (
+                    "openai_chat","openai_responses"):
+                raise HTTPException(422,"MODEL_REASONING_UNAVAILABLE_FOR_PROTOCOL")
+            if payload.reasoning_effort not in (
+                    "default","none","minimal","low","medium","high","xhigh","max"):
+                raise HTTPException(422,"MODEL_REASONING_UNRECOGNIZED")
+        else:
+            try: validate_cli_selection(payload.mode,payload.model_id,payload.reasoning_effort)
+            except ValueError as exc:
+                raise HTTPException(422,str(exc)) from exc
+            provider=db.scalar(select(AiProvider).where(
+                AiProvider.preset==payload.mode,
+                AiProvider.protocol==payload.mode,
+                AiProvider.deleted_at.is_(None),
+            ).order_by(AiProvider.created_at))
+            if provider is None:
+                provider=AiProvider(
+                    name={"codex_cli":"Codex CLI","gemini_cli":"Gemini CLI",
+                          "codebuddy_cli":"CodeBuddy CLI (WorkBuddy 模型按账号支持)"}[payload.mode],
+                    preset=payload.mode,protocol=payload.mode,
+                    base_url="local-cli://"+payload.mode,
+                    encrypted_key="",json_mode=True,
+                )
+                db.add(provider);db.flush()
+        return provider
+
+    @router.get("/global")
+    def global_model():
+        with SessionLocal() as db:
+            row=db.get(GlobalAiSetting,"global")
+            if row is None:
+                return {"configured":False,
+                        "bindings":{task:public_selection(db,task) for task in TASKS}}
+            provider=provider_get(db,row.provider_id)
+            return {"configured":True,
+                    "mode":provider.protocol if provider.protocol in CLI_PROTOCOLS else "api",
+                    "provider_id":provider.id,"provider_name":provider.name,
+                    "model_id":row.model_id,"reasoning_effort":row.reasoning_effort,
+                    "timeout_seconds":row.timeout_seconds}
+
+    @router.put("/global")
+    def set_global(payload:GlobalModelInput):
+        if not payload.model_id.strip():
+            raise HTTPException(422,"MODEL_VERSION_REQUIRED")
+        with SessionLocal() as db:
+            provider=global_provider(db,payload)
+            model_id=payload.model_id.strip()
+            for task in TASKS:
+                row=db.get(AiTaskSelection,task)
+                if row is None:
+                    row=AiTaskSelection(task=task);db.add(row)
+                row.provider_id=provider.id
+                row.model_id=model_id
+            setting=db.get(GlobalAiSetting,"global")
+            if setting is None:
+                setting=GlobalAiSetting(id="global");db.add(setting)
+            setting.provider_id=provider.id
+            setting.model_id=model_id
+            setting.reasoning_effort=payload.reasoning_effort
+            setting.timeout_seconds=payload.timeout_seconds
+            db.commit()
+            return {"configured":True,"mode":payload.mode,"provider_id":provider.id,
+                    "provider_name":provider.name,"model_id":model_id,
+                    "reasoning_effort":payload.reasoning_effort,
+                    "timeout_seconds":payload.timeout_seconds,"applies_to":list(TASKS)}
+
+    @router.post("/global/test")
+    def test_global(payload:GlobalModelTest):
+        with SessionLocal() as db:
+            if payload.mode=="api":
+                provider=global_provider(db,payload)
+                client=HubClient.from_provider(provider,payload.model_id)
+                client.reasoning_effort=payload.reasoning_effort
+            else:
+                from .cli_bridge import CliClient
+                try:
+                    client=CliClient(engine=db.get_bind(),kind=payload.mode,
+                        model_id=payload.model_id,
+                        reasoning_effort=payload.reasoning_effort,
+                        timeout_seconds=payload.timeout_seconds)
+                except ValueError as exc:
+                    raise HTTPException(422,str(exc)) from exc
+            try: return client.probe()
+            except (ModelHubError,RuntimeError) as exc:
+                raise HTTPException(502,str(exc)) from exc
+
+    @router.get("/cli/status")
+    def cli_status():
+        from .cli_bridge import CLI_KINDS,EFFORT,bridge_connected
+        import json
+        with SessionLocal() as db:
+            row=db.get(CliBridgeState,"windows")
+            ready=bridge_connected(db)
+            versions=json.loads(row.versions_json) if row and ready else {}
+            return {"bridge_connected":ready,
+                    "cli":{kind:{"installed":bool(versions.get(kind)),
+                                 "version":versions.get(kind,""),
+                                 "reasoning_efforts":list(EFFORT[kind])}
+                           for kind in CLI_KINDS},
+                    "workbuddy_desktop_external_model_override_verified":False,
+                    "note":"WorkBuddy 桌面版单次模型覆盖接口尚未验证；CodeBuddy CLI 单独支持。"}
 
     @router.get("/catalog")
     def catalog():
@@ -181,6 +304,8 @@ def build_ai_router(SessionLocal,auth):
         if len({b.task for b in payload.bindings})!=len(payload.bindings):
             raise HTTPException(422,"MODEL_SELECTION_TASK_DUPLICATE")
         with SessionLocal() as db:
+            if db.get(GlobalAiSetting,"global") is not None:
+                raise HTTPException(409,"USE_GLOBAL_MODEL_SELECTION")
             for binding in payload.bindings:
                 if (db.get(AiProvider,binding.provider_id) is None
                         or db.get(AiProvider,binding.provider_id).deleted_at is not None):
@@ -201,6 +326,8 @@ def build_ai_router(SessionLocal,auth):
         if task not in TASKS:
             raise HTTPException(404,"MODEL_TASK_UNKNOWN")
         with SessionLocal() as db:
+            if db.get(GlobalAiSetting,"global") is not None:
+                raise HTTPException(409,"USE_GLOBAL_MODEL_SELECTION")
             row=db.get(AiTaskSelection,task)
             if row is not None:
                 db.delete(row);db.commit()

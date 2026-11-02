@@ -71,9 +71,9 @@ jobs:
         shell: pwsh
         run: |
           $package = Get-Content desktop/package.json -Raw | ConvertFrom-Json
-          if ($package.version -ne '1.0.4') { throw 'DESKTOP_PACKAGE_VERSION_MISMATCH' }
+          if ($package.version -ne '1.0.5') { throw 'DESKTOP_PACKAGE_VERSION_MISMATCH' }
           $installers = @(Get-ChildItem desktop/dist/*.exe)
-          $setup = @($installers | Where-Object { $_.Name -eq 'WeiGuang-Math-Setup-1.0.4-x64.exe' })
+          $setup = @($installers | Where-Object { $_.Name -eq 'WeiGuang-Math-Setup-1.0.5-x64.exe' })
           if ($setup.Count -ne 1 -or $installers.Count -ne 1) {
             throw 'EXACTLY_ONE_SETUP_EXE_REQUIRED_AND_PORTABLE_FORBIDDEN'
           }
@@ -84,6 +84,7 @@ jobs:
           foreach ($path in @(
             'docker-compose.yml', 'backend/Dockerfile',
             'backend/src/weiguang_backend/main.py',
+            'backend/src/weiguang_backend/cli_bridge.py',
             'animation_engine/src/animation_engine/spoken_movie.py',
             'teacher_module/src/math_teacher/prompts/global.md',
             'visual_director/src/visual_director/director.py',
@@ -94,24 +95,26 @@ jobs:
               throw "DESKTOP_BACKEND_RESOURCE_MISSING: $path"
             }
           }
+          if (!(Test-Path 'desktop/dist/win-unpacked/resources/app.asar')) { throw 'DESKTOP_ASAR_NOT_PACKAGED' }
+          if (!(Select-String -Path 'desktop/package.json' -Pattern 'cli_bridge.cjs' -Quiet)) { throw 'CLI_WORKER_NOT_INCLUDED_IN_WINDOWS_APP' }
           if (Test-Path (Join-Path $sourceRoot 'backend/tests')) { throw 'PACKAGED_TESTS_NOT_ALLOWED' }
           if (Test-Path (Join-Path $sourceRoot 'frontend/screenshots')) { throw 'PACKAGED_SCREENSHOTS_NOT_ALLOWED' }
           if (Test-Path (Join-Path $sourceRoot '.env')) { throw 'PACKAGED_SECRETS_NOT_ALLOWED' }
-          $installer = (Resolve-Path 'desktop/dist/WeiGuang-Math-Setup-1.0.4-x64.exe').Path
+          $installer = (Resolve-Path 'desktop/dist/WeiGuang-Math-Setup-1.0.5-x64.exe').Path
           Write-Output "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK"
       - name: Build one source-code ZIP tied to the exact installer
         shell: pwsh
         run: |
           python tools/build_source_release.py `
-            --setup desktop/dist/WeiGuang-Math-Setup-1.0.4-x64.exe `
-            --output desktop/dist/WeiGuang-Math-Source-1.0.4.zip `
-            --version 1.0.4 --source-sha $env:GITHUB_SHA
+            --setup desktop/dist/WeiGuang-Math-Setup-1.0.5-x64.exe `
+            --output desktop/dist/WeiGuang-Math-Source-1.0.5.zip `
+            --version 1.0.5 --source-sha $env:GITHUB_SHA
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Final exact-two-file release gate
         shell: pwsh
         run: |
-          $installer = 'desktop/dist/WeiGuang-Math-Setup-1.0.4-x64.exe'
-          $source = 'desktop/dist/WeiGuang-Math-Source-1.0.4.zip'
+          $installer = 'desktop/dist/WeiGuang-Math-Setup-1.0.5-x64.exe'
+          $source = 'desktop/dist/WeiGuang-Math-Source-1.0.5.zip'
           if (!(Test-Path $installer) -or !(Test-Path $source)) { throw 'TWO_REQUIRED_FILES_MISSING' }
           if (@(Get-ChildItem desktop/dist/*.exe).Count -ne 1) { throw 'EXTRA_WINDOWS_INSTALLER_OR_PORTABLE' }
           if (@(Get-ChildItem desktop/dist/*.zip).Count -ne 1) { throw 'EXTRA_SOURCE_ARCHIVES' }
@@ -121,9 +124,9 @@ jobs:
           Write-Output "EXACTLY_TWO_WINDOWS_RELEASE_FILES_ACCEPTED"
       - uses: actions/upload-artifact@v4
         with:
-          name: WeiGuang-Math-Windows-v1.0.4-Installer-and-Source
+          name: WeiGuang-Math-Windows-v1.0.5-Installer-and-Source
           path: |
-            desktop/dist/WeiGuang-Math-Setup-1.0.4-x64.exe
-            desktop/dist/WeiGuang-Math-Source-1.0.4.zip
+            desktop/dist/WeiGuang-Math-Setup-1.0.5-x64.exe
+            desktop/dist/WeiGuang-Math-Source-1.0.5.zip
           if-no-files-found: error
           retention-days: 30
