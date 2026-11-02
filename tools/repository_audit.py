@@ -29,6 +29,8 @@ CRITICAL={
     "frontend/logo.svg",
     "desktop/main.cjs",
     "desktop/preload.cjs",
+    "desktop/ai_auth.cjs",
+    "desktop/studio_preload.cjs",
     "desktop/package.json",
     "desktop/tools/generate_app_icon.py",
     "animation_engine/src/animation_engine/spoken_movie.py",
@@ -62,9 +64,10 @@ def main():
     markdowns={name for name in files if name.endswith(".md")}
     if markdowns!=PROMPTS|{"README.md"}:
         raise AssertionError("REDUNDANT_OR_MISSING_MARKDOWN: "+str(sorted(markdowns)))
+    from build_source_release import is_private_path
     forbidden=[
         name for name in files
-        if (name==".env" or name.endswith((".log",".mp4",".mov",".wav",".mp3",".srt",".zip",
+        if (is_private_path(name) or name.endswith((".log",".mp4",".mov",".wav",".mp3",".srt",".zip",
                                ".exe",".msi",".apk",".aab",".deb",".rpm",
                                ".AppImage",".snap",".pem",".key",".ico",
                                ".db",".sqlite",".sqlite3",".db-journal",".db-wal",".db-shm"))
