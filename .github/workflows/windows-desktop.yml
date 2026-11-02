@@ -11,6 +11,8 @@ on:
       - 'visual_director/**'
       - 'docker-compose.yml'
       - '.github/workflows/windows-desktop.yml'
+      - 'tools/build_source_release.py'
+      - 'tools/build_source_release.py'
   push:
     branches: [main]
     paths:
@@ -28,7 +30,7 @@ permissions:
 
 jobs:
   windows-installers:
-    name: Windows 11 native installer and portable EXE
+    name: Windows 11 native setup EXE + maintainable source ZIP
     runs-on: windows-latest
     timeout-minutes: 60
     env:
@@ -62,20 +64,18 @@ jobs:
         run: |
           python tools/repository_audit.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build Windows setup and portable executables
+      - name: Build the sole Windows setup installer
         working-directory: desktop
         run: npm run build:windows
       - name: Verify installer files and exact packaged production modules
         shell: pwsh
         run: |
           $package = Get-Content desktop/package.json -Raw | ConvertFrom-Json
-          if ($package.version -ne '1.0.3') { throw 'DESKTOP_PACKAGE_VERSION_MISMATCH' }
+          if ($package.version -ne '1.0.4') { throw 'DESKTOP_PACKAGE_VERSION_MISMATCH' }
           $installers = @(Get-ChildItem desktop/dist/*.exe)
-          $setup = @($installers | Where-Object { $_.Name -match 'Setup-' })
-          $portable = @($installers | Where-Object { $_.Name -match 'Portable-' })
-          if ($setup.Count -ne 1 -or $portable.Count -ne 1) {
-            Write-Error "EXPECTED_ONE_WINDOWS_SETUP_AND_PORTABLE"
-            exit 1
+          $setup = @($installers | Where-Object { $_.Name -eq 'WeiGuang-Math-Setup-1.0.4-x64.exe' })
+          if ($setup.Count -ne 1 -or $installers.Count -ne 1) {
+            throw 'EXACTLY_ONE_SETUP_EXE_REQUIRED_AND_PORTABLE_FORBIDDEN'
           }
           foreach ($file in $installers) {
             if ($file.Length -lt 25000000) { throw "SUSPICIOUSLY_SMALL_APP: $($file.Name)" }
@@ -97,34 +97,33 @@ jobs:
           if (Test-Path (Join-Path $sourceRoot 'backend/tests')) { throw 'PACKAGED_TESTS_NOT_ALLOWED' }
           if (Test-Path (Join-Path $sourceRoot 'frontend/screenshots')) { throw 'PACKAGED_SCREENSHOTS_NOT_ALLOWED' }
           if (Test-Path (Join-Path $sourceRoot '.env')) { throw 'PACKAGED_SECRETS_NOT_ALLOWED' }
-          Get-ChildItem desktop/dist/*.exe | Select-Object Name,Length
-          $checks = Get-ChildItem desktop/dist/*.exe | Sort-Object Name | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$hash  $($_.Name)"
-          }
-          $checks | Out-File -FilePath desktop/dist/SHA256SUMS.txt -Encoding utf8
-          $manifest = @{
-            product = '微光数学'
-            platform = 'Windows'
-            version = $package.version
-            architecture = 'x64'
-            source_sha = $env:GITHUB_SHA
-            installer = "WeiGuang-Math-Setup-$($package.version)-x64.exe"
-            portable = "WeiGuang-Math-Portable-$($package.version)-x64.exe"
-            signing = 'unsigned; code-signing certificate required for trusted public distribution'
-            backend_required = 'Local Docker Desktop + WSL2, or existing HTTPS server'
-            includes_video_render_engine_source = $true
-            includes_installed_Docker_or_model_API_keys = $false
-          }
-          $manifest | ConvertTo-Json -Depth 6 | Set-Content desktop/dist/app-manifest.json -Encoding utf8
+          $installer = (Resolve-Path 'desktop/dist/WeiGuang-Math-Setup-1.0.4-x64.exe').Path
           Write-Output "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK"
+      - name: Build one source-code ZIP tied to the exact installer
+        shell: pwsh
+        run: |
+          python tools/build_source_release.py `
+            --setup desktop/dist/WeiGuang-Math-Setup-1.0.4-x64.exe `
+            --output desktop/dist/WeiGuang-Math-Source-1.0.4.zip `
+            --version 1.0.4 --source-sha $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Final exact-two-file release gate
+        shell: pwsh
+        run: |
+          $installer = 'desktop/dist/WeiGuang-Math-Setup-1.0.4-x64.exe'
+          $source = 'desktop/dist/WeiGuang-Math-Source-1.0.4.zip'
+          if (!(Test-Path $installer) -or !(Test-Path $source)) { throw 'TWO_REQUIRED_FILES_MISSING' }
+          if (@(Get-ChildItem desktop/dist/*.exe).Count -ne 1) { throw 'EXTRA_WINDOWS_INSTALLER_OR_PORTABLE' }
+          if (@(Get-ChildItem desktop/dist/*.zip).Count -ne 1) { throw 'EXTRA_SOURCE_ARCHIVES' }
+          if ((Get-Item $installer).Length -lt 25000000) { throw 'INSTALLER_UNEXPECTEDLY_SMALL' }
+          if ((Get-Item $source).Length -lt 25000) { throw 'SOURCE_ARCHIVE_UNEXPECTEDLY_SMALL' }
+          Get-FileHash $installer,$source -Algorithm SHA256 | Select-Object Path,Hash
+          Write-Output "EXACTLY_TWO_WINDOWS_RELEASE_FILES_ACCEPTED"
       - uses: actions/upload-artifact@v4
         with:
-          name: WeiGuang-Math-Windows-Only-1.0.3-App
+          name: WeiGuang-Math-Windows-v1.0.4-Installer-and-Source
           path: |
-            desktop/dist/*.exe
-            desktop/dist/SHA256SUMS.txt
-            desktop/dist/app-manifest.json
-            desktop/screenshots/*.png
+            desktop/dist/WeiGuang-Math-Setup-1.0.4-x64.exe
+            desktop/dist/WeiGuang-Math-Source-1.0.4.zip
           if-no-files-found: error
           retention-days: 30
