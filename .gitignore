@@ -54,3 +54,11 @@ linux/
 *.snap
 *.dmg
 *.pkg
+
+# Legacy local database files are never checked into source control.
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
