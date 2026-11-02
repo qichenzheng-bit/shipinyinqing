@@ -35,7 +35,13 @@ function Refresh-Path {
         $runtimes=Split-Path $nodeRoot -Parent
         if(Test-Path $runtimes){
             $existing=Get-ChildItem -Path $runtimes -Directory -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -match '^node-v\d+\.\d+\.\d+
+                Where-Object { $_.Name.StartsWith('node-v') -and
+                    (Test-Path (Join-Path $_.FullName 'node.exe')) } |
+                Sort-Object Name -Descending | Select-Object -First 1
+            if($existing){$script:nodeRoot=$existing.FullName}
+        }
+    }
+    $env:Path=(@($nodeRoot,$cliBin,$dockerUser,$dockerMachine,$nodeDefault,$machine,$user) |
         Where-Object { $_ }) -join ';'
 }
 function Exists-Command([string]$name) {
