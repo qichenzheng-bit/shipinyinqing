@@ -47,11 +47,11 @@ def test_global_selection_applies_to_all_pipeline_tasks_and_pins_effort(tmp_path
     assert legacy.status_code==409
     app.state.db_engine.dispose()
 
-def test_invalid_model_effort_and_workbuddy_limit(tmp_path,monkeypatch):
+def test_invalid_model_effort_and_three_cli_providers(tmp_path,monkeypatch):
     client,app=studio(tmp_path,monkeypatch)
     status=client.get("/api/v1/ai/cli/status").json()
     assert status["bridge_connected"] is False
-    assert status["workbuddy_desktop_external_model_override_verified"] is False
+    assert set(status["cli"])=={"codex_cli","gemini_cli","codebuddy_cli"}
     for candidate in [
         {"mode":"codex_cli","model_id":"gpt-6.1-sol","reasoning_effort":"none"},
         {"mode":"gemini_cli","model_id":"bad && inject"},
