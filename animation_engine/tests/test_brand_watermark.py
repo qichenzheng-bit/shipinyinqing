@@ -48,6 +48,10 @@ def test_overlay_is_top_right_preserves_original_audio_and_source(
     command=calls[0][0]
     expr=command[command.index("-filter_complex")+1]
     assert "overlay=W-w-22:14" in expr
+    # A still watermark is a looping video input. Without this, shortest=1
+    # truncates an otherwise fully voiced movie to the PNG\'s single frame.
+    assert command[command.index("-loop")+1]=="1"
+    assert command[command.index("-framerate")+1]=="60"
     assert command[command.index("-map")+1]=="[v]"
     assert "0:a:0" in command
     assert command[command.index("-c:a")+1]=="copy"
