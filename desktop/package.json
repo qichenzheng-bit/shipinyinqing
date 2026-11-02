@@ -1,8 +1,8 @@
 {
   "name": "weiguang-math-desktop",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
-  "description": "微光数学 Windows 桌面工作台（前端与本地 Docker 视频服务）",
+  "description": "微光数学 Windows 桌面工作台（内置 Windows 原生 Python、PostgreSQL 和视频引擎，不需要 Docker/WSL2）",
   "productName": "微光数学",
   "main": "main.cjs",
   "author": "WeiGuang Math",
@@ -30,6 +30,7 @@
     },
     "files": [
       "main.cjs",
+      "native_services.cjs",
       "preload.cjs",
       "url_policy.cjs",
       "cli_bridge.cjs",
@@ -43,15 +44,6 @@
       "build/app.png"
     ],
     "extraResources": [
-      {
-        "from": "../backend",
-        "to": "service/backend",
-        "filter": [
-          "Dockerfile",
-          "pyproject.toml",
-          "src/**/*"
-        ]
-      },
       {
         "from": "../animation_engine",
         "to": "service/animation_engine",
@@ -94,10 +86,18 @@
         ]
       },
       {
-        "from": "../",
-        "to": "service",
+        "from": "../backend",
+        "to": "service/backend",
         "filter": [
-          "docker-compose.yml"
+          "pyproject.toml",
+          "src/**/*"
+        ]
+      },
+      {
+        "from": "native_runtime",
+        "to": "runtime",
+        "filter": [
+          "**/*"
         ]
       }
     ],
