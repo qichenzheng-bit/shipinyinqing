@@ -47,6 +47,13 @@ jobs:
       - uses: mamba-org/setup-micromamba@v2
         with:
           micromamba-version: 'latest'
+      - name: Fail fast on MiKTeX root, repair and reuse tests before downloads
+        shell: pwsh
+        run: |
+          node --check desktop/native_services.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'MIKTEX_BOOTSTRAP_SYNTAX_FAILED' }
+          node --test desktop/tests/native_services.test.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'MIKTEX_INSTALLER_PREFLIGHT_FAILED' }
       - name: Stage all native Windows production dependencies
         shell: pwsh
         run: |
