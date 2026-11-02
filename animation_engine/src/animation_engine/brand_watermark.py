@@ -94,7 +94,7 @@ def overlay_branding(
     info=make_brand_watermark(mark)
     command=[
         "ffmpeg","-hide_banner","-loglevel","error","-y",
-        "-i",str(source),"-i",str(mark),
+        "-i",str(source),"-loop","1","-framerate",str(fps),"-i",str(mark),
         "-filter_complex",
         f"[0:v][1:v]overlay=W-w-{WATERMARK_RIGHT_MARGIN}:{WATERMARK_TOP_MARGIN}"
         ":shortest=1:format=auto[v]",
