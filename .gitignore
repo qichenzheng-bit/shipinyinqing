@@ -26,3 +26,31 @@ npm-debug.log*
 # Never track real production credentials or database media.
 local-secrets.bin
 launcher.json
+
+# Reproducible CI evidence and throwaway build/test output.
+# Browser/native screenshots are uploaded as CI artifacts, not committed.
+frontend/screenshots/
+desktop/screenshots/
+final-output/
+v27-script/
+media/
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.flac
+*.srt
+*.zip
+*.exe
+*.msi
+*.apk
+*.aab
+
+# No Linux or macOS end-user installable artifacts in Windows-only source.
+linux/
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.dmg
+*.pkg

@@ -1,4 +1,4 @@
-name: WeiGuang frontend browser acceptance screenshots
+name: WeiGuang Windows workspace UI acceptance
 on:
   pull_request:
     branches: [main]
@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   screenshots:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
@@ -16,15 +16,25 @@ jobs:
       - name: Install application and headless Chromium
         run: |
           python -m pip install -e './teacher_module[test]' -e './visual_director[test]' -e './animation_engine[test]' -e './backend[test]' playwright
-          python -m playwright install chromium --with-deps
+          python -m playwright install chromium
       - name: Click every frontend screen against real FastAPI
         run: python backend/tests/capture_pages.py
       - name: Capture actual Windows launcher local and HTTPS screens
         run: python desktop/tests/capture_launcher.py
-      - name: Install CJK font and FFmpeg
+      - name: Ensure native Windows FFmpeg and system CJK fonts
+        shell: pwsh
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq fonts-noto-cjk ffmpeg
+          if (!(Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          ffmpeg -hide_banner -version | Select-Object -First 1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!(Test-Path "$env:WINDIR\\Fonts\\msyh.ttc") -and
+              !(Test-Path "$env:WINDIR\\Fonts\\simhei.ttf") -and
+              !(Test-Path "$env:WINDIR\\Fonts\\simsun.ttc")) {
+            throw 'WINDOWS_CJK_FONT_NOT_INSTALLED'
+          }
       - name: Encode and extract branded video frame
         run: python backend/tests/acceptance_one_frame.py
       - uses: actions/upload-artifact@v4

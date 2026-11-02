@@ -238,7 +238,14 @@ def main():
                 raise AssertionError("UI_PAGE_ERRORS: "+str(errors))
             browser.close()
         server.should_exit=True
-        thread.join(timeout=5)
+        thread.join(timeout=12)
+        if thread.is_alive():
+            raise RuntimeError("WINDOWS_UI_TEST_SERVER_DID_NOT_STOP")
+        # SQLite file handles persist across SQLAlchemy connection pools on
+        # Windows. Dispose before TemporaryDirectory removes the test database.
+        from sqlalchemy.orm import close_all_sessions
+        close_all_sessions()
+        app.state.SessionLocal.kw["bind"].dispose()
         HubClient._request=old_hub_request
         os.environ.pop("WEIGUANG_MODEL_MASTER_KEY",None)
     print("BROWSER_ACCEPTANCE_OK",len(list(shots.glob("*.png"))),

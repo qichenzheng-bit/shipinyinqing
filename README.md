@@ -28,6 +28,8 @@
 3. 进入工作台「设置 → 管理模型 API」，填写你有权限使用的服务商 API Key 和模型 ID，选择应用于数学教师、课堂编排和微调的模型版本。
 4. 创建题目与参考解析，按顺序审核数学内容、课堂编排和教师讲稿，提交 60 FPS 有声视频生产任务；完成后可播放/下载 MP4 并执行多轮微调。
 
+**Windows 是唯一受支持的用户操作系统**。本地模型与视频渲染仍需要 Docker Desktop + WSL2 里的 Linux 容器，这是 Windows 版本的内部依赖，不是另行维护 Linux 系统或 Linux 客户端。
+
 **不需要租用云服务器，也不需要启动 VS Code。** 但本地视频制作不是完全脱离网络：调用在线大模型、Edge 神经语音以及首次依赖安装时需要连接相应服务。若外部模型接口不可达，需要事先准备可信的可用模型资源。
 
 在工作台里设置模型 API 后，并不自动证明你当前具体型号、版本、额度和网络条件全部兼容；需通过真实服务请求验证。不要把敏感模型密钥提交到仓库。
@@ -64,7 +66,7 @@
 | `backend/` | FastAPI、任务队列、课程/项目/视频存储、模型 API 与微调服务 |
 | `animation_engine/` | 真正的视频引擎、Manim/LaTeX、音画时间轴、字幕、总结板书和水印 |
 | `teacher_module/`、`visual_director/` | 教学内容来源、教师讲稿与板书/图形编排 |
-| `config/`、`deploy/`、`docker-compose.yml` | 本地与可选远程服务资源 |
+| `config/`、`docker-compose.yml`、`backend/Dockerfile` | Windows 本地 Docker Desktop/WSL2 引擎依赖和安全配置示例 |
 | `tools/`、`.github/workflows/` | 安全审计、仅生成物清理、Windows 构建和测试 |
 
 **仅保留根目录这一份供人阅读的 README.md。** 以下四份 Markdown 是教师运行时必需的真实提示词，必须保留：
@@ -74,7 +76,17 @@
 - `teacher_module/src/math_teacher/prompts/b_planning.md`
 - `teacher_module/src/math_teacher/prompts/c_narration.md`
 
-清理的边界：移除无用的移动端源码、APK 编译与移动专用测试；保留数学回归测试、生成视频所需模块、模型配置机制、项目数据路径、数据库持久化设计和微调历史。禁止删除真实 `.env`、用户凭据、数据库卷、视频、课程包、审核和反馈数据。仓库源码清理**不**意味着清空某台机器上已有的个人运行数据或 Git 历史。
+清理的边界：移除无用的移动端源码、APK 编译、移动专用测试以及独立 Linux Nginx 部署示例；保留数学回归测试、生成视频所需模块、模型配置机制、项目数据路径、数据库持久化设计和微调历史。禁止删除真实 `.env`、用户凭据、数据库卷、视频、课程包、审核和反馈数据。仓库源码清理**不**意味着清空某台机器上已有的个人运行数据或 Git 历史。
+
+### 最终仓库清理规则
+
+主分支只保留 Windows 正式运行源码、配置示例、必要测试，以及支持持续验收的 CI 脚本。不提供 Linux 安装程序、Linux 桌面客户端及独立 Linux Nginx 部署模板。早期直接提交的前端页面截图已从源码版本中移除；新的界面截图由 `frontend-screenshots.yml` 在 GitHub Actions 中重新生成并作为构建附件保存，不再进入 Git 历史的新提交。
+
+两份旧版板书策略 JSON 示例也已移除，因为其中的布局尺寸不再代表当前统一课堂引擎。**真实的数学测试素材并非无关文件**：仍被单元测试、Windows 回归检查或真实有声视频验收引用的测试题必须保留在测试目录，不会打入用户安装 EXE。
+
+临时打包文件、Windows 可执行文件、验收截图、一次性输出及声音/视频等媒体产物已加入 `.gitignore`，`tools/repository_audit.py` 会拒绝它们被错误提交。 `tools/clean_generated.py` 仅处理明确列出的可重建缓存、构建目录与 CI 截图（先预览，显式使用 `--apply` 才删除）。该工具**不会操作**用户视频库、模型凭据、数据库、课程包、微调记录或历史 Git 提交。
+
+GitHub 旧分支及历史 Action 构建记录不属于主分支运行源码。删除旧分支之前需另外确认哪些分支已合并、哪些仅关闭但未合并，不能用清空历史的方式冒充代码整理。
 
 可用的安全审计及仅生成物清理指令：
 
@@ -86,10 +98,10 @@ python tools/clean_generated.py --apply
 
 ## 5. 验收说明
 
-- `system-ci.yml`：源码/教师/导演/后端/动画引擎在 Windows 与 Linux 的非渲染测试及 Docker Compose 配置。
-- `frontend-screenshots.yml`：桌面应用所复用工作台的真实 Chromium UI 自动化截图，不是移动 App 构建。
+- `system-ci.yml`：仅在 Windows Runner 执行源码、教师/导演/后端/动画引擎非渲染测试、Docker Desktop Compose 配置和真实课程讲稿生成核验。
+- `frontend-screenshots.yml`：仅在 Windows Runner 执行真实 Chromium UI 自动化截图以及水印单帧验证。
 - `windows-desktop.yml`：Windows 11 原生 Electron 窗口、NSIS 和便携 EXE 构建及文件资源、SHA-256 校验。
-- `final-new-question.yml`：新数学题的真实 Manim、Edge TTS、字幕、60 FPS、视频水印及总结板书成片验收。
+- `final-new-question.yml`：新数学题的真实 Manim、Edge TTS、字幕、60 FPS、视频水印及总结板书成片验收。此特殊媒体验收仍使用 Linux CI 环境模拟 Windows Docker Desktop 内的 Linux 容器工具链；**它不构建、安装或交付 Linux 版 App**。
 
 自动化通过不等于已在你的 Windows 电脑完成 Docker Desktop 初始化、实际大模型账单/接口验证或本地渲染；首次安装后请亲自完成一次完整题目的录制与下载。正常更新客户端不应主动清理原视频与数据库卷。
 
