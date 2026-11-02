@@ -20,10 +20,11 @@ from urllib.request import Request, HTTPRedirectHandler, build_opener
 from cryptography.fernet import Fernet, InvalidToken
 from pydantic import BaseModel, ValidationError
 
-from .models import AiJobSelection, AiProvider, AiTaskSelection
+from .models import AiJobSelection, AiProvider, AiTaskSelection, GlobalAiSetting, AiJobRuntime
 
 TASKS = ("teacher", "curriculum", "edit")
 PROTOCOLS = ("openai_chat", "openai_responses", "anthropic_messages", "gemini_generate")
+CLI_PROTOCOLS = ("codex_cli", "gemini_cli", "codebuddy_cli")
 # Service URLs are *templates*, never an exhaustive or frozen model list.
 # Regional accounts, gateways and new families use the same custom endpoint.
 CATALOG = (
@@ -206,6 +207,14 @@ def pin_job_selection(db, job, kind: str):
         job_id=job.id,provider_id=provider.id,model_id=selected.model_id,
         provider_revision=provider.revision,
     ))
+    global_setting=db.get(GlobalAiSetting,"global")
+    if (global_setting is not None
+            and global_setting.provider_id==provider.id
+            and global_setting.model_id==selected.model_id):
+        db.add(AiJobRuntime(
+            job_id=job.id,reasoning_effort=global_setting.reasoning_effort,
+            timeout_seconds=global_setting.timeout_seconds,
+        ))
 
 
 class HubClient:
@@ -221,6 +230,8 @@ class HubClient:
             raise ModelHubError("MODEL_ID_REQUIRED")
         self.model_id=model_id.strip()
         self.json_mode=json_mode
+        self.reasoning_effort="default"
+        self.timeout_seconds=150
 
     @classmethod
     def from_provider(cls, provider: AiProvider, model_id: str):
@@ -304,6 +315,7 @@ class HubClient:
 
     def generate_json(self, *, system: str, user_json: str,
                       timeout: int=150) -> dict:
+        timeout=min(timeout,self.timeout_seconds)
         system=system+"\nReturn ONLY a syntactically valid JSON object. No Markdown."
         if self.protocol=="anthropic_messages":
             result=self._request("/messages",timeout=timeout,body={
@@ -340,6 +352,8 @@ class HubClient:
             }
             if self.json_mode:
                 request["text"]={"format":{"type":"json_object"}}
+            if self.reasoning_effort!="default":
+                request["reasoning"]={"effort":self.reasoning_effort}
             result=self._request("/responses",body=request,timeout=timeout)
             texts=[]
             for entry in result.get("output",[]):
@@ -359,6 +373,8 @@ class HubClient:
             }
             if self.json_mode:
                 request["response_format"]={"type":"json_object"}
+            if self.reasoning_effort!="default" and self.protocol=="openai_chat":
+                request["reasoning_effort"]=self.reasoning_effort
             result=self._request("/chat/completions",body=request,timeout=timeout)
             try:
                 raw=result["choices"][0]["message"]["content"]
@@ -408,7 +424,17 @@ def pinned_client(db, job_id: str) -> HubClient | None:
         raise ModelHubError("MODEL_PROVIDER_REMOVED")
     if selected.provider_revision!=provider.revision:
         raise ModelHubError("MODEL_PROVIDER_CHANGED_AFTER_JOB_QUEUED")
-    return HubClient.from_provider(provider,selected.model_id)
+    effort=db.get(AiJobRuntime,job_id)
+    if provider.protocol in CLI_PROTOCOLS:
+        from .cli_bridge import CliClient
+        return CliClient(engine=db.get_bind(),kind=provider.protocol,
+                         model_id=selected.model_id,
+                         reasoning_effort=effort.reasoning_effort if effort else "default",
+                         timeout_seconds=effort.timeout_seconds if effort else 150)
+    client=HubClient.from_provider(provider,selected.model_id)
+    client.reasoning_effort=effort.reasoning_effort if effort else "default"
+    client.timeout_seconds=effort.timeout_seconds if effort else 150
+    return client
 
 
 def task_client(db, task: str) -> HubClient | None:
@@ -418,6 +444,9 @@ def task_client(db, task: str) -> HubClient | None:
     provider=db.get(AiProvider,selected.provider_id)
     if provider is None or provider.deleted_at is not None:
         raise ModelHubError("MODEL_PROVIDER_REMOVED")
+    if provider.protocol in CLI_PROTOCOLS:
+        from .cli_bridge import CliClient
+        return CliClient(engine=db.get_bind(),kind=provider.protocol,model_id=selected.model_id)
     return HubClient.from_provider(provider,selected.model_id)
 
 
