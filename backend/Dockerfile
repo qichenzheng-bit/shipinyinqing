@@ -13,4 +13,4 @@ COPY frontend ./frontend
 RUN pip install --no-cache-dir -e ./teacher_module -e ./visual_director \
     -e "./animation_engine[render,speech]" -e ./backend
 EXPOSE 8000
-CMD ["uvicorn","weiguang_backend.main:app","--host","0.0.0.0","--port","8000"]
+CMD ["uvicorn","weiguang_backend.main:create_app","--host","0.0.0.0","--port","8000","--factory"]
