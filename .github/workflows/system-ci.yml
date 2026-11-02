@@ -1,7 +1,7 @@
 name: System CI · non-render classroom, teacher, animation
 on:
   push:
-    branches: [main, integration/final-unified-cleanup]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
