@@ -1,4 +1,4 @@
-# 微光数学 · Windows 电脑 App 1.0.2
+# 微光数学 · Windows 电脑 App 1.0.3
 
 **Windows 单平台最终交付。** 微光数学是一款考研数学教学视频制作程序，覆盖数学教师草稿、数学审核、课堂编排、教学讲稿审核、逐步板书、Manim/LaTeX 渲染、神经网络语音配音、字幕、视频下载与多轮微调。当前发布版本只提供 **Windows 安装版和 Windows 免安装版**，不再维护移动应用或移动端打包流水线。
 
@@ -6,12 +6,12 @@
 
 ## 1. 下载安装
 
-到 [Windows App 构建工作流](.github/workflows/windows-desktop.yml) 打开最新成功的 `main` 分支构建，下载名为 `WeiGuang-Math-Windows-Only-1.0.2-App` 的构建附件，解压后得到：
+到 [Windows App 构建工作流](.github/workflows/windows-desktop.yml) 打开最新成功的 `main` 分支构建，下载名为 `WeiGuang-Math-Windows-Only-1.0.3-App` 的构建附件，解压后得到：
 
 | 文件 | 功能 |
 |---|---|
-| `WeiGuang-Math-Setup-1.0.2-x64.exe` | **推荐**：Windows 10/11 x64 安装版，支持选目录、开始菜单与桌面快捷方式 |
-| `WeiGuang-Math-Portable-1.0.2-x64.exe` | 免安装版，可直接运行 |
+| `WeiGuang-Math-Setup-1.0.3-x64.exe` | **推荐**：Windows 10/11 x64 安装版，支持选目录、开始菜单与桌面快捷方式 |
+| `WeiGuang-Math-Portable-1.0.3-x64.exe` | 免安装版，可直接运行 |
 | `SHA256SUMS.txt` | Windows 文件校验值 |
 | `app-manifest.json` | 版本、源码提交 SHA、打包资源和签名状态 |
 
@@ -115,4 +115,4 @@ python tools/clean_generated.py --apply
 
 自动化通过不等于已在你的 Windows 电脑完成 Docker Desktop 初始化、实际大模型账单/接口验证或本地渲染；首次安装后请亲自完成一次完整题目的录制与下载。正常更新客户端不应主动清理原视频与数据库卷。
 
-发布时间：2026-11-02；最终单平台版本：**微光数学 Windows App v1.0.2**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。
+发布时间：2026-11-02；最终单平台版本：**微光数学 Windows App v1.0.3**。以 GitHub `main` 上的源码及相应 Windows 构建产物为准。
