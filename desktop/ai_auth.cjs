@@ -67,7 +67,7 @@ async function login(kind,{check=installed,launch=spawn,platform=process.platfor
   // Fixed allowlisted commands. No user text, model name, URL, or project input
   // ever enters the Windows command interpreter.
   const child=launch('cmd.exe',['/d','/k',item.login],
-    {detached:true,windowsHide:false,stdio:'ignore'});
+    {detached:true,windowsHide:false,stdio:'ignore',cwd:os.homedir()});
   if(!child || !child.pid)throw new Error('CLI_LOGIN_WINDOW_LAUNCH_FAILED');
   child.unref?.();
   return {launched:true,provider:kind,message:item.message,authentication:'pending'};
