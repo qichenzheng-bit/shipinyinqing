@@ -5,20 +5,20 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 
 
-def test_windows_setup_portable_versions_and_app_launcher():
+def test_windows_setup_only_version_and_app_launcher():
     pkg = json.loads((ROOT / "desktop/package.json").read_text("utf-8"))
     launcher = (ROOT / "desktop/launcher.html").read_text("utf-8")
     assert pkg["version"] == VERSION
     assert pkg["productName"] == "微光数学"
     assert pkg["build"]["appId"] == "cn.weiguang.math"
-    assert "Windows Desktop 1.0.3" in launcher
+    assert "Windows Desktop 1.0.4" in launcher
     assert pkg["scripts"]["build:windows"].endswith("--x64")
     assert pkg["build"]["nsis"]["createDesktopShortcut"]
     assert "nsis" in str(pkg["build"]["win"]["target"])
-    assert "portable" in str(pkg["build"]["win"]["target"])
+    assert "portable" not in str(pkg["build"]["win"]["target"]).lower()\n    assert "portable" not in pkg["build"]\n    assert "portable" not in pkg["scripts"]["build:windows"].lower()
 
 
 def test_only_required_runtime_modules_shipped_without_source_tests_or_keys():
@@ -48,7 +48,7 @@ def test_windows_build_handoff_has_checksums_provenance_and_native_smoke():
     assert "SHA256SUMS.txt" in workflow
     assert "app-manifest.json" in workflow
     assert "GITHUB_SHA" in workflow
-    assert "1.0.3" in workflow
+    assert "1.0.4" in workflow
     assert "actions/upload-artifact@v4" in workflow
     assert "npm run test:native" in workflow
     assert "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK" in workflow
