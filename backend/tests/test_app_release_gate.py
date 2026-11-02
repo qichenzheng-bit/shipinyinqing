@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 
 
 def test_windows_setup_only_version_and_app_launcher():
@@ -14,13 +14,19 @@ def test_windows_setup_only_version_and_app_launcher():
     assert pkg["version"] == VERSION
     assert pkg["productName"] == "微光数学"
     assert pkg["build"]["appId"] == "cn.weiguang.math"
-    assert "Windows Desktop 1.0.7" in launcher
+    assert "Windows Desktop 1.0.8" in launcher
     assert pkg["scripts"]["build:windows"].endswith("--x64")
     assert pkg["build"]["nsis"]["createDesktopShortcut"]
     assert "nsis" in str(pkg["build"]["win"]["target"])
     assert "cli_bridge.cjs" in pkg["build"]["files"]
     assert "ai_auth.cjs" in pkg["build"]["files"]
     assert "studio_preload.cjs" in pkg["build"]["files"]
+    assert "dependency_setup.cjs" in pkg["build"]["files"]
+    assert pkg["build"]["nsis"]["include"]=="installer.nsh"
+    assert any(x["to"]=="setup-dependencies.ps1"
+               for x in pkg["build"]["extraResources"])
+    assert (ROOT/"desktop/installer.nsh").is_file()
+    assert (ROOT/"desktop/setup-dependencies.ps1").is_file()
     assert "portable" not in str(pkg["build"]["win"]["target"]).lower()
     assert "portable" not in pkg["build"]
     assert "portable" not in pkg["scripts"]["build:windows"].lower()
@@ -56,11 +62,11 @@ def test_windows_build_handoff_has_checksums_provenance_and_native_smoke():
     # the maintainable source ZIP, never as additional release sidecars.
     assert "SHA256SUMS.txt" not in workflow
     assert "app-manifest.json" not in workflow
-    assert "WeiGuang-Math-Setup-1.0.7-x64.exe" in workflow
-    assert "WeiGuang-Math-Source-1.0.7.zip" in workflow
+    assert "WeiGuang-Math-Setup-1.0.8-x64.exe" in workflow
+    assert "WeiGuang-Math-Source-1.0.8.zip" in workflow
     assert "EXACTLY_TWO_WINDOWS_RELEASE_FILES_ACCEPTED" in workflow
     assert "GITHUB_SHA" in workflow
-    assert "1.0.7" in workflow
+    assert "1.0.8" in workflow
     assert "actions/upload-artifact@v4" in workflow
     assert "npm run test:native" in workflow
     assert "WINDOWS_NATIVE_INSTALLER_ACCEPTANCE_OK" in workflow
