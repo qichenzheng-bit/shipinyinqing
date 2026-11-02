@@ -53,13 +53,6 @@ jobs:
             --spoken final-output/trig/spoken_classroom.json \
             --reviewer final-qa-fixture-author \
             --confirm-reviewed
-      - name: Upload full deterministic source and approval
-        uses: actions/upload-artifact@v4
-        with:
-          name: Final-New-Trig-Limit-V27-Source-Package
-          path: final-output/trig/
-          if-no-files-found: error
-          retention-days: 30
       - name: Install Manim, LaTeX, FFmpeg and real TTS dependency
         run: |
           sudo apt-get update -qq
@@ -144,15 +137,6 @@ jobs:
           assert report["fabricated_voice_or_subtitle_count"]==0
           print("GLOBAL_RECAP_VISIBLE_IN_FINAL_FRAME",visible_ink,"ink pixels")
           PY
-      - name: Upload real MP4, SRT, video manifest and still frame
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: Final-New-Trig-Limit-Full-Voiced-60FPS-Video
-          path: |
-            final-output/render/new-trig-limit-Xiaoxiao-60fps.mp4
-            final-output/render/new-trig-limit-Xiaoxiao-60fps.srt
-            final-output/render/render-manifest.json
-            final-output/render/final-board.png
-          if-no-files-found: ignore
-          retention-days: 30
+      # Real media is rendered and independently validated within the ephemeral
+      # CI workspace, then discarded with the runner. It is not uploaded or
+      # included in either of the two Windows release files.
