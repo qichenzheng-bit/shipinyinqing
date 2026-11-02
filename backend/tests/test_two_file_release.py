@@ -60,6 +60,21 @@ def test_zip_builder_binds_source_to_exact_installer_without_temp_data(tmp_path)
         assert len(manifest["source_file_sha256"]) == report["source_file_count"]
 
 
+def test_nested_credentials_excluded_but_templates_kept():
+    tool=builder()
+    for candidate in (
+        ".env", "backend/.env", "desktop/.env.production",
+        "frontend/.npmrc", "config/credentials.json", "keys/token.json",
+        "certs/private.pfx", "backend/service-account.json",
+        "security/local-secrets.bin",
+    ):
+        assert tool.is_private_path(candidate),candidate
+        assert not tool.is_source_file(candidate),candidate
+    assert tool.is_source_file("backend/.env.example")
+    assert tool.is_source_file("config/.env.sample")
+    assert not tool.is_source_file("frontend/screenshots/01.png")
+
+
 def test_portable_removed_from_build_and_release_workflow():
     package = json.loads((ROOT / "desktop/package.json").read_text("utf-8"))
     assert package["version"] == VERSION
