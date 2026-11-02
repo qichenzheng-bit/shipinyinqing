@@ -111,7 +111,7 @@ jobs:
           foreach ($name in @('python.exe','Library/bin/pg_ctl.exe','Library/bin/initdb.exe','Library/bin/ffmpeg.exe')) {
             if (!(Test-Path (Join-Path $native $name))) { throw "BUNDLED_NATIVE_BINARY_MISSING: $name" }
           }
-          if (!(Test-Path 'desktop/dist/win-unpacked/resources/runtime/miktex-portable.exe')) {
+          if (!(Test-Path 'desktop/dist/win-unpacked/resources/runtime/basic-miktex-25.12-x64.exe')) {
             throw 'BUNDLED_LATEX_INSTALLER_MISSING'
           }
           & (Join-Path $native 'python.exe') -c 'import manim, fastapi, psycopg, edge_tts'
